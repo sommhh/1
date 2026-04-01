@@ -3,239 +3,187 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>現場写真ログ</title>
+<title>現場写真 完全版</title>
 
 <style>
-body{margin:0;font-family:sans-serif;background:#f2f2f7}
-
-/* ヘッダー */
-header{
-  background:#007aff;color:#fff;padding:12px;text-align:center;font-size:18px
-}
-
-/* 上部（撮影・設定） */
-.top{
-  padding:10px;background:#fff;position:sticky;top:0;z-index:10
-}
-.cam{
-  background:#007aff;color:#fff;padding:28px;text-align:center;
-  font-size:20px;border-radius:12px;position:relative;margin-bottom:8px
-}
-.cam input{position:absolute;inset:0;opacity:0}
-
-/* 入力 */
-.row{display:flex;gap:6px;margin-bottom:6px}
-.row > *{flex:1;padding:10px;font-size:15px}
-
-/* ボタン */
-.btn{width:100%;padding:12px;margin-top:6px;font-size:16px;border:none;border-radius:10px;background:#007aff;color:#fff}
-.btn.gray{background:#8e8e93}
-
-/* フォルダ */
-.folder{margin:10px}
-.fhdr{
-  background:#fff;padding:10px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;cursor:pointer
-}
-.fname{font-size:14px;font-weight:bold}
-.fgrid{
-  display:none;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px
-}
-.folder.open .fgrid{display:grid}
-
-/* 写真 */
-.card{position:relative}
-.card img{width:100%;border-radius:8px}
-.label{
-  position:absolute;bottom:0;width:100%;background:rgba(0,0,0,.6);
-  color:#fff;font-size:10px;text-align:center
-}
-.sel{
-  position:absolute;top:4px;left:4px;background:#0006;color:#fff;
-  border-radius:50%;width:20px;height:20px;font-size:11px;display:flex;align-items:center;justify-content:center
-}
-.card.selected .sel{background:#007aff}
-
-/* 印刷 */
-@media print{
-  header,.top,.fhdr{display:none}
-  .fgrid{display:grid!important;grid-template-columns:repeat(3,1fr)}
-  .card{break-inside:avoid}
-  .card:not(.print){display:none}
-}
+body{margin:0;font-family:sans-serif;background:#f2f2f2}
+header{position:fixed;top:0;width:100%;background:#000;color:#fff;padding:10px;text-align:center;z-index:10}
+#cameraBtn{width:100%;padding:18px;font-size:18px;background:#2196F3;color:#fff;border:none}
+.controls{padding-top:80px;padding:10px}
+input,select{width:100%;margin:5px 0;padding:10px;font-size:15px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:10px}
+.photo{position:relative}
+.photo img{width:100%;border-radius:6px}
+.label{position:absolute;bottom:0;background:rgba(0,0,0,0.6);color:#fff;font-size:11px;width:100%;text-align:center}
+.checkbox{position:absolute;top:5px;left:5px}
+button{width:100%;margin:5px 0;padding:12px;font-size:15px}
 </style>
 </head>
 
 <body>
 
-<header>📷 現場写真ログ</header>
+<header>現場写真アプリ 完全版</header>
 
-<div class="top">
+<button id="cameraBtn">📷 連続撮影</button>
+<input type="file" id="camera" accept="image/*" capture="environment" multiple style="display:none">
 
-<!-- 撮影（最上部） -->
-<div class="cam">
-📷 撮影（連続）
-<input type="file" accept="image/*" capture="environment" id="cam">
-</div>
+<div class="controls">
+<input id="project" placeholder="現場名（編集可）">
+<input id="address" placeholder="住所（編集可）">
+<input id="date" type="date">
 
-<div class="row">
-<input id="site" placeholder="現場名">
-<input id="addr" placeholder="住所">
-</div>
-
-<div class="row">
 <select id="floor"></select>
-<select id="tag"></select>
+<select id="type"></select>
+
+<button onclick="editList('floors')">階層編集</button>
+<button onclick="editList('types')">定型文編集</button>
 </div>
 
-<div class="row">
-<button class="btn gray" onclick="editFloor()">階層編集</button>
-<button class="btn gray" onclick="editTag()">定型文編集</button>
+<div class="grid" id="grid"></div>
+
+<div style="padding:10px">
+<button onclick="printSelected()">🖨 印刷</button>
+<button onclick="shareSelected()">📤 共有（LINE/メール）</button>
 </div>
 
-<button class="btn" onclick="printSelected()">🖨 選択印刷</button>
-
-</div>
-
-<div id="folders"></div>
+<script src="https://cdn.jsdelivr.net/npm/jszip"></script>
 
 <script>
 
-/* ===== 初期データ ===== */
-let floors = JSON.parse(localStorage.getItem("floors")) || ["1階","2階","屋上","地下","外","A","B","C","D","E"];
-let tags = JSON.parse(localStorage.getItem("tags")) || ["施工前","施工後","確認","異常なし","要修正","完了","配線","器具","注意","記録"];
-let photos = JSON.parse(localStorage.getItem("photos")||"[]");
-let selected = new Set();
-
-/* ===== UI ===== */
-function refreshUI(){
-  floor.innerHTML = floors.map(v=>`<option>${v}</option>`).join("");
-  tag.innerHTML = tags.map(v=>`<option>${v}</option>`).join("");
-}
-refreshUI();
-
-/* ===== 編集（10個固定） ===== */
-function editFloor(){
-  let t = prompt("10個入力（カンマ区切り）", floors.join(","));
-  if(!t) return;
-  floors = t.split(",").slice(0,10);
-  localStorage.setItem("floors",JSON.stringify(floors));
-  refreshUI();
-}
-function editTag(){
-  let t = prompt("10個入力（カンマ区切り）", tags.join(","));
-  if(!t) return;
-  tags = t.split(",").slice(0,10);
-  localStorage.setItem("tags",JSON.stringify(tags));
-  refreshUI();
-}
-
-/* ===== 保存 ===== */
-cam.onchange = async e=>{
-  const f = e.target.files[0];
-  if(!f) return;
-
-  const img = await comp(f);
-  const d = new Date();
-  const date = d.toISOString().slice(0,10);
-
-  photos.push({
-    id:Date.now(),
-    img,
-    site:site.value,
-    addr:addr.value,
-    floor:floor.value,
-    tag:tag.value,
-    date
-  });
-
-  localStorage.setItem("photos",JSON.stringify(photos));
-  render();
-
-  // 🔥 連続撮影
-  e.target.value="";
+/* ===== IndexedDB ===== */
+let db;
+let req=indexedDB.open("genbaDB",1);
+req.onupgradeneeded=e=>{
+  db=e.target.result;
+  db.createObjectStore("photos",{keyPath:"id",autoIncrement:true});
+};
+req.onsuccess=e=>{
+  db=e.target.result;
+  loadPhotos();
 };
 
-/* ===== 圧縮 ===== */
-function comp(file){
-  return new Promise(res=>{
-    const r=new FileReader();
-    r.onload=e=>{
-      const i=new Image();
-      i.onload=()=>{
-        const c=document.createElement("canvas");
-        const w=900,s=w/i.width;
-        c.width=w;c.height=i.height*s;
-        c.getContext("2d").drawImage(i,0,0,c.width,c.height);
-        res(c.toDataURL("image/jpeg",0.7));
-      };
-      i.src=e.target.result;
+/* ===== 設定 ===== */
+let floors=JSON.parse(localStorage.getItem("floors"))||["1階","2階","屋上"];
+let types=JSON.parse(localStorage.getItem("types"))||["施工前","施工後"];
+
+function loadSelect(){
+  floor.innerHTML=floors.map(f=>`<option>${f}</option>`).join("");
+  type.innerHTML=types.map(t=>`<option>${t}</option>`).join("");
+}
+loadSelect();
+
+/* ===== 編集 ===== */
+function editList(key){
+  let list=JSON.parse(localStorage.getItem(key))||[];
+  let txt=prompt("改行で編集",list.join("\n"));
+  if(txt){
+    localStorage.setItem(key,JSON.stringify(txt.split("\n")));
+    location.reload();
+  }
+}
+
+/* ===== GPS ===== */
+let currentPos=null;
+navigator.geolocation.getCurrentPosition(p=>{
+  currentPos=p.coords;
+});
+
+/* ===== 撮影 ===== */
+cameraBtn.onclick=()=>camera.click();
+
+camera.onchange=e=>{
+  [...e.target.files].forEach(file=>{
+    let reader=new FileReader();
+    reader.onload=()=>{
+      savePhoto({
+        src:reader.result,
+        floor:floor.value,
+        type:type.value,
+        project:project.value,
+        address:address.value,
+        date:date.value,
+        lat:currentPos?.latitude||0,
+        lng:currentPos?.longitude||0
+      });
     };
-    r.readAsDataURL(file);
+    reader.readAsDataURL(file);
   });
+};
+
+/* ===== 保存 ===== */
+function savePhoto(p){
+  let tx=db.transaction("photos","readwrite");
+  let store=tx.objectStore("photos");
+  store.add(p);
+  tx.oncomplete=loadPhotos;
 }
 
-/* ===== フォルダ分け ===== */
-function key(p){
-  return `${p.site}_${p.addr}_${p.date}_${p.floor}`;
+/* ===== 読込 ===== */
+let photos=[];
+function loadPhotos(){
+  let tx=db.transaction("photos","readonly");
+  let store=tx.objectStore("photos");
+  let req=store.getAll();
+  req.onsuccess=()=>{
+    photos=req.result;
+    render();
+  };
 }
 
-/* ===== 描画 ===== */
+/* ===== 表示 ===== */
 function render(){
-  const fwrap = document.getElementById("folders");
-  fwrap.innerHTML="";
-
-  const map={};
-  photos.forEach(p=>{
-    const k=key(p);
-    if(!map[k]) map[k]=[];
-    map[k].push(p);
-  });
-
-  Object.entries(map).forEach(([k,arr])=>{
-    const box=document.createElement("div");
-    box.className="folder open";
-
-    box.innerHTML=`
-    <div class="fhdr" onclick="this.parentNode.classList.toggle('open')">
-      <div class="fname">${k}</div>
-      <div>${arr.length}枚</div>
-    </div>
-    <div class="fgrid">
-      ${arr.map(p=>`
-      <div class="card ${selected.has(p.id)?'selected':''}" data-id="${p.id}" onclick="sel(event,${p.id})">
-        <div class="sel">${selected.has(p.id)?'✓':''}</div>
-        <img src="${p.img}">
-        <div class="label">${p.floor} / ${p.tag}</div>
-      </div>`).join("")}
-    </div>
+  grid.innerHTML="";
+  photos.forEach((p,i)=>{
+    let div=document.createElement("div");
+    div.className="photo";
+    div.innerHTML=`
+      <input type="checkbox" class="checkbox" data-i="${i}">
+      <img src="${p.src}">
+      <div class="label">${p.floor}/${p.type}</div>
     `;
-    fwrap.appendChild(box);
+    grid.appendChild(div);
   });
 }
 
 /* ===== 選択 ===== */
-function sel(e,id){
-  e.stopPropagation();
-  if(selected.has(id)) selected.delete(id);
-  else selected.add(id);
-  render();
+function getSelected(){
+  return [...document.querySelectorAll(".checkbox:checked")]
+    .map(c=>photos[c.dataset.i]);
 }
 
 /* ===== 印刷 ===== */
 function printSelected(){
-  if(selected.size===0){alert("選択して");return;}
-
-  document.querySelectorAll(".card").forEach(el=>{
-    const id = parseInt(el.dataset.id);
-    el.classList.toggle("print", selected.has(id));
+  let list=getSelected();
+  let w=window.open("");
+  list.forEach(p=>{
+    w.document.write(`<img src="${p.src}" style="width:100%"><br>`);
   });
-
-  window.print();
-
-  setTimeout(()=>render(),300);
+  w.print();
 }
 
-render();
+/* ===== ZIP共有 ===== */
+async function shareSelected(){
+  let list=getSelected();
+  let zip=new JSZip();
+
+  list.forEach((p,i)=>{
+    let base64=p.src.split(',')[1];
+    zip.file(`photo${i}.jpg`,base64,{base64:true});
+  });
+
+  let blob=await zip.generateAsync({type:"blob"});
+  let file=new File([blob],"photos.zip");
+
+  if(navigator.share){
+    navigator.share({
+      files:[file],
+      title:"現場写真"
+    });
+  }else{
+    alert("共有非対応端末");
+  }
+}
+
 </script>
 
 </body>
