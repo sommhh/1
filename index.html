@@ -3,44 +3,49 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>写真ログPRO</title>
+<title>写真ログ完成版</title>
 
 <style>
 body{margin:0;font-family:sans-serif;background:#f2f2f7}
-header{background:#007aff;color:#fff;padding:12px;text-align:center;font-weight:bold}
+header{background:#007aff;color:#fff;padding:14px;text-align:center;font-weight:bold}
 .container{padding:10px}
-button{padding:12px;border:none;border-radius:10px;background:#007aff;color:#fff;font-size:15px}
+
+button{padding:12px;border:none;border-radius:10px;background:#007aff;color:#fff;font-size:15px;margin:3px}
 input,textarea,select{width:100%;padding:10px;margin:5px 0;border-radius:10px;border:1px solid #ccc}
 
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.card{background:#fff;border-radius:12px;padding:5px}
-.card img{width:100%;border-radius:8px}
+.big{font-size:18px;padding:18px}
 
 .folder{background:#fff;margin:10px 0;padding:10px;border-radius:12px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.card{background:#fff;border-radius:10px;padding:5px}
+.card img{width:100%;border-radius:8px}
+
 .small{font-size:11px;color:#666}
+
+.sel{outline:3px solid #007aff}
 </style>
 </head>
 
 <body>
 
-<header>📷 写真ログPRO</header>
+<header>📷 写真ログ完成版</header>
 
 <div class="container">
 
-<input type="file" accept="image/*" capture="environment" id="file">
+<input type="file" accept="image/*" capture="environment" id="file" class="big">
 
-<select id="floor"></select>
-<button onclick="editFloor()">階層編集</button>
+<select id="floorSel"></select>
+<input id="floorFree" placeholder="自由入力（例：外構）">
 
 <select id="tpl"></select>
-<button onclick="editTpl()">定型文編集</button>
 
 <textarea id="memo" placeholder="メモ"></textarea>
 
-<button onclick="save()">保存</button>
+<label><input type="checkbox" id="auto"> 連続撮影モード</label>
 
-<button onclick="share()">共有（LINE・メール）</button>
-<button onclick="printAll()">印刷</button>
+<button onclick="save()" class="big">保存</button>
+<button onclick="share()">共有</button>
+<button onclick="printSel()">選択印刷</button>
 
 <div id="folders"></div>
 
@@ -48,26 +53,22 @@ input,textarea,select{width:100%;padding:10px;margin:5px 0;border-radius:10px;bo
 
 <script>
 
-const KEY="photo_pro";
-const FLOOR_KEY="floor_pro";
-const TPL_KEY="tpl_pro";
+const KEY="photo_final";
 
-let floors=JSON.parse(localStorage.getItem(FLOOR_KEY)||'["1階","2階","屋上"]');
-let tpls=JSON.parse(localStorage.getItem(TPL_KEY)||'["施工前","施工後","完了","問題なし","要対応"]');
+let floors=["1階","2階","3階","屋上"];
+let tpls=["施工前","施工後","完了","問題なし","要対応"];
 
-function renderFloor(){
-  let f=document.getElementById("floor");
-  f.innerHTML="";
+let selected=new Set();
+
+function init(){
+  let f=document.getElementById("floorSel");
   floors.forEach(v=>{
     let o=document.createElement("option");
     o.textContent=v;
     f.appendChild(o);
   });
-}
 
-function renderTpl(){
   let t=document.getElementById("tpl");
-  t.innerHTML="";
   tpls.forEach(v=>{
     let o=document.createElement("option");
     o.textContent=v;
@@ -75,51 +76,8 @@ function renderTpl(){
   });
 }
 
-function editFloor(){
-  let txt=prompt("階層入力（カンマ区切り）",floors.join(","));
-  if(!txt)return;
-  floors=txt.split(",");
-  localStorage.setItem(FLOOR_KEY,JSON.stringify(floors));
-  renderFloor();
-}
-
-function editTpl(){
-  let txt=prompt("定型文入力（カンマ区切り）",tpls.join(","));
-  if(!txt)return;
-  tpls=txt.split(",");
-  localStorage.setItem(TPL_KEY,JSON.stringify(tpls));
-  renderTpl();
-}
-
 function load(){return JSON.parse(localStorage.getItem(KEY)||"[]")}
 function saveData(d){localStorage.setItem(KEY,JSON.stringify(d))}
-
-function dist(a,b,c,d){
-  const R=6371000;
-  const toRad=x=>x*Math.PI/180;
-  const dLat=toRad(c-a);
-  const dLon=toRad(d-b);
-  const A=Math.sin(dLat/2)**2+Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLon/2)**2;
-  return R*2*Math.atan2(Math.sqrt(A),Math.sqrt(1-A));
-}
-
-async function getGPS(){
-  return new Promise(res=>{
-    navigator.geolocation.getCurrentPosition(p=>{
-      res({lat:p.coords.latitude,lng:p.coords.longitude});
-    },()=>res(null),{timeout:8000});
-  });
-}
-
-async function getAddr(lat,lng){
-  try{
-    let r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ja`);
-    let j=await r.json();
-    return j.display_name;
-  }catch{
-    return "住所取得失敗";
-  }
-}
 
 function resize(file){
   return new Promise(r=>{
@@ -141,36 +99,44 @@ function resize(file){
   });
 }
 
+async function getGPS(){
+  return new Promise(res=>{
+    navigator.geolocation.getCurrentPosition(p=>{
+      res({lat:p.coords.latitude,lng:p.coords.longitude});
+    },()=>res(null),{timeout:8000});
+  });
+}
+
+async function getAddr(lat,lng){
+  try{
+    let r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ja`);
+    let j=await r.json();
+    return j.display_name;
+  }catch{return "住所不明"}
+}
+
 async function save(){
   let file=document.getElementById("file").files[0];
   if(!file)return alert("写真選択");
 
   let img=await resize(file);
   let gps=await getGPS();
-
   let addr="不明";
+
   if(gps) addr=await getAddr(gps.lat,gps.lng);
+
+  let floor=document.getElementById("floorFree").value || document.getElementById("floorSel").value;
 
   let data=load();
   let today=new Date().toISOString().slice(0,10);
 
-  let folder="noGPS";
-
-  if(gps){
-    let found=data.find(v=>{
-      if(!v.lat)return false;
-      return dist(gps.lat,gps.lng,v.lat,v.lng)<=15 && v.day===today;
-    });
-    folder=found?found.folder:"f_"+Date.now();
-  }
+  let folder=addr+"_"+today+"_"+floor;
 
   data.push({
     id:Date.now(),
     img,
     memo:document.getElementById("memo").value || document.getElementById("tpl").value,
-    floor:document.getElementById("floor").value,
-    lat:gps?.lat,
-    lng:gps?.lng,
+    floor,
     addr,
     day:today,
     folder
@@ -178,10 +144,41 @@ async function save(){
 
   saveData(data);
   render();
+
+  if(document.getElementById("auto").checked){
+    document.getElementById("file").value="";
+  }
 }
 
 function del(id){
   let d=load().filter(v=>v.id!==id);
+  saveData(d);
+  render();
+}
+
+function toggleSel(id,el){
+  if(selected.has(id)){
+    selected.delete(id);
+    el.classList.remove("sel");
+  }else{
+    selected.add(id);
+    el.classList.add("sel");
+  }
+}
+
+function edit(v){
+  let addr=prompt("住所",v.addr)||v.addr;
+  let memo=prompt("メモ",v.memo)||v.memo;
+  let day=prompt("日付",v.day)||v.day;
+
+  let d=load();
+  let p=d.find(x=>x.id===v.id);
+
+  p.addr=addr;
+  p.memo=memo;
+  p.day=day;
+  p.folder=addr+"_"+day+"_"+p.floor;
+
   saveData(d);
   render();
 }
@@ -192,6 +189,7 @@ function render(){
   wrap.innerHTML="";
 
   let groups={};
+
   data.forEach(v=>{
     if(!groups[v.folder])groups[v.folder]=[];
     groups[v.folder].push(v);
@@ -205,7 +203,7 @@ function render(){
 
     box.innerHTML=`
       <b>${rep.addr}</b><br>
-      <span class="small">${rep.day}</span>
+      <span class="small">${rep.day} / ${rep.floor}</span>
       <div class="grid"></div>
     `;
 
@@ -214,12 +212,19 @@ function render(){
     groups[k].forEach(v=>{
       let c=document.createElement("div");
       c.className="card";
+
       c.innerHTML=`
         <img src="${v.img}">
-        <div class="small">${v.floor}</div>
-        <div>${v.memo}</div>
+        <div class="small">${v.memo}</div>
         <button onclick="del(${v.id})">削除</button>
+        <button onclick='edit(${JSON.stringify(v)})'>編集</button>
       `;
+
+      c.onclick=(e)=>{
+        if(e.target.tagName==="BUTTON")return;
+        toggleSel(v.id,c);
+      };
+
       g.appendChild(c);
     });
 
@@ -228,11 +233,10 @@ function render(){
 }
 
 function share(){
-  let d=load();
-  if(!d.length)return;
+  let data=load();
+  if(!data.length)return;
 
-  let last=d[d.length-1];
-  let text=`${last.addr}\n${last.memo}`;
+  let text="写真ログ";
 
   if(navigator.share){
     navigator.share({text});
@@ -241,12 +245,17 @@ function share(){
   }
 }
 
-function printAll(){
+function printSel(){
+  let cards=document.querySelectorAll(".card");
+  cards.forEach(c=>{
+    let id=parseInt(c.querySelector("button").onclick.toString().match(/\d+/)[0]);
+    c.style.display=selected.has(id)?"block":"none";
+  });
   window.print();
+  location.reload();
 }
 
-renderFloor();
-renderTpl();
+init();
 render();
 
 </script>
