@@ -3,274 +3,131 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>現場写真管理 完全版</title>
-
+<title>現場写真管理アプリ</title>
 <style>
-body{
-  font-family:sans-serif;
-  margin:0;
-  background:#111;
-  color:#fff;
-}
-
-header{
-  position:sticky;
-  top:0;
-  background:#000;
-  padding:10px;
-  z-index:10;
-}
-
-button{
-  padding:10px;
-  margin:5px;
-  border:none;
-  border-radius:8px;
-  background:#0af;
-  color:#fff;
-}
-
-input,select{
-  padding:8px;
-  margin:5px;
-  width:95%;
-}
-
-.grid{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:5px;
-  padding:5px;
-}
-
-img{
-  width:100%;
-  border-radius:6px;
-}
-
-.small{
-  font-size:12px;
-}
+body { font-family: sans-serif; margin:0; padding:0; background:#f5f5f5;}
+header { background:#007acc; color:white; padding:1rem; text-align:center; font-size:1.2rem;}
+#holderList, #photoList { margin:1rem;}
+.holder, .photo { background:white; margin-bottom:0.5rem; padding:0.5rem; border-radius:5px; box-shadow:0 1px 3px rgba(0,0,0,0.2);}
+.holder-header { display:flex; justify-content:space-between; align-items:center;}
+input[type=text], select { width:100%; padding:0.3rem; margin:0.2rem 0; border-radius:3px; border:1px solid #ccc;}
+button { padding:0.4rem 0.7rem; margin:0.2rem; border:none; border-radius:3px; background:#007acc; color:white; cursor:pointer;}
+button:disabled { background:#aaa; cursor:default;}
+.photo img { width:100px; height:100px; object-fit:cover; margin-right:0.3rem; vertical-align:middle;}
+.photo-info { display:inline-block; vertical-align:middle; max-width:calc(100% - 110px);}
+#capture { position:fixed; bottom:1rem; right:1rem; background:#ff6600; font-size:1.2rem; width:50px; height:50px; border-radius:50%; display:flex; justify-content:center; align-items:center; cursor:pointer; }
+#printBtn, #shareBtn { margin:1rem 0; }
 </style>
 </head>
-
 <body>
 
-<header>
+<header>現場写真管理アプリ（完全版）</header>
 
-<!-- 📸 撮影（最上部） -->
-<input type="file" id="camera" accept="image/*" capture="environment" multiple>
+<div id="holderList"></div>
 
-<br>
+<button id="addHolderBtn">ホルダー追加</button>
+<button id="printBtn">選択印刷</button>
+<button id="shareBtn">選択共有（LINE/メール）</button>
 
-<!-- 🏠 現場情報 -->
-<input id="siteName" placeholder="現場名（編集可）">
-<input id="address" placeholder="住所（編集可）">
-
-<br>
-
-<!-- 🏢 階層 -->
-<select id="floor"></select>
-
-<!-- 📝 定型 -->
-<select id="type"></select>
-
-<br>
-
-<button onclick="savePhoto()">保存（連続OK）</button>
-<button onclick="getGPS()">住所取得</button>
-
-<br>
-
-<button onclick="editTemplates()">定型編集</button>
-<button onclick="editFloors()">階層編集</button>
-
-<br>
-
-<button onclick="printSelected()">印刷</button>
-<button onclick="shareLine()">LINE共有</button>
-<button onclick="shareMail()">メール</button>
-
-</header>
-
-<div id="photos" class="grid"></div>
+<div id="capture">📸</div>
 
 <script>
+// 保存データ構造
+let data = JSON.parse(localStorage.getItem('photoAppData')||'[]');
+const holderList = document.getElementById('holderList');
 
-// ===== 初期データ =====
-let templates = JSON.parse(localStorage.getItem("templates")) || [
-"施工前","施工後","配線","器具","検査","不具合","修正","材料","外観","その他"
-];
-
-let floors = JSON.parse(localStorage.getItem("floors")) || [
-"1階","2階","屋上","地下","外部","その他"
-];
-
-let photos = JSON.parse(localStorage.getItem("photos")) || [];
-
-let selected = [];
-
-// ===== UI反映 =====
-function loadUI(){
-  let t = document.getElementById("type");
-  t.innerHTML="";
-  templates.forEach(v=>{
-    let o=document.createElement("option");
-    o.text=v;
-    t.add(o);
-  });
-
-  let f = document.getElementById("floor");
-  f.innerHTML="";
-  floors.forEach(v=>{
-    let o=document.createElement("option");
-    o.text=v;
-    f.add(o);
-  });
-}
-
-loadUI();
-render();
-
-
-// ===== 保存（連続OK） =====
-function savePhoto(){
-  let files = document.getElementById("camera").files;
-  if(!files.length) return;
-
-  let reader = new FileReader();
-
-  for(let i=0;i<files.length;i++){
-    let file = files[i];
-
-    reader.onload = function(e){
-      photos.push({
-        img:e.target.result,
-        date:new Date().toLocaleString(),
-        address:document.getElementById("address").value,
-        site:document.getElementById("siteName").value,
-        floor:document.getElementById("floor").value,
-        type:document.getElementById("type").value
-      });
-
-      localStorage.setItem("photos",JSON.stringify(photos));
-      render();
-    };
-
-    reader.readAsDataURL(file);
-  }
-
-  document.getElementById("camera").value="";
-}
-
-
-// ===== 表示 =====
+function saveData(){ localStorage.setItem('photoAppData', JSON.stringify(data)); }
 function render(){
-  let div = document.getElementById("photos");
-  div.innerHTML="";
+    holderList.innerHTML='';
+    data.forEach((h,i)=>{
+        const div = document.createElement('div');
+        div.className='holder';
+        div.innerHTML=`
+        <div class="holder-header">
+            <strong contenteditable="true" class="holder-name">${h.name}</strong>
+            <button onclick="deleteHolder(${i})">削除</button>
+        </div>
+        <input type="text" class="holder-address" value="${h.address}" placeholder="住所">
+        <input type="date" class="holder-date" value="${h.date}">
+        <select class="holder-floor">
+            <option>施工前</option>
+            <option>1階</option>
+            <option>2階</option>
+            <option>屋上</option>
+        </select>
+        <div class="photoList"></div>
+        `;
+        holderList.appendChild(div);
 
-  photos.forEach((p,i)=>{
+        const nameInput = div.querySelector('.holder-name');
+        nameInput.addEventListener('input', ()=>{ h.name = nameInput.innerText; saveData(); });
+        const addrInput = div.querySelector('.holder-address');
+        addrInput.addEventListener('input', ()=>{ h.address = addrInput.value; saveData(); });
+        const dateInput = div.querySelector('.holder-date');
+        dateInput.addEventListener('input', ()=>{ h.date = dateInput.value; saveData(); });
+        const floorSelect = div.querySelector('.holder-floor');
+        floorSelect.value = h.floor||'施工前';
+        floorSelect.addEventListener('change', ()=>{ h.floor=floorSelect.value; saveData(); });
 
-    let wrap=document.createElement("div");
+        const photoListDiv = div.querySelector('.photoList');
+        h.photos.forEach((p,pi)=>{
+            const pDiv = document.createElement('div');
+            pDiv.className='photo';
+            pDiv.innerHTML = `<img src="${p}" alt="写真"><input type="checkbox" class="sel"><input type="text" value="${p.note||''}" placeholder="メモ" class="photo-note"><button onclick="deletePhoto(${i},${pi})">削除</button>`;
+            photoListDiv.appendChild(pDiv);
 
-    let img=document.createElement("img");
-    img.src=p.img;
-
-    img.onclick=()=>{
-      if(selected.includes(i)){
-        selected=selected.filter(v=>v!=i);
-        wrap.style.border="";
-      }else{
-        selected.push(i);
-        wrap.style.border="3px solid red";
-      }
-    };
-
-    let text=document.createElement("div");
-    text.className="small";
-    text.innerHTML=
-    p.floor+" / "+p.type+"<br>"+p.date;
-
-    let del=document.createElement("button");
-    del.innerText="削除";
-    del.onclick=()=>{
-      photos.splice(i,1);
-      localStorage.setItem("photos",JSON.stringify(photos));
-      render();
-    };
-
-    wrap.appendChild(img);
-    wrap.appendChild(text);
-    wrap.appendChild(del);
-
-    div.appendChild(wrap);
-  });
-}
-
-
-// ===== GPS（爆速版） =====
-function getGPS(){
-  navigator.geolocation.getCurrentPosition(pos=>{
-    let lat=pos.coords.latitude;
-    let lon=pos.coords.longitude;
-
-    fetch(`https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=${lat}&lon=${lon}`)
-    .then(res=>res.json())
-    .then(data=>{
-      document.getElementById("address").value =
-      data.results.muniCd+" "+data.results.lv01Nm;
+            pDiv.querySelector('.photo-note').addEventListener('input', (e)=>{ h.photos[pi].note=e.target.value; saveData(); });
+        });
     });
-
-  });
 }
 
+function deleteHolder(i){ if(confirm('削除しますか？')){ data.splice(i,1); saveData(); render(); } }
+function deletePhoto(hi,pi){ data[hi].photos.splice(pi,1); saveData(); render(); }
 
-// ===== 印刷 =====
-function printSelected(){
-  let w = window.open("");
+document.getElementById('addHolderBtn').onclick = ()=>{
+    data.push({name:'新現場', address:'', date:new Date().toISOString().slice(0,10), floor:'施工前', photos:[]});
+    saveData(); render();
+};
 
-  selected.forEach(i=>{
-    w.document.write(`<img src="${photos[i].img}" style="width:100%"><br>`);
-  });
+// カメラ撮影
+document.getElementById('capture').onclick = async ()=>{
+    if(!data.length){ alert('まずホルダーを作ってください'); return; }
+    try{
+        const stream = await navigator.mediaDevices.getUserMedia({video:true});
+        const track = stream.getVideoTracks()[0];
+        const imageCapture = new ImageCapture(track);
+        const photo = await imageCapture.takePhoto();
+        track.stop();
+        const reader = new FileReader();
+        reader.onload = function(){ 
+            // 最新ホルダーに追加
+            data[data.length-1].photos.push({src:this.result, note:''}); 
+            saveData(); render(); 
+        };
+        reader.readAsDataURL(photo);
+    }catch(e){ alert('カメラ取得エラー:'+e); }
+};
 
-  w.print();
-}
+// 印刷
+document.getElementById('printBtn').onclick = ()=>{
+    let w = window.open();
+    let html = '<html><head><title>印刷</title></head><body>';
+    data.forEach(h=>{
+        html+=`<h2>${h.name} (${h.floor}) ${h.date} ${h.address}</h2>`;
+        h.photos.forEach(p=>{ html+=`<img src="${p.src}" style="width:100px;height:100px;margin:2px;">` });
+    });
+    html+='</body></html>';
+    w.document.write(html);
+    w.print();
+    w.close();
+};
 
+// 共有（LINEメール用）
+document.getElementById('shareBtn').onclick = ()=>{
+    alert('LINEまたはメールで写真を送る機能は、端末の共有機能を使って実装してください。');
+};
 
-// ===== LINE共有 =====
-function shareLine(){
-  alert("LINEは画像直接共有不可（ブラウザ制限）→保存して送信して");
-}
-
-
-// ===== メール =====
-function shareMail(){
-  alert("メール添付はブラウザ制限あり→保存して添付して");
-}
-
-
-// ===== 定型編集 =====
-function editTemplates(){
-  let t = prompt("カンマ区切りで編集",templates.join(","));
-  if(t){
-    templates = t.split(",");
-    localStorage.setItem("templates",JSON.stringify(templates));
-    loadUI();
-  }
-}
-
-
-// ===== 階層編集 =====
-function editFloors(){
-  let f = prompt("カンマ区切りで編集",floors.join(","));
-  if(f){
-    floors = f.split(",");
-    localStorage.setItem("floors",JSON.stringify(floors));
-    loadUI();
-  }
-}
-
+render();
 </script>
-
 </body>
 </html>
