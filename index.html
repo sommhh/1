@@ -2,36 +2,60 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>現場写真</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>現場写真PRO</title>
 
 <style>
-body{margin:0;font-family:sans-serif;background:#eee;}
-header{position:fixed;top:0;width:100%;background:#000;color:#fff;padding:10px;z-index:10;}
-main{margin-top:80px;padding:10px;}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
-img{width:100%;height:90px;object-fit:cover;}
-button{margin:5px;padding:8px;}
-select,input{margin:5px;padding:5px;width:100%;}
+body{margin:0;font-family:sans-serif;background:#f0f0f0;}
+header{
+ position:fixed;top:0;width:100%;
+ background:#000;color:#fff;
+ padding:10px;z-index:100;
+}
+main{margin-top:110px;padding:10px;}
+.grid{
+ display:grid;
+ grid-template-columns:repeat(3,1fr);
+ gap:6px;
+}
+.card{
+ background:#fff;
+ padding:5px;
+ border-radius:10px;
+}
+img{
+ width:100%;
+ height:90px;
+ object-fit:cover;
+ border-radius:6px;
+}
+button,select,input{
+ width:100%;
+ margin:4px 0;
+ padding:8px;
+ font-size:14px;
+}
 </style>
-
 </head>
+
 <body>
 
 <header>
-📸 撮影
+📸 現場写真PRO
 <input type="file" id="cam" accept="image/*" capture="environment" multiple>
 </header>
 
 <main>
 
+<input id="site" placeholder="現場名（例：〇〇邸）">
+
 <select id="floor"></select>
 <select id="type"></select>
 
-<input id="addr" placeholder="住所編集OK">
+<input id="addr" placeholder="住所">
 
 <button onclick="printData()">印刷</button>
-<button onclick="share()">共有</button>
+<button onclick="share()">LINE共有</button>
 
 <div class="grid" id="list"></div>
 
@@ -39,32 +63,25 @@ select,input{margin:5px;padding:5px;width:100%;}
 
 <script>
 
-// ===== 初期化 =====
-let db;
-try{
- db = JSON.parse(localStorage.getItem("db")) || [];
-}catch{
- db=[];
-}
+// ===== DB安全 =====
+let db=[];
+try{db=JSON.parse(localStorage.getItem("db"))||[]}catch{db=[]}
 
 // ===== 定型 =====
-let floors = JSON.parse(localStorage.getItem("floors")||'["1階","2階"]');
-let types = JSON.parse(localStorage.getItem("types")||'["施工前","施工後"]');
+let floors=JSON.parse(localStorage.getItem("floors")||'["1階","2階","屋上"]');
+let types=JSON.parse(localStorage.getItem("types")||'["施工前","施工中","施工後"]');
 
-// ===== UI =====
 const floorSel=document.getElementById("floor");
 const typeSel=document.getElementById("type");
 
 function loadSel(){
  floorSel.innerHTML="";
  typeSel.innerHTML="";
-
  floors.forEach(v=>{
   let o=document.createElement("option");
   o.textContent=v;
   floorSel.appendChild(o);
  });
-
  types.forEach(v=>{
   let o=document.createElement("option");
   o.textContent=v;
@@ -75,26 +92,48 @@ loadSel();
 
 // ===== 保存 =====
 function save(){
- localStorage.setItem("db",JSON.stringify(db));
+ try{
+  localStorage.setItem("db",JSON.stringify(db));
+ }catch{
+  alert("容量オーバー（古い写真削除）");
+ }
+}
+
+// ===== 圧縮 =====
+function compress(src,cb){
+ const img=new Image();
+ img.onload=()=>{
+  const c=document.createElement("canvas");
+  const ctx=c.getContext("2d");
+
+  let scale=0.4;
+  c.width=img.width*scale;
+  c.height=img.height*scale;
+
+  ctx.drawImage(img,0,0,c.width,c.height);
+  cb(c.toDataURL("image/jpeg",0.6));
+ };
+ img.src=src;
 }
 
 // ===== 撮影 =====
 document.getElementById("cam").addEventListener("change",e=>{
  const files=[...e.target.files];
- if(!files.length)return;
-
  files.forEach(file=>{
   const fr=new FileReader();
   fr.onload=()=>{
-   db.push({
-    img:fr.result,
-    f:floorSel.value,
-    t:typeSel.value,
-    d:new Date().toLocaleString(),
-    a:document.getElementById("addr").value
+   compress(fr.result,(small)=>{
+    db.push({
+     img:small,
+     site:document.getElementById("site").value,
+     floor:floorSel.value,
+     type:typeSel.value,
+     date:new Date().toLocaleString(),
+     addr:document.getElementById("addr").value
+    });
+    save();
+    render();
    });
-   render();
-   save();
   };
   fr.readAsDataURL(file);
  });
@@ -107,12 +146,14 @@ function render(){
 
  db.forEach((p,i)=>{
   const div=document.createElement("div");
+  div.className="card";
 
   div.innerHTML=`
    <img src="${p.img}">
-   <small>${p.f} ${p.t}</small><br>
-   <small>${p.d}</small><br>
-   <small contenteditable onblur="edit(${i},this.innerText)">${p.a||""}</small><br>
+   <small>${p.site}</small><br>
+   <small>${p.floor} ${p.type}</small><br>
+   <small>${p.date}</small><br>
+   <small contenteditable onblur="edit(${i},this.innerText)">${p.addr||""}</small>
    <button onclick="del(${i})">削除</button>
   `;
 
@@ -122,7 +163,7 @@ function render(){
 
 // ===== 編集 =====
 function edit(i,val){
- db[i].a=val;
+ db[i].addr=val;
  save();
 }
 
@@ -138,7 +179,13 @@ function printData(){
  let w=window.open("");
  let html="";
  db.forEach(p=>{
-  html+=`<img src="${p.img}" style="width:100%">`;
+  html+=`
+  <div>
+   <img src="${p.img}" style="width:100%">
+   <p>${p.site} ${p.floor} ${p.type}</p>
+   <p>${p.date}</p>
+   <p>${p.addr}</p>
+  </div>`;
  });
  w.document.write(html);
  w.print();
@@ -147,9 +194,9 @@ function printData(){
 // ===== 共有 =====
 function share(){
  if(navigator.share){
-  navigator.share({title:"写真"});
+  navigator.share({title:"現場写真"});
  }else{
-  alert("共有未対応");
+  alert("共有非対応");
  }
 }
 
@@ -162,6 +209,5 @@ navigator.geolocation.getCurrentPosition(pos=>{
 render();
 
 </script>
-
 </body>
 </html>
