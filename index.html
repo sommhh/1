@@ -1,1 +1,166 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>写真ログ Lite</title>
 
+<style>
+body{font-family:sans-serif;background:#f2f2f7;margin:0}
+header{padding:12px;background:#007aff;color:#fff;text-align:center;font-weight:bold}
+.container{padding:10px}
+button{padding:10px;border:none;border-radius:10px;background:#007aff;color:#fff;font-size:14px}
+input,textarea,select{width:100%;padding:8px;margin:5px 0;border-radius:8px;border:1px solid #ccc}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.card{background:#fff;border-radius:10px;padding:5px}
+.card img{width:100%;border-radius:8px}
+.small{font-size:11px;color:#666}
+</style>
+</head>
+
+<body>
+
+<header>📷 写真ログ Lite</header>
+
+<div class="container">
+
+<input type="file" accept="image/*" capture="environment" id="file">
+
+<select id="floor"></select>
+<button onclick="editFloor()">階層編集</button>
+
+<textarea id="memo" placeholder="メモ"></textarea>
+
+<button onclick="save()">保存</button>
+
+<button onclick="exportLine()">LINE共有</button>
+<button onclick="exportMail()">メール送信</button>
+
+<div class="grid" id="list"></div>
+
+</div>
+
+<script>
+
+const KEY="photoLite_v1";
+const FLOOR_KEY="floor_v1";
+
+let floors=JSON.parse(localStorage.getItem(FLOOR_KEY)||'["1階","2階","屋上"]');
+
+function renderFloor(){
+  const f=document.getElementById("floor");
+  f.innerHTML="";
+  floors.forEach(v=>{
+    const o=document.createElement("option");
+    o.textContent=v;
+    f.appendChild(o);
+  });
+}
+
+function editFloor(){
+  const txt=prompt("階層をカンマ区切りで入力",floors.join(","));
+  if(!txt)return;
+  floors=txt.split(",");
+  localStorage.setItem(FLOOR_KEY,JSON.stringify(floors));
+  renderFloor();
+}
+
+function load(){return JSON.parse(localStorage.getItem(KEY)||"[]")}
+function saveData(d){localStorage.setItem(KEY,JSON.stringify(d))}
+
+async function getGPS(){
+  return new Promise(res=>{
+    navigator.geolocation.getCurrentPosition(p=>{
+      res(p.coords.latitude+","+p.coords.longitude);
+    },()=>res("不明"),{timeout:5000});
+  });
+}
+
+function resize(file){
+  return new Promise(r=>{
+    const reader=new FileReader();
+    reader.onload=e=>{
+      const img=new Image();
+      img.onload=()=>{
+        const c=document.createElement("canvas");
+        const w=800;
+        const s=w/img.width;
+        c.width=w;
+        c.height=img.height*s;
+        c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+        r(c.toDataURL("image/jpeg",0.7));
+      };
+      img.src=e.target.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+async function save(){
+  const file=document.getElementById("file").files[0];
+  if(!file)return alert("写真選択");
+
+  const img=await resize(file);
+  const gps=await getGPS();
+
+  const data=load();
+  data.push({
+    id:Date.now(),
+    img,
+    memo:document.getElementById("memo").value,
+    floor:document.getElementById("floor").value,
+    gps,
+    date:new Date().toLocaleString()
+  });
+
+  saveData(data);
+  render();
+}
+
+function del(id){
+  const d=load().filter(v=>v.id!==id);
+  saveData(d);
+  render();
+}
+
+function render(){
+  const d=load();
+  const el=document.getElementById("list");
+  el.innerHTML="";
+
+  d.reverse().forEach(v=>{
+    const c=document.createElement("div");
+    c.className="card";
+    c.innerHTML=`
+      <img src="${v.img}">
+      <div class="small">${v.date}</div>
+      <div>${v.floor}</div>
+      <div>${v.memo||""}</div>
+      <button onclick="del(${v.id})">削除</button>
+    `;
+    el.appendChild(c);
+  });
+}
+
+function exportLine(){
+  alert("LINEは共有ボタンから送信してください");
+}
+
+function exportMail(){
+  const d=load();
+  if(!d.length)return;
+
+  const last=d[d.length-1];
+  const body=encodeURIComponent(
+    `日時:${last.date}\n階層:${last.floor}\nメモ:${last.memo}`
+  );
+  location.href=`mailto:?subject=写真ログ&body=${body}`;
+}
+
+renderFloor();
+render();
+
+</script>
+
+</body>
+</html>
