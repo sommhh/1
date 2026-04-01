@@ -3,259 +3,274 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>写真ログ完成版</title>
+<title>写真ログ最強版</title>
 
 <style>
-body{margin:0;font-family:sans-serif;background:#f2f2f7}
-header{background:#007aff;color:#fff;padding:14px;text-align:center;font-weight:bold}
-.container{padding:10px}
+body{
+  font-family:sans-serif;
+  margin:0;
+  background:#f5f5f5;
+}
 
-button{padding:12px;border:none;border-radius:10px;background:#007aff;color:#fff;font-size:15px;margin:3px}
-input,textarea,select{width:100%;padding:10px;margin:5px 0;border-radius:10px;border:1px solid #ccc}
+header{
+  background:#007aff;
+  color:#fff;
+  padding:12px;
+  font-size:18px;
+}
 
-.big{font-size:18px;padding:18px}
+.container{
+  padding:10px;
+}
 
-.folder{background:#fff;margin:10px 0;padding:10px;border-radius:12px}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-.card{background:#fff;border-radius:10px;padding:5px}
-.card img{width:100%;border-radius:8px}
+.cam-btn{
+  width:100%;
+  background:#007aff;
+  color:#fff;
+  padding:25px;
+  font-size:20px;
+  border-radius:12px;
+  text-align:center;
+  margin-bottom:10px;
+  position:relative;
+}
 
-.small{font-size:11px;color:#666}
+.cam-btn input{
+  position:absolute;
+  inset:0;
+  opacity:0;
+}
 
-.sel{outline:3px solid #007aff}
+select,textarea{
+  width:100%;
+  margin-bottom:8px;
+  padding:10px;
+  font-size:14px;
+}
+
+.card{
+  background:#fff;
+  margin-bottom:10px;
+  padding:8px;
+  border-radius:10px;
+}
+
+.card img{
+  width:100%;
+  border-radius:8px;
+}
+
+.btn{
+  margin-top:5px;
+  padding:8px;
+  font-size:12px;
+}
 </style>
 </head>
 
 <body>
 
-<header>📷 写真ログ完成版</header>
+<header>📷 写真ログ</header>
 
 <div class="container">
 
-<input type="file" accept="image/*" capture="environment" id="file" class="big">
+<div class="cam-btn">
+📷 撮る
+<input type="file" accept="image/*" capture="environment" id="cam">
+</div>
 
-<select id="floorSel"></select>
-<input id="floorFree" placeholder="自由入力（例：外構）">
+<select id="floor">
+<option>1階</option>
+<option>2階</option>
+<option>屋上</option>
+</select>
 
-<select id="tpl"></select>
+<select id="tpl">
+<option>施工前</option>
+<option>施工後</option>
+<option>確認</option>
+<option>異常なし</option>
+<option>要修正</option>
+<option>完了</option>
+</select>
 
 <textarea id="memo" placeholder="メモ"></textarea>
 
-<label><input type="checkbox" id="auto"> 連続撮影モード</label>
+<button onclick="printSelected()">🖨 印刷</button>
 
-<button onclick="save()" class="big">保存</button>
-<button onclick="share()">共有</button>
-<button onclick="printSel()">選択印刷</button>
-
-<div id="folders"></div>
+<div id="list"></div>
 
 </div>
 
 <script>
 
-const KEY="photo_final";
+const KEY="photos_v1";
 
-let floors=["1階","2階","3階","屋上"];
-let tpls=["施工前","施工後","完了","問題なし","要対応"];
-
-let selected=new Set();
-
-function init(){
-  let f=document.getElementById("floorSel");
-  floors.forEach(v=>{
-    let o=document.createElement("option");
-    o.textContent=v;
-    f.appendChild(o);
-  });
-
-  let t=document.getElementById("tpl");
-  tpls.forEach(v=>{
-    let o=document.createElement("option");
-    o.textContent=v;
-    t.appendChild(o);
-  });
+function load(){
+  return JSON.parse(localStorage.getItem(KEY)||"[]");
 }
 
-function load(){return JSON.parse(localStorage.getItem(KEY)||"[]")}
-function saveData(d){localStorage.setItem(KEY,JSON.stringify(d))}
+function save(data){
+  localStorage.setItem(KEY,JSON.stringify(data));
+}
 
-function resize(file){
-  return new Promise(r=>{
-    let fr=new FileReader();
-    fr.onload=e=>{
-      let img=new Image();
+function fmtDate(){
+  const d=new Date();
+  return d.toLocaleString();
+}
+
+async function compress(file){
+  return new Promise(res=>{
+    const r=new FileReader();
+    r.onload=e=>{
+      const img=new Image();
       img.onload=()=>{
-        let c=document.createElement("canvas");
-        let w=800;
-        let s=w/img.width;
+        const c=document.createElement("canvas");
+        const w=1200;
+        const scale=w/img.width;
         c.width=w;
-        c.height=img.height*s;
+        c.height=img.height*scale;
         c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-        r(c.toDataURL("image/jpeg",0.7));
+        res(c.toDataURL("image/jpeg",0.7));
       };
       img.src=e.target.result;
     };
-    fr.readAsDataURL(file);
+    r.readAsDataURL(file);
   });
 }
 
-async function getGPS(){
-  return new Promise(res=>{
-    navigator.geolocation.getCurrentPosition(p=>{
-      res({lat:p.coords.latitude,lng:p.coords.longitude});
-    },()=>res(null),{timeout:8000});
+async function getPos(){
+  return new Promise((res,rej)=>{
+    navigator.geolocation.getCurrentPosition(res,rej);
   });
 }
 
-async function getAddr(lat,lng){
+async function geocode(lat,lng){
   try{
-    let r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ja`);
-    let j=await r.json();
-    return j.display_name;
-  }catch{return "住所不明"}
+    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
+    const d=await r.json();
+    return d.display_name;
+  }catch{
+    return "";
+  }
 }
 
-async function save(){
-  let file=document.getElementById("file").files[0];
-  if(!file)return alert("写真選択");
+document.getElementById("cam").addEventListener("change",async(e)=>{
+  const f=e.target.files[0];
+  if(!f) return;
 
-  let img=await resize(file);
-  let gps=await getGPS();
-  let addr="不明";
+  const floor=document.getElementById("floor").value;
+  const tpl=document.getElementById("tpl").value;
+  const memo=document.getElementById("memo").value;
 
-  if(gps) addr=await getAddr(gps.lat,gps.lng);
+  let lat=null,lng=null,addr="";
 
-  let floor=document.getElementById("floorFree").value || document.getElementById("floorSel").value;
+  try{
+    const pos=await getPos();
+    lat=pos.coords.latitude;
+    lng=pos.coords.longitude;
+    addr=await geocode(lat,lng);
+  }catch{}
 
-  let data=load();
-  let today=new Date().toISOString().slice(0,10);
+  const img=await compress(f);
 
-  let folder=addr+"_"+today+"_"+floor;
+  const data=load();
 
   data.push({
     id:Date.now(),
     img,
-    memo:document.getElementById("memo").value || document.getElementById("tpl").value,
     floor,
+    memo:tpl+" "+memo,
     addr,
-    day:today,
-    folder
+    date:fmtDate()
   });
 
-  saveData(data);
+  save(data);
   render();
 
-  if(document.getElementById("auto").checked){
-    document.getElementById("file").value="";
-  }
+  // 連続撮影
+  e.target.value="";
+});
+
+function render(){
+  const list=document.getElementById("list");
+  list.innerHTML="";
+
+  const data=load().reverse();
+
+  data.forEach(p=>{
+    const div=document.createElement("div");
+    div.className="card";
+
+    div.innerHTML=`
+    <img src="${p.img}">
+    <div>${p.floor}</div>
+    <div>${p.memo}</div>
+    <div>${p.addr||""}</div>
+    <div>${p.date}</div>
+    <button class="btn" onclick="edit(${p.id})">編集</button>
+    <button class="btn" onclick="del(${p.id})">削除</button>
+    <button class="btn" onclick="share(${p.id})">共有</button>
+    `;
+
+    list.appendChild(div);
+  });
 }
 
 function del(id){
-  let d=load().filter(v=>v.id!==id);
-  saveData(d);
+  const data=load().filter(x=>x.id!==id);
+  save(data);
   render();
 }
 
-function toggleSel(id,el){
-  if(selected.has(id)){
-    selected.delete(id);
-    el.classList.remove("sel");
-  }else{
-    selected.add(id);
-    el.classList.add("sel");
-  }
-}
+function edit(id){
+  const data=load();
+  const p=data.find(x=>x.id===id);
+  if(!p) return;
 
-function edit(v){
-  let addr=prompt("住所",v.addr)||v.addr;
-  let memo=prompt("メモ",v.memo)||v.memo;
-  let day=prompt("日付",v.day)||v.day;
+  const addr=prompt("住所",p.addr);
+  const date=prompt("日時",p.date);
 
-  let d=load();
-  let p=d.find(x=>x.id===v.id);
+  if(addr!==null) p.addr=addr;
+  if(date!==null) p.date=date;
 
-  p.addr=addr;
-  p.memo=memo;
-  p.day=day;
-  p.folder=addr+"_"+day+"_"+p.floor;
-
-  saveData(d);
+  save(data);
   render();
 }
 
-function render(){
-  let data=load();
-  let wrap=document.getElementById("folders");
-  wrap.innerHTML="";
+async function share(id){
+  const p=load().find(x=>x.id===id);
+  if(!p) return;
 
-  let groups={};
-
-  data.forEach(v=>{
-    if(!groups[v.folder])groups[v.folder]=[];
-    groups[v.folder].push(v);
-  });
-
-  Object.keys(groups).forEach(k=>{
-    let box=document.createElement("div");
-    box.className="folder";
-
-    let rep=groups[k][0];
-
-    box.innerHTML=`
-      <b>${rep.addr}</b><br>
-      <span class="small">${rep.day} / ${rep.floor}</span>
-      <div class="grid"></div>
-    `;
-
-    let g=box.querySelector(".grid");
-
-    groups[k].forEach(v=>{
-      let c=document.createElement("div");
-      c.className="card";
-
-      c.innerHTML=`
-        <img src="${v.img}">
-        <div class="small">${v.memo}</div>
-        <button onclick="del(${v.id})">削除</button>
-        <button onclick='edit(${JSON.stringify(v)})'>編集</button>
-      `;
-
-      c.onclick=(e)=>{
-        if(e.target.tagName==="BUTTON")return;
-        toggleSel(v.id,c);
-      };
-
-      g.appendChild(c);
-    });
-
-    wrap.appendChild(box);
-  });
-}
-
-function share(){
-  let data=load();
-  if(!data.length)return;
-
-  let text="写真ログ";
+  const blob=dataURLtoBlob(p.img);
+  const file=new File([blob],"photo.jpg",{type:"image/jpeg"});
 
   if(navigator.share){
-    navigator.share({text});
+    await navigator.share({
+      files:[file],
+      text:p.memo
+    });
   }else{
-    location.href=`mailto:?body=${encodeURIComponent(text)}`;
+    alert("共有非対応");
   }
 }
 
-function printSel(){
-  let cards=document.querySelectorAll(".card");
-  cards.forEach(c=>{
-    let id=parseInt(c.querySelector("button").onclick.toString().match(/\d+/)[0]);
-    c.style.display=selected.has(id)?"block":"none";
-  });
-  window.print();
-  location.reload();
+function dataURLtoBlob(dataurl){
+  const arr=dataurl.split(",");
+  const mime=arr[0].match(/:(.*?);/)[1];
+  const bstr=atob(arr[1]);
+  let n=bstr.length;
+  const u8arr=new Uint8Array(n);
+  while(n--){
+    u8arr[n]=bstr.charCodeAt(n);
+  }
+  return new Blob([u8arr],{type:mime});
 }
 
-init();
+function printSelected(){
+  window.print();
+}
+
 render();
 
 </script>
