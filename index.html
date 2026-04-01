@@ -3,92 +3,159 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>写真ログ</title>
-
-<link rel="manifest" href="manifest.json">
-
+<title>写真ログ PRO</title>
+<meta name="theme-color" content="#007aff">
 <style>
-body{font-family:sans-serif;margin:0;background:#f2f2f7}
-header{padding:10px;background:#007aff;color:#fff;text-align:center}
-button{padding:10px;margin:5px;border:none;border-radius:8px}
+body{font-family:-apple-system;background:#f2f2f7;margin:0;padding:12px;color:#000}
+h2{margin:10px 0}
+button{padding:12px;border-radius:10px;border:none;background:#007aff;color:#fff;font-weight:600}
+input,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;margin-top:8px}
+.card{background:#fff;padding:10px;border-radius:12px;margin-top:10px}
 img{width:100%;border-radius:10px}
-.card{background:#fff;margin:10px;padding:10px;border-radius:12px}
+.small{font-size:12px;color:#666}
+.top{display:flex;gap:8px}
+.top button{flex:1}
+.del{background:#ff3b30}
 </style>
 </head>
-
 <body>
 
-<header>📷 写真ログ</header>
+<h2>📷 写真ログ PRO</h2>
 
-<input type="file" accept="image/*" capture="environment" id="file">
-
-<input type="text" id="memo" placeholder="メモ">
-
+<div class="top">
+<input type="file" id="file" accept="image/*" capture="environment">
 <button onclick="save()">保存</button>
+</div>
+
+<textarea id="memo" placeholder="メモ（任意）"></textarea>
+
+<div class="top">
+<button onclick="exportCSV()">CSV出力</button>
+<button class="del" onclick="clearAll()">全削除</button>
+</div>
+
+<p id="status"></p>
 
 <div id="list"></div>
 
 <script>
-let db;
+let photos=JSON.parse(localStorage.getItem("photos")||"[]");
 
-const request = indexedDB.open("photoDB",1);
+function render(){
+let html="";
+photos.slice().reverse().forEach(p=>{
+html+=`
+<div class="card">
+<img src="${p.img}">
+<div class="small">🕒 ${p.date}</div>
+<div>${p.memo||""}</div>
+${p.addr?`<div class="small">📍 ${p.addr}</div>`:""}
+</div>`;
+});
+document.getElementById("list").innerHTML=html;
+}
 
-request.onupgradeneeded = e=>{
-  db = e.target.result;
-  db.createObjectStore("photos",{keyPath:"id"});
+function setStatus(t){document.getElementById("status").textContent=t}
+
+function compress(file){
+return new Promise(res=>{
+let r=new FileReader();
+r.onload=e=>{
+let img=new Image();
+img.onload=()=>{
+let c=document.createElement("canvas");
+let max=1024;
+let s=Math.min(1,max/img.width);
+c.width=img.width*s;
+c.height=img.height*s;
+c.getContext("2d").drawImage(img,0,0,c.width,c.height);
+res(c.toDataURL("image/jpeg",0.7));
 };
-
-request.onsuccess = e=>{
-  db = e.target.result;
-  load();
+img.src=e.target.result;
 };
-
-function save(){
-  const file = document.getElementById("file").files[0];
-  if(!file) return;
-
-  const reader = new FileReader();
-  reader.onload = ()=>{
-    const tx = db.transaction("photos","readwrite");
-    const store = tx.objectStore("photos");
-
-    store.add({
-      id: Date.now(),
-      img: reader.result,
-      memo: document.getElementById("memo").value,
-      date: new Date().toLocaleString()
-    });
-
-    load();
-  };
-  reader.readAsDataURL(file);
+r.readAsDataURL(file);
+});
 }
 
-function load(){
-  const tx = db.transaction("photos","readonly");
-  const store = tx.objectStore("photos");
-
-  const req = store.getAll();
-  req.onsuccess = ()=>{
-    const list = document.getElementById("list");
-    list.innerHTML = "";
-
-    req.result.reverse().forEach(p=>{
-      list.innerHTML += `
-        <div class="card">
-          <img src="${p.img}">
-          <div>${p.date}</div>
-          <div>${p.memo}</div>
-        </div>
-      `;
-    });
-  };
+function getGPS(){
+return new Promise((res)=>{
+if(!navigator.geolocation){res(null);return;}
+navigator.geolocation.getCurrentPosition(
+p=>res({lat:p.coords.latitude,lng:p.coords.longitude}),
+()=>res(null),
+{timeout:8000}
+);
+});
 }
 
-// PWA
-if("serviceWorker" in navigator){
-  navigator.serviceWorker.register("sw.js");
+async function getAddr(lat,lng){
+try{
+let r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ja`);
+let d=await r.json();
+return d.display_name||"";
+}catch{return "";}
 }
+
+async function save(){
+let f=document.getElementById("file").files[0];
+let memo=document.getElementById("memo").value;
+
+if(!f){alert("写真選んで");return;}
+
+setStatus("保存中…");
+
+let img=await compress(f);
+
+let gps=await getGPS();
+let addr="";
+if(gps){
+setStatus("住所取得中…");
+addr=await getAddr(gps.lat,gps.lng);
+}
+
+photos.push({
+img:img,
+memo:memo,
+date:new Date().toLocaleString(),
+addr:addr
+});
+
+try{
+localStorage.setItem("photos",JSON.stringify(photos));
+}catch{
+alert("容量オーバー（古い写真削除して）");
+return;
+}
+
+document.getElementById("file").value="";
+document.getElementById("memo").value="";
+setStatus("保存完了");
+render();
+}
+
+function clearAll(){
+if(confirm("全部消す？")){
+photos=[];
+localStorage.removeItem("photos");
+render();
+}
+}
+
+function exportCSV(){
+if(!photos.length){alert("データなし");return;}
+let csv="日付,メモ,住所\n";
+photos.forEach(p=>{
+csv+=`"${p.date}","${p.memo}","${p.addr||""}"\n`;
+});
+let bom=new Uint8Array([0xEF,0xBB,0xBF]);
+let blob=new Blob([bom,csv],{type:"text/csv"});
+let a=document.createElement("a");
+a.href=URL.createObjectURL(blob);
+a.download="photo_log.csv";
+a.click();
+}
+
+render();
 </script>
 
 </body>
