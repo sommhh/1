@@ -3,182 +3,164 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>現場写真アプリ</title>
+<title>現場写真</title>
 
 <style>
-body{
- font-family:sans-serif;
- margin:0;
- background:#f5f5f5;
-}
-
-header{
- position:fixed;
- top:0;
- width:100%;
- background:#111;
- color:#fff;
- padding:10px;
- z-index:999;
-}
-
-.main{
- margin-top:70px;
- padding:10px;
-}
-
-button{
- padding:10px;
- margin:5px;
- font-size:16px;
-}
-
-.grid{
- display:grid;
- grid-template-columns:repeat(3,1fr);
- gap:5px;
-}
-
-img{
- width:100%;
- height:100px;
- object-fit:cover;
-}
+body{margin:0;font-family:sans-serif;background:#eee;}
+header{position:fixed;top:0;width:100%;background:#000;color:#fff;padding:10px;z-index:10;}
+main{margin-top:80px;padding:10px;}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+img{width:100%;height:90px;object-fit:cover;}
+button{margin:5px;padding:8px;}
+select,input{margin:5px;padding:5px;width:100%;}
 </style>
 
 </head>
 <body>
 
 <header>
-📸 現場写真
-<input type="file" id="camera" accept="image/*" capture="environment" multiple>
+📸 撮影
+<input type="file" id="cam" accept="image/*" capture="environment" multiple>
 </header>
 
-<div class="main">
+<main>
 
 <select id="floor"></select>
 <select id="type"></select>
 
-<input id="address" placeholder="住所編集OK">
+<input id="addr" placeholder="住所編集OK">
 
-<button onclick="printPhotos()">印刷</button>
+<button onclick="printData()">印刷</button>
 <button onclick="share()">共有</button>
 
-<div class="grid" id="gallery"></div>
+<div class="grid" id="list"></div>
 
-</div>
+</main>
 
 <script>
-let data = JSON.parse(localStorage.getItem("photos")||"[]")
 
-const floorsKey="floors"
-const typesKey="types"
-
-let floors = JSON.parse(localStorage.getItem(floorsKey)||'["1階","2階"]')
-let types = JSON.parse(localStorage.getItem(typesKey)||'["施工前","施工後"]')
-
-const floorSel=document.getElementById("floor")
-const typeSel=document.getElementById("type")
-
-function loadOptions(){
- floorSel.innerHTML=""
- typeSel.innerHTML=""
-
- floors.forEach(f=>{
-  let o=document.createElement("option")
-  o.textContent=f
-  floorSel.appendChild(o)
- })
-
- types.forEach(t=>{
-  let o=document.createElement("option")
-  o.textContent=t
-  typeSel.appendChild(o)
- })
+// ===== 初期化 =====
+let db;
+try{
+ db = JSON.parse(localStorage.getItem("db")) || [];
+}catch{
+ db=[];
 }
 
-loadOptions()
+// ===== 定型 =====
+let floors = JSON.parse(localStorage.getItem("floors")||'["1階","2階"]');
+let types = JSON.parse(localStorage.getItem("types")||'["施工前","施工後"]');
 
+// ===== UI =====
+const floorSel=document.getElementById("floor");
+const typeSel=document.getElementById("type");
+
+function loadSel(){
+ floorSel.innerHTML="";
+ typeSel.innerHTML="";
+
+ floors.forEach(v=>{
+  let o=document.createElement("option");
+  o.textContent=v;
+  floorSel.appendChild(o);
+ });
+
+ types.forEach(v=>{
+  let o=document.createElement("option");
+  o.textContent=v;
+  typeSel.appendChild(o);
+ });
+}
+loadSel();
+
+// ===== 保存 =====
 function save(){
- localStorage.setItem("photos",JSON.stringify(data))
+ localStorage.setItem("db",JSON.stringify(db));
 }
 
-document.getElementById("camera").addEventListener("change",e=>{
- const files=e.target.files
+// ===== 撮影 =====
+document.getElementById("cam").addEventListener("change",e=>{
+ const files=[...e.target.files];
+ if(!files.length)return;
 
- Array.from(files).forEach(file=>{
-  const reader=new FileReader()
-  reader.onload=()=>{
-   data.push({
-    img:reader.result,
-    floor:floorSel.value,
-    type:typeSel.value,
-    date:new Date().toLocaleString(),
-    addr:document.getElementById("address").value
-   })
-   render()
-   save()
-  }
-  reader.readAsDataURL(file)
- })
-})
+ files.forEach(file=>{
+  const fr=new FileReader();
+  fr.onload=()=>{
+   db.push({
+    img:fr.result,
+    f:floorSel.value,
+    t:typeSel.value,
+    d:new Date().toLocaleString(),
+    a:document.getElementById("addr").value
+   });
+   render();
+   save();
+  };
+  fr.readAsDataURL(file);
+ });
+});
 
+// ===== 表示 =====
 function render(){
- const g=document.getElementById("gallery")
- g.innerHTML=""
+ const list=document.getElementById("list");
+ list.innerHTML="";
 
- data.forEach((p,i)=>{
-  const div=document.createElement("div")
+ db.forEach((p,i)=>{
+  const div=document.createElement("div");
 
   div.innerHTML=`
-  <img src="${p.img}">
-  <small>${p.floor} ${p.type}</small>
-  <br>
-  <small>${p.date}</small>
-  <br>
-  <small contenteditable onblur="editAddr(${i},this.innerText)">${p.addr||""}</small>
-  <br>
-  <button onclick="del(${i})">削除</button>
-  `
+   <img src="${p.img}">
+   <small>${p.f} ${p.t}</small><br>
+   <small>${p.d}</small><br>
+   <small contenteditable onblur="edit(${i},this.innerText)">${p.a||""}</small><br>
+   <button onclick="del(${i})">削除</button>
+  `;
 
-  g.appendChild(div)
- })
+  list.appendChild(div);
+ });
 }
 
+// ===== 編集 =====
+function edit(i,val){
+ db[i].a=val;
+ save();
+}
+
+// ===== 削除 =====
 function del(i){
- data.splice(i,1)
- save()
- render()
+ db.splice(i,1);
+ save();
+ render();
 }
 
-function editAddr(i,val){
- data[i].addr=val
- save()
+// ===== 印刷 =====
+function printData(){
+ let w=window.open("");
+ let html="";
+ db.forEach(p=>{
+  html+=`<img src="${p.img}" style="width:100%">`;
+ });
+ w.document.write(html);
+ w.print();
 }
 
-function printPhotos(){
- let w=window.open("")
- let html=""
- data.forEach(p=>{
-  html+=`<img src="${p.img}" style="width:100%">`
- })
- w.document.write(html)
- w.print()
-}
-
-async function share(){
+// ===== 共有 =====
+function share(){
  if(navigator.share){
-  navigator.share({title:"写真"})
+  navigator.share({title:"写真"});
+ }else{
+  alert("共有未対応");
  }
 }
 
-render()
-
-// GPS高速化
+// ===== GPS =====
 navigator.geolocation.getCurrentPosition(pos=>{
- document.getElementById("address").value=
- pos.coords.latitude+","+pos.coords.longitude
-},{enableHighAccuracy:true})
+ document.getElementById("addr").value=
+ pos.coords.latitude+","+pos.coords.longitude;
+},{enableHighAccuracy:true});
+
+render();
+
 </script>
 
 </body>
