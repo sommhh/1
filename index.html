@@ -3,41 +3,48 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>写真ログ 完全版</title>
+<title>写真ログ 完全版+</title>
 
 <style>
 body{font-family:sans-serif;margin:0;background:#f2f2f7}
-header{background:#007aff;color:#fff;padding:12px;font-size:18px}
+header{background:#007aff;color:#fff;padding:12px}
 
-button{padding:10px;border:none;border-radius:10px;background:#007aff;color:#fff}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px}
+.bigbtn{
+width:100%;
+padding:20px;
+font-size:20px;
+border-radius:12px;
+background:#007aff;
+color:#fff;
+border:none;
+margin:5px 0;
+}
+
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
 .card{background:#fff;border-radius:10px;overflow:hidden}
 .card img{width:100%;aspect-ratio:1;object-fit:cover}
-.sel{outline:3px solid #007aff}
-.folder{margin:10px;background:#fff;border-radius:12px;padding:10px}
-
-textarea{width:100%;padding:10px;border-radius:10px}
-
-.tpl button{margin:2px;font-size:12px;background:#eee;color:#000}
+.sel{outline:3px solid blue}
 
 </style>
 </head>
 
 <body>
 
-<header>📷 写真ログ 完全版</header>
+<header>📷 写真ログ 完全版+</header>
 
 <div style="padding:10px">
 
-<input type="file" id="file" accept="image/*">
+<label class="bigbtn">
+📷 撮る
+<input type="file" id="file" accept="image/*" capture="environment" hidden>
+</label>
+
 <textarea id="memo" placeholder="メモ"></textarea>
 
-<div class="tpl" id="tpl"></div>
+<button onclick="editTpl()">定型文編集</button>
+<div id="tpl"></div>
 
-<button onclick="save()">保存</button>
-<button onclick="toggleSelect()">選択</button>
-<button onclick="share()">共有</button>
-<button onclick="window.print()">印刷</button>
+<button class="bigbtn" onclick="save()">保存</button>
 
 </div>
 
@@ -45,46 +52,22 @@ textarea{width:100%;padding:10px;border-radius:10px}
 
 <script>
 
-const DIST=15
 let photos=JSON.parse(localStorage.getItem("p")||"[]")
-let templates=JSON.parse(localStorage.getItem("t")||JSON.stringify([
-"施工前","施工後","完了","問題なし","要対応",
-"確認","OK","NG","注意","その他"
+let tpl=JSON.parse(localStorage.getItem("tpl")||JSON.stringify([
+"施工前","施工後","完了","問題なし","要確認",
+"OK","NG","注意","写真のみ","報告"
 ]))
 
-let selectMode=false
-let selected=new Set()
+let lastGPS=null
 
-// 距離
-function dist(a,b,c,d){
-let R=6371000
-let x=(c-a)*Math.PI/180
-let y=(d-b)*Math.PI/180
-return Math.sqrt(x*x+y*y)*R
-}
-
-// GPS
-function getGPS(){
-return new Promise((res,rej)=>{
-navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true})
-})
-}
-
-// 圧縮
-function compress(file){
-return new Promise(r=>{
-let img=new Image()
-let rd=new FileReader()
-rd.onload=e=>img.src=e.target.result
-img.onload=()=>{
-let c=document.createElement("canvas")
-let w=800
-let h=img.height*(800/img.width)
-c.width=w; c.height=h
-c.getContext("2d").drawImage(img,0,0,w,h)
-r(c.toDataURL("image/jpeg",0.6))
-}
-rd.readAsDataURL(file)
+// GPSキャッシュ
+function getGPSFast(){
+return new Promise((res)=>{
+if(lastGPS){res(lastGPS)}
+navigator.geolocation.getCurrentPosition(p=>{
+lastGPS=p
+res(p)
+},()=>res(null))
 })
 }
 
@@ -93,46 +76,68 @@ async function save(){
 let f=document.getElementById("file").files[0]
 if(!f)return alert("写真選択")
 
-let img=await compress(f)
+let reader=new FileReader()
+reader.onload=async e=>{
+let img=e.target.result
 let memo=document.getElementById("memo").value
-let date=new Date().toISOString().slice(0,10)
+
+let date=new Date().toISOString()
 
 let lat=null,lng=null
-try{
-let p=await getGPS()
-lat=p.coords.latitude
-lng=p.coords.longitude
-}catch{}
-
-let folder="ng_"+date
-
-for(let p of photos){
-if(!p.lat)continue
-if(p.date!==date)continue
-if(dist(lat,lng,p.lat,p.lng)<DIST){
-folder=p.folder
-break
-}
+let pos=await getGPSFast()
+if(pos){
+lat=pos.coords.latitude
+lng=pos.coords.longitude
 }
 
-photos.push({id:Date.now(),img,memo,lat,lng,date,folder})
+photos.push({
+id:Date.now(),
+img,memo,lat,lng,date
+})
 
 localStorage.setItem("p",JSON.stringify(photos))
-
-document.getElementById("memo").value=""
 render()
+}
+
+reader.readAsDataURL(f)
 }
 
 // 定型文
 function renderTpl(){
 let el=document.getElementById("tpl")
 el.innerHTML=""
-templates.forEach((t,i)=>{
+tpl.forEach(t=>{
 let b=document.createElement("button")
 b.textContent=t
-b.onclick=()=>document.getElementById("memo").value+=t+"\n"
+b.onclick=()=>memo.value+=t+"\n"
 el.appendChild(b)
 })
+}
+
+function editTpl(){
+let t=prompt("10個をカンマ区切りで",tpl.join(","))
+if(!t)return
+tpl=t.split(",").slice(0,10)
+localStorage.setItem("tpl",JSON.stringify(tpl))
+renderTpl()
+}
+
+// 削除
+function del(id){
+if(!confirm("削除？"))return
+photos=photos.filter(p=>p.id!==id)
+localStorage.setItem("p",JSON.stringify(photos))
+render()
+}
+
+// 編集
+function edit(p){
+let m=prompt("メモ",p.memo)
+let d=prompt("日付",p.date)
+p.memo=m
+p.date=d
+localStorage.setItem("p",JSON.stringify(photos))
+render()
 }
 
 // 描画
@@ -140,67 +145,18 @@ function render(){
 let wrap=document.getElementById("folders")
 wrap.innerHTML=""
 
-let map={}
 photos.forEach(p=>{
-if(!map[p.folder])map[p.folder]=[]
-map[p.folder].push(p)
-})
-
-Object.keys(map).forEach(k=>{
-let f=document.createElement("div")
-f.className="folder"
-
-f.innerHTML=`<h3>${k}</h3>`
-
-let g=document.createElement("div")
-g.className="grid"
-
-map[k].forEach(p=>{
 let c=document.createElement("div")
 c.className="card"
-if(selected.has(p.id))c.classList.add("sel")
 
-c.onclick=()=>{
-if(selectMode){
-if(selected.has(p.id))selected.delete(p.id)
-else selected.add(p.id)
-render()
-}
-}
+c.innerHTML=`
+<img src="${p.img}">
+<div>${p.memo}</div>
+<button onclick="edit(${JSON.stringify(p)})">編集</button>
+<button onclick="del(${p.id})">削除</button>
+`
 
-c.innerHTML=`<img src="${p.img}">
-<div style="font-size:11px">${p.memo}</div>`
-
-g.appendChild(c)
-})
-
-f.appendChild(g)
-wrap.appendChild(f)
-})
-}
-
-// 選択モード
-function toggleSelect(){
-selectMode=!selectMode
-selected.clear()
-render()
-}
-
-// 共有
-async function share(){
-let list=photos.filter(p=>selected.has(p.id))
-if(list.length===0)list=[photos[photos.length-1]]
-
-if(!navigator.share)return alert("共有不可")
-
-let p=list[0]
-let blob=await (await fetch(p.img)).blob()
-
-let file=new File([blob],"photo.jpg",{type:"image/jpeg"})
-
-navigator.share({
-files:[file],
-text:p.memo
+wrap.appendChild(c)
 })
 }
 
