@@ -3,39 +3,33 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>写真ログ最強版</title>
+<title>写真ログ完成版</title>
 
 <style>
-body{
-  font-family:sans-serif;
-  margin:0;
-  background:#f5f5f5;
-}
+body{margin:0;font-family:sans-serif;background:#f5f5f5}
 
 header{
   background:#007aff;
   color:#fff;
   padding:12px;
   font-size:18px;
+  text-align:center;
 }
 
-.container{
-  padding:10px;
-}
+.container{padding:10px}
 
-.cam-btn{
-  width:100%;
+.cam{
   background:#007aff;
   color:#fff;
-  padding:25px;
-  font-size:20px;
-  border-radius:12px;
+  padding:30px;
+  font-size:22px;
   text-align:center;
-  margin-bottom:10px;
+  border-radius:12px;
   position:relative;
+  margin-bottom:10px;
 }
 
-.cam-btn input{
+.cam input{
   position:absolute;
   inset:0;
   opacity:0;
@@ -43,27 +37,28 @@ header{
 
 select,textarea{
   width:100%;
-  margin-bottom:8px;
   padding:10px;
-  font-size:14px;
+  margin-bottom:8px;
+  font-size:16px;
+}
+
+button{
+  width:100%;
+  padding:12px;
+  font-size:16px;
+  margin-bottom:8px;
 }
 
 .card{
   background:#fff;
-  margin-bottom:10px;
   padding:8px;
   border-radius:10px;
+  margin-bottom:10px;
 }
 
 .card img{
   width:100%;
   border-radius:8px;
-}
-
-.btn{
-  margin-top:5px;
-  padding:8px;
-  font-size:12px;
 }
 </style>
 </head>
@@ -74,8 +69,8 @@ select,textarea{
 
 <div class="container">
 
-<div class="cam-btn">
-📷 撮る
+<div class="cam">
+📷 撮る（連続OK）
 <input type="file" accept="image/*" capture="environment" id="cam">
 </div>
 
@@ -96,7 +91,7 @@ select,textarea{
 
 <textarea id="memo" placeholder="メモ"></textarea>
 
-<button onclick="printSelected()">🖨 印刷</button>
+<button onclick="printSelected()">🖨 選択印刷</button>
 
 <div id="list"></div>
 
@@ -104,7 +99,8 @@ select,textarea{
 
 <script>
 
-const KEY="photos_v1";
+const KEY="photo_app_final";
+let selected=new Set();
 
 function load(){
   return JSON.parse(localStorage.getItem(KEY)||"[]");
@@ -115,11 +111,10 @@ function save(data){
 }
 
 function fmtDate(){
-  const d=new Date();
-  return d.toLocaleString();
+  return new Date().toLocaleString();
 }
 
-async function compress(file){
+function compress(file){
   return new Promise(res=>{
     const r=new FileReader();
     r.onload=e=>{
@@ -127,9 +122,9 @@ async function compress(file){
       img.onload=()=>{
         const c=document.createElement("canvas");
         const w=1200;
-        const scale=w/img.width;
+        const s=w/img.width;
         c.width=w;
-        c.height=img.height*scale;
+        c.height=img.height*s;
         c.getContext("2d").drawImage(img,0,0,c.width,c.height);
         res(c.toDataURL("image/jpeg",0.7));
       };
@@ -139,7 +134,7 @@ async function compress(file){
   });
 }
 
-async function getPos(){
+function getPos(){
   return new Promise((res,rej)=>{
     navigator.geolocation.getCurrentPosition(res,rej);
   });
@@ -155,43 +150,58 @@ async function geocode(lat,lng){
   }
 }
 
-document.getElementById("cam").addEventListener("change",async(e)=>{
-  const f=e.target.files[0];
-  if(!f) return;
+/* ===== 保存（最重要） ===== */
+async function quickSave(file){
 
   const floor=document.getElementById("floor").value;
   const tpl=document.getElementById("tpl").value;
   const memo=document.getElementById("memo").value;
 
-  let lat=null,lng=null,addr="";
+  const img=await compress(file);
+  const date=fmtDate();
 
-  try{
-    const pos=await getPos();
-    lat=pos.coords.latitude;
-    lng=pos.coords.longitude;
-    addr=await geocode(lat,lng);
-  }catch{}
+  let data=load();
+  const id=Date.now();
 
-  const img=await compress(f);
-
-  const data=load();
-
+  // 🔥先保存（爆速）
   data.push({
-    id:Date.now(),
+    id,
     img,
     floor,
     memo:tpl+" "+memo,
-    addr,
-    date:fmtDate()
+    addr:"取得中...",
+    date
   });
 
   save(data);
   render();
 
-  // 連続撮影
+  // 🔥後でGPS
+  try{
+    const pos=await getPos();
+    const addr=await geocode(pos.coords.latitude,pos.coords.longitude);
+
+    let data2=load();
+    let p=data2.find(x=>x.id===id);
+    if(p) p.addr=addr;
+
+    save(data2);
+    render();
+  }catch{}
+}
+
+/* ===== 連続撮影 ===== */
+cam.addEventListener("change",async(e)=>{
+  const f=e.target.files[0];
+  if(!f) return;
+
+  await quickSave(f);
+
+  // 🔥これが重要
   e.target.value="";
 });
 
+/* ===== 表示 ===== */
 function render(){
   const list=document.getElementById("list");
   list.innerHTML="";
@@ -201,35 +211,67 @@ function render(){
   data.forEach(p=>{
     const div=document.createElement("div");
     div.className="card";
+    div.dataset.id=p.id;
 
     div.innerHTML=`
     <img src="${p.img}">
     <div>${p.floor}</div>
     <div>${p.memo}</div>
-    <div>${p.addr||""}</div>
+    <div>${p.addr}</div>
     <div>${p.date}</div>
-    <button class="btn" onclick="edit(${p.id})">編集</button>
-    <button class="btn" onclick="del(${p.id})">削除</button>
-    <button class="btn" onclick="share(${p.id})">共有</button>
+
+    <button onclick="toggleSelect(${p.id})">✔ 選択</button>
+    <button onclick="edit(${p.id})">✏️ 編集</button>
+    <button onclick="del(${p.id})">🗑 削除</button>
+    <button onclick="share(${p.id})">📤 共有</button>
     `;
+
+    if(selected.has(p.id)){
+      div.style.border="3px solid red";
+    }
 
     list.appendChild(div);
   });
 }
 
+/* ===== 選択 ===== */
+function toggleSelect(id){
+  if(selected.has(id)) selected.delete(id);
+  else selected.add(id);
+  render();
+}
+
+/* ===== 印刷 ===== */
+function printSelected(){
+  if(selected.size===0){
+    alert("選択して");
+    return;
+  }
+
+  document.querySelectorAll(".card").forEach(el=>{
+    const id=parseInt(el.dataset.id);
+    el.style.display=selected.has(id)?"block":"none";
+  });
+
+  window.print();
+
+  setTimeout(render,500);
+}
+
+/* ===== 削除 ===== */
 function del(id){
-  const data=load().filter(x=>x.id!==id);
+  let data=load().filter(x=>x.id!==id);
   save(data);
   render();
 }
 
+/* ===== 編集 ===== */
 function edit(id){
-  const data=load();
-  const p=data.find(x=>x.id===id);
-  if(!p) return;
+  let data=load();
+  let p=data.find(x=>x.id===id);
 
-  const addr=prompt("住所",p.addr);
-  const date=prompt("日時",p.date);
+  let addr=prompt("住所",p.addr);
+  let date=prompt("日時",p.date);
 
   if(addr!==null) p.addr=addr;
   if(date!==null) p.date=date;
@@ -238,6 +280,7 @@ function edit(id){
   render();
 }
 
+/* ===== 共有 ===== */
 async function share(id){
   const p=load().find(x=>x.id===id);
   if(!p) return;
@@ -251,7 +294,7 @@ async function share(id){
       text:p.memo
     });
   }else{
-    alert("共有非対応");
+    alert("共有できない端末");
   }
 }
 
@@ -260,15 +303,11 @@ function dataURLtoBlob(dataurl){
   const mime=arr[0].match(/:(.*?);/)[1];
   const bstr=atob(arr[1]);
   let n=bstr.length;
-  const u8arr=new Uint8Array(n);
+  const u8=new Uint8Array(n);
   while(n--){
-    u8arr[n]=bstr.charCodeAt(n);
+    u8[n]=bstr.charCodeAt(n);
   }
-  return new Blob([u8arr],{type:mime});
-}
-
-function printSelected(){
-  window.print();
+  return new Blob([u8],{type:mime});
 }
 
 render();
