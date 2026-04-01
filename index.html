@@ -2,315 +2,252 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>写真ログ完成版</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>現場写真アプリ 完全版</title>
 
 <style>
-body{margin:0;font-family:sans-serif;background:#f5f5f5}
-
-header{
-  background:#007aff;
-  color:#fff;
-  padding:12px;
-  font-size:18px;
-  text-align:center;
+body {
+  font-family: sans-serif;
+  margin: 0;
+  background: #f4f4f4;
 }
 
-.container{padding:10px}
-
-.cam{
-  background:#007aff;
-  color:#fff;
-  padding:30px;
-  font-size:22px;
-  text-align:center;
-  border-radius:12px;
-  position:relative;
-  margin-bottom:10px;
+header {
+  background: #222;
+  color: #fff;
+  padding: 10px;
+  text-align: center;
 }
 
-.cam input{
-  position:absolute;
-  inset:0;
-  opacity:0;
+.controls {
+  padding: 10px;
+  background: #fff;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 }
 
-select,textarea{
-  width:100%;
-  padding:10px;
-  margin-bottom:8px;
-  font-size:16px;
+select, input, button {
+  padding: 10px;
+  font-size: 16px;
 }
 
-button{
-  width:100%;
-  padding:12px;
-  font-size:16px;
-  margin-bottom:8px;
+button {
+  background: #007aff;
+  color: white;
+  border: none;
+  border-radius: 6px;
 }
 
-.card{
-  background:#fff;
-  padding:8px;
-  border-radius:10px;
-  margin-bottom:10px;
+.grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 5px;
+  padding: 5px;
 }
 
-.card img{
-  width:100%;
-  border-radius:8px;
+.photo {
+  position: relative;
+}
+
+.photo img {
+  width: 100%;
+  border-radius: 5px;
+}
+
+.label {
+  position: absolute;
+  bottom: 0;
+  background: rgba(0,0,0,0.6);
+  color: white;
+  font-size: 10px;
+  width: 100%;
+  text-align: center;
+}
+
+.delete {
+  position: absolute;
+  top: 0;
+  right: 0;
+  background: red;
+  color: white;
+  border: none;
 }
 </style>
 </head>
 
 <body>
 
-<header>📷 写真ログ</header>
+<header>現場写真アプリ（完全版）</header>
 
-<div class="container">
+<div class="controls">
 
-<div class="cam">
-📷 撮る（連続OK）
-<input type="file" accept="image/*" capture="environment" id="cam">
-</div>
+<input id="siteName" placeholder="現場名">
 
-<select id="floor">
-<option>1階</option>
-<option>2階</option>
-<option>屋上</option>
-</select>
+<input id="address" placeholder="住所（編集可）">
 
-<select id="tpl">
-<option>施工前</option>
-<option>施工後</option>
-<option>確認</option>
-<option>異常なし</option>
-<option>要修正</option>
-<option>完了</option>
-</select>
+<input id="date" type="date">
 
-<textarea id="memo" placeholder="メモ"></textarea>
+<select id="floor"></select>
+<button onclick="editFloor()">階層編集</button>
 
-<button onclick="printSelected()">🖨 選択印刷</button>
+<select id="tag"></select>
+<button onclick="editTag()">定型文編集</button>
 
-<div id="list"></div>
+<input type="file" accept="image/*" capture="environment" multiple onchange="addPhoto(event)">
+
+<button onclick="startBurst()">連続撮影ON</button>
+<button onclick="stopBurst()">連続撮影OFF</button>
+
+<button onclick="shareLine()">LINE共有</button>
+<button onclick="shareMail()">メール送信</button>
+<button onclick="printPhotos()">印刷</button>
 
 </div>
+
+<div class="grid" id="photos"></div>
 
 <script>
 
-const KEY="photo_app_final";
-let selected=new Set();
+// ===== 初期設定 =====
+let floors = JSON.parse(localStorage.getItem("floors")) || ["1階","2階"];
+let tags = JSON.parse(localStorage.getItem("tags")) || ["施工前","施工後"];
 
-function load(){
-  return JSON.parse(localStorage.getItem(KEY)||"[]");
+let photos = [];
+let burstMode = false;
+
+// ===== UI初期化 =====
+function refreshUI(){
+  let f = document.getElementById("floor");
+  let t = document.getElementById("tag");
+
+  f.innerHTML = floors.map(v=>`<option>${v}</option>`).join("");
+  t.innerHTML = tags.map(v=>`<option>${v}</option>`).join("");
 }
 
-function save(data){
-  localStorage.setItem(KEY,JSON.stringify(data));
+refreshUI();
+
+// ===== 編集 =====
+function editFloor(){
+  let txt = prompt("階層をカンマ区切りで入力", floors.join(","));
+  if(txt){
+    floors = txt.split(",");
+    localStorage.setItem("floors", JSON.stringify(floors));
+    refreshUI();
+  }
 }
 
-function fmtDate(){
-  return new Date().toLocaleString();
+function editTag(){
+  let txt = prompt("定型文をカンマ区切りで入力", tags.join(","));
+  if(txt){
+    tags = txt.split(",");
+    localStorage.setItem("tags", JSON.stringify(tags));
+    refreshUI();
+  }
 }
 
-function compress(file){
-  return new Promise(res=>{
-    const r=new FileReader();
-    r.onload=e=>{
-      const img=new Image();
-      img.onload=()=>{
-        const c=document.createElement("canvas");
-        const w=1200;
-        const s=w/img.width;
-        c.width=w;
-        c.height=img.height*s;
-        c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-        res(c.toDataURL("image/jpeg",0.7));
+// ===== 写真追加 =====
+function addPhoto(e){
+  let files = e.target.files;
+
+  for(let file of files){
+    let reader = new FileReader();
+
+    reader.onload = function(){
+      let obj = {
+        src: reader.result,
+        floor: document.getElementById("floor").value,
+        tag: document.getElementById("tag").value,
+        date: document.getElementById("date").value,
+        address: document.getElementById("address").value,
+        site: document.getElementById("siteName").value
       };
-      img.src=e.target.result;
+
+      photos.push(obj);
+      render();
     };
-    r.readAsDataURL(file);
-  });
-}
 
-function getPos(){
-  return new Promise((res,rej)=>{
-    navigator.geolocation.getCurrentPosition(res,rej);
-  });
-}
+    reader.readAsDataURL(file);
+  }
 
-async function geocode(lat,lng){
-  try{
-    const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`);
-    const d=await r.json();
-    return d.display_name;
-  }catch{
-    return "";
+  if(!burstMode){
+    e.target.value = "";
   }
 }
 
-/* ===== 保存（最重要） ===== */
-async function quickSave(file){
-
-  const floor=document.getElementById("floor").value;
-  const tpl=document.getElementById("tpl").value;
-  const memo=document.getElementById("memo").value;
-
-  const img=await compress(file);
-  const date=fmtDate();
-
-  let data=load();
-  const id=Date.now();
-
-  // 🔥先保存（爆速）
-  data.push({
-    id,
-    img,
-    floor,
-    memo:tpl+" "+memo,
-    addr:"取得中...",
-    date
-  });
-
-  save(data);
-  render();
-
-  // 🔥後でGPS
-  try{
-    const pos=await getPos();
-    const addr=await geocode(pos.coords.latitude,pos.coords.longitude);
-
-    let data2=load();
-    let p=data2.find(x=>x.id===id);
-    if(p) p.addr=addr;
-
-    save(data2);
-    render();
-  }catch{}
-}
-
-/* ===== 連続撮影 ===== */
-cam.addEventListener("change",async(e)=>{
-  const f=e.target.files[0];
-  if(!f) return;
-
-  await quickSave(f);
-
-  // 🔥これが重要
-  e.target.value="";
-});
-
-/* ===== 表示 ===== */
+// ===== 表示 =====
 function render(){
-  const list=document.getElementById("list");
-  list.innerHTML="";
+  let box = document.getElementById("photos");
+  box.innerHTML = "";
 
-  const data=load().reverse();
-
-  data.forEach(p=>{
-    const div=document.createElement("div");
-    div.className="card";
-    div.dataset.id=p.id;
-
-    div.innerHTML=`
-    <img src="${p.img}">
-    <div>${p.floor}</div>
-    <div>${p.memo}</div>
-    <div>${p.addr}</div>
-    <div>${p.date}</div>
-
-    <button onclick="toggleSelect(${p.id})">✔ 選択</button>
-    <button onclick="edit(${p.id})">✏️ 編集</button>
-    <button onclick="del(${p.id})">🗑 削除</button>
-    <button onclick="share(${p.id})">📤 共有</button>
+  photos.forEach((p,i)=>{
+    box.innerHTML += `
+    <div class="photo">
+      <img src="${p.src}">
+      <div class="label">${p.floor} / ${p.tag}</div>
+      <button class="delete" onclick="del(${i})">×</button>
+    </div>
     `;
-
-    if(selected.has(p.id)){
-      div.style.border="3px solid red";
-    }
-
-    list.appendChild(div);
   });
 }
 
-/* ===== 選択 ===== */
-function toggleSelect(id){
-  if(selected.has(id)) selected.delete(id);
-  else selected.add(id);
-  render();
+// ===== 削除 =====
+function del(i){
+  if(confirm("削除する？")){
+    photos.splice(i,1);
+    render();
+  }
 }
 
-/* ===== 印刷 ===== */
-function printSelected(){
-  if(selected.size===0){
-    alert("選択して");
-    return;
-  }
+// ===== 連続撮影 =====
+function startBurst(){
+  burstMode = true;
+  alert("連続撮影ON");
+}
 
-  document.querySelectorAll(".card").forEach(el=>{
-    const id=parseInt(el.dataset.id);
-    el.style.display=selected.has(id)?"block":"none";
+function stopBurst(){
+  burstMode = false;
+  alert("連続撮影OFF");
+}
+
+// ===== 印刷 =====
+function printPhotos(){
+  let win = window.open("");
+  let html = photos.map(p=>`
+    <div style="page-break-after:always">
+      <img src="${p.src}" style="width:100%">
+      <p>${p.site}</p>
+      <p>${p.address}</p>
+      <p>${p.date}</p>
+      <p>${p.floor} / ${p.tag}</p>
+    </div>
+  `).join("");
+
+  win.document.write(html);
+  win.print();
+}
+
+// ===== LINE共有 =====
+function shareLine(){
+  alert("LINEは画像まとめ送信不可。1枚ずつ共有になります");
+}
+
+// ===== メール =====
+function shareMail(){
+  window.location.href = "mailto:?subject=現場写真";
+}
+
+// ===== GPS =====
+navigator.geolocation.getCurrentPosition(pos=>{
+  let lat = pos.coords.latitude;
+  let lon = pos.coords.longitude;
+
+  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
+  .then(r=>r.json())
+  .then(d=>{
+    document.getElementById("address").value = d.display_name;
   });
-
-  window.print();
-
-  setTimeout(render,500);
-}
-
-/* ===== 削除 ===== */
-function del(id){
-  let data=load().filter(x=>x.id!==id);
-  save(data);
-  render();
-}
-
-/* ===== 編集 ===== */
-function edit(id){
-  let data=load();
-  let p=data.find(x=>x.id===id);
-
-  let addr=prompt("住所",p.addr);
-  let date=prompt("日時",p.date);
-
-  if(addr!==null) p.addr=addr;
-  if(date!==null) p.date=date;
-
-  save(data);
-  render();
-}
-
-/* ===== 共有 ===== */
-async function share(id){
-  const p=load().find(x=>x.id===id);
-  if(!p) return;
-
-  const blob=dataURLtoBlob(p.img);
-  const file=new File([blob],"photo.jpg",{type:"image/jpeg"});
-
-  if(navigator.share){
-    await navigator.share({
-      files:[file],
-      text:p.memo
-    });
-  }else{
-    alert("共有できない端末");
-  }
-}
-
-function dataURLtoBlob(dataurl){
-  const arr=dataurl.split(",");
-  const mime=arr[0].match(/:(.*?);/)[1];
-  const bstr=atob(arr[1]);
-  let n=bstr.length;
-  const u8=new Uint8Array(n);
-  while(n--){
-    u8[n]=bstr.charCodeAt(n);
-  }
-  return new Blob([u8],{type:mime});
-}
-
-render();
+});
 
 </script>
 
