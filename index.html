@@ -1,1 +1,185 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>現場写真アプリ</title>
 
+<style>
+body{
+ font-family:sans-serif;
+ margin:0;
+ background:#f5f5f5;
+}
+
+header{
+ position:fixed;
+ top:0;
+ width:100%;
+ background:#111;
+ color:#fff;
+ padding:10px;
+ z-index:999;
+}
+
+.main{
+ margin-top:70px;
+ padding:10px;
+}
+
+button{
+ padding:10px;
+ margin:5px;
+ font-size:16px;
+}
+
+.grid{
+ display:grid;
+ grid-template-columns:repeat(3,1fr);
+ gap:5px;
+}
+
+img{
+ width:100%;
+ height:100px;
+ object-fit:cover;
+}
+</style>
+
+</head>
+<body>
+
+<header>
+📸 現場写真
+<input type="file" id="camera" accept="image/*" capture="environment" multiple>
+</header>
+
+<div class="main">
+
+<select id="floor"></select>
+<select id="type"></select>
+
+<input id="address" placeholder="住所編集OK">
+
+<button onclick="printPhotos()">印刷</button>
+<button onclick="share()">共有</button>
+
+<div class="grid" id="gallery"></div>
+
+</div>
+
+<script>
+let data = JSON.parse(localStorage.getItem("photos")||"[]")
+
+const floorsKey="floors"
+const typesKey="types"
+
+let floors = JSON.parse(localStorage.getItem(floorsKey)||'["1階","2階"]')
+let types = JSON.parse(localStorage.getItem(typesKey)||'["施工前","施工後"]')
+
+const floorSel=document.getElementById("floor")
+const typeSel=document.getElementById("type")
+
+function loadOptions(){
+ floorSel.innerHTML=""
+ typeSel.innerHTML=""
+
+ floors.forEach(f=>{
+  let o=document.createElement("option")
+  o.textContent=f
+  floorSel.appendChild(o)
+ })
+
+ types.forEach(t=>{
+  let o=document.createElement("option")
+  o.textContent=t
+  typeSel.appendChild(o)
+ })
+}
+
+loadOptions()
+
+function save(){
+ localStorage.setItem("photos",JSON.stringify(data))
+}
+
+document.getElementById("camera").addEventListener("change",e=>{
+ const files=e.target.files
+
+ Array.from(files).forEach(file=>{
+  const reader=new FileReader()
+  reader.onload=()=>{
+   data.push({
+    img:reader.result,
+    floor:floorSel.value,
+    type:typeSel.value,
+    date:new Date().toLocaleString(),
+    addr:document.getElementById("address").value
+   })
+   render()
+   save()
+  }
+  reader.readAsDataURL(file)
+ })
+})
+
+function render(){
+ const g=document.getElementById("gallery")
+ g.innerHTML=""
+
+ data.forEach((p,i)=>{
+  const div=document.createElement("div")
+
+  div.innerHTML=`
+  <img src="${p.img}">
+  <small>${p.floor} ${p.type}</small>
+  <br>
+  <small>${p.date}</small>
+  <br>
+  <small contenteditable onblur="editAddr(${i},this.innerText)">${p.addr||""}</small>
+  <br>
+  <button onclick="del(${i})">削除</button>
+  `
+
+  g.appendChild(div)
+ })
+}
+
+function del(i){
+ data.splice(i,1)
+ save()
+ render()
+}
+
+function editAddr(i,val){
+ data[i].addr=val
+ save()
+}
+
+function printPhotos(){
+ let w=window.open("")
+ let html=""
+ data.forEach(p=>{
+  html+=`<img src="${p.img}" style="width:100%">`
+ })
+ w.document.write(html)
+ w.print()
+}
+
+async function share(){
+ if(navigator.share){
+  navigator.share({title:"写真"})
+ }
+}
+
+render()
+
+// GPS高速化
+navigator.geolocation.getCurrentPosition(pos=>{
+ document.getElementById("address").value=
+ pos.coords.latitude+","+pos.coords.longitude
+},{enableHighAccuracy:true})
+</script>
+
+</body>
+</html>
