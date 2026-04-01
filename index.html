@@ -2,160 +2,211 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>写真ログ PRO</title>
-<meta name="theme-color" content="#007aff">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>写真ログ 完全版</title>
+
 <style>
-body{font-family:-apple-system;background:#f2f2f7;margin:0;padding:12px;color:#000}
-h2{margin:10px 0}
-button{padding:12px;border-radius:10px;border:none;background:#007aff;color:#fff;font-weight:600}
-input,textarea{width:100%;padding:10px;border-radius:10px;border:1px solid #ccc;margin-top:8px}
-.card{background:#fff;padding:10px;border-radius:12px;margin-top:10px}
-img{width:100%;border-radius:10px}
-.small{font-size:12px;color:#666}
-.top{display:flex;gap:8px}
-.top button{flex:1}
-.del{background:#ff3b30}
+body{font-family:sans-serif;margin:0;background:#f2f2f7}
+header{background:#007aff;color:#fff;padding:12px;font-size:18px}
+
+button{padding:10px;border:none;border-radius:10px;background:#007aff;color:#fff}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:10px}
+.card{background:#fff;border-radius:10px;overflow:hidden}
+.card img{width:100%;aspect-ratio:1;object-fit:cover}
+.sel{outline:3px solid #007aff}
+.folder{margin:10px;background:#fff;border-radius:12px;padding:10px}
+
+textarea{width:100%;padding:10px;border-radius:10px}
+
+.tpl button{margin:2px;font-size:12px;background:#eee;color:#000}
+
 </style>
 </head>
+
 <body>
 
-<h2>📷 写真ログ PRO</h2>
+<header>📷 写真ログ 完全版</header>
 
-<div class="top">
-<input type="file" id="file" accept="image/*" capture="environment">
+<div style="padding:10px">
+
+<input type="file" id="file" accept="image/*">
+<textarea id="memo" placeholder="メモ"></textarea>
+
+<div class="tpl" id="tpl"></div>
+
 <button onclick="save()">保存</button>
+<button onclick="toggleSelect()">選択</button>
+<button onclick="share()">共有</button>
+<button onclick="window.print()">印刷</button>
+
 </div>
 
-<textarea id="memo" placeholder="メモ（任意）"></textarea>
-
-<div class="top">
-<button onclick="exportCSV()">CSV出力</button>
-<button class="del" onclick="clearAll()">全削除</button>
-</div>
-
-<p id="status"></p>
-
-<div id="list"></div>
+<div id="folders"></div>
 
 <script>
-let photos=JSON.parse(localStorage.getItem("photos")||"[]");
 
-function render(){
-let html="";
-photos.slice().reverse().forEach(p=>{
-html+=`
-<div class="card">
-<img src="${p.img}">
-<div class="small">🕒 ${p.date}</div>
-<div>${p.memo||""}</div>
-${p.addr?`<div class="small">📍 ${p.addr}</div>`:""}
-</div>`;
-});
-document.getElementById("list").innerHTML=html;
+const DIST=15
+let photos=JSON.parse(localStorage.getItem("p")||"[]")
+let templates=JSON.parse(localStorage.getItem("t")||JSON.stringify([
+"施工前","施工後","完了","問題なし","要対応",
+"確認","OK","NG","注意","その他"
+]))
+
+let selectMode=false
+let selected=new Set()
+
+// 距離
+function dist(a,b,c,d){
+let R=6371000
+let x=(c-a)*Math.PI/180
+let y=(d-b)*Math.PI/180
+return Math.sqrt(x*x+y*y)*R
 }
 
-function setStatus(t){document.getElementById("status").textContent=t}
-
-function compress(file){
-return new Promise(res=>{
-let r=new FileReader();
-r.onload=e=>{
-let img=new Image();
-img.onload=()=>{
-let c=document.createElement("canvas");
-let max=1024;
-let s=Math.min(1,max/img.width);
-c.width=img.width*s;
-c.height=img.height*s;
-c.getContext("2d").drawImage(img,0,0,c.width,c.height);
-res(c.toDataURL("image/jpeg",0.7));
-};
-img.src=e.target.result;
-};
-r.readAsDataURL(file);
-});
-}
-
+// GPS
 function getGPS(){
-return new Promise((res)=>{
-if(!navigator.geolocation){res(null);return;}
-navigator.geolocation.getCurrentPosition(
-p=>res({lat:p.coords.latitude,lng:p.coords.longitude}),
-()=>res(null),
-{timeout:8000}
-);
-});
+return new Promise((res,rej)=>{
+navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true})
+})
 }
 
-async function getAddr(lat,lng){
-try{
-let r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ja`);
-let d=await r.json();
-return d.display_name||"";
-}catch{return "";}
+// 圧縮
+function compress(file){
+return new Promise(r=>{
+let img=new Image()
+let rd=new FileReader()
+rd.onload=e=>img.src=e.target.result
+img.onload=()=>{
+let c=document.createElement("canvas")
+let w=800
+let h=img.height*(800/img.width)
+c.width=w; c.height=h
+c.getContext("2d").drawImage(img,0,0,w,h)
+r(c.toDataURL("image/jpeg",0.6))
+}
+rd.readAsDataURL(file)
+})
 }
 
+// 保存
 async function save(){
-let f=document.getElementById("file").files[0];
-let memo=document.getElementById("memo").value;
+let f=document.getElementById("file").files[0]
+if(!f)return alert("写真選択")
 
-if(!f){alert("写真選んで");return;}
+let img=await compress(f)
+let memo=document.getElementById("memo").value
+let date=new Date().toISOString().slice(0,10)
 
-setStatus("保存中…");
-
-let img=await compress(f);
-
-let gps=await getGPS();
-let addr="";
-if(gps){
-setStatus("住所取得中…");
-addr=await getAddr(gps.lat,gps.lng);
-}
-
-photos.push({
-img:img,
-memo:memo,
-date:new Date().toLocaleString(),
-addr:addr
-});
-
+let lat=null,lng=null
 try{
-localStorage.setItem("photos",JSON.stringify(photos));
-}catch{
-alert("容量オーバー（古い写真削除して）");
-return;
-}
+let p=await getGPS()
+lat=p.coords.latitude
+lng=p.coords.longitude
+}catch{}
 
-document.getElementById("file").value="";
-document.getElementById("memo").value="";
-setStatus("保存完了");
-render();
-}
+let folder="ng_"+date
 
-function clearAll(){
-if(confirm("全部消す？")){
-photos=[];
-localStorage.removeItem("photos");
-render();
+for(let p of photos){
+if(!p.lat)continue
+if(p.date!==date)continue
+if(dist(lat,lng,p.lat,p.lng)<DIST){
+folder=p.folder
+break
 }
 }
 
-function exportCSV(){
-if(!photos.length){alert("データなし");return;}
-let csv="日付,メモ,住所\n";
+photos.push({id:Date.now(),img,memo,lat,lng,date,folder})
+
+localStorage.setItem("p",JSON.stringify(photos))
+
+document.getElementById("memo").value=""
+render()
+}
+
+// 定型文
+function renderTpl(){
+let el=document.getElementById("tpl")
+el.innerHTML=""
+templates.forEach((t,i)=>{
+let b=document.createElement("button")
+b.textContent=t
+b.onclick=()=>document.getElementById("memo").value+=t+"\n"
+el.appendChild(b)
+})
+}
+
+// 描画
+function render(){
+let wrap=document.getElementById("folders")
+wrap.innerHTML=""
+
+let map={}
 photos.forEach(p=>{
-csv+=`"${p.date}","${p.memo}","${p.addr||""}"\n`;
-});
-let bom=new Uint8Array([0xEF,0xBB,0xBF]);
-let blob=new Blob([bom,csv],{type:"text/csv"});
-let a=document.createElement("a");
-a.href=URL.createObjectURL(blob);
-a.download="photo_log.csv";
-a.click();
+if(!map[p.folder])map[p.folder]=[]
+map[p.folder].push(p)
+})
+
+Object.keys(map).forEach(k=>{
+let f=document.createElement("div")
+f.className="folder"
+
+f.innerHTML=`<h3>${k}</h3>`
+
+let g=document.createElement("div")
+g.className="grid"
+
+map[k].forEach(p=>{
+let c=document.createElement("div")
+c.className="card"
+if(selected.has(p.id))c.classList.add("sel")
+
+c.onclick=()=>{
+if(selectMode){
+if(selected.has(p.id))selected.delete(p.id)
+else selected.add(p.id)
+render()
+}
 }
 
-render();
+c.innerHTML=`<img src="${p.img}">
+<div style="font-size:11px">${p.memo}</div>`
+
+g.appendChild(c)
+})
+
+f.appendChild(g)
+wrap.appendChild(f)
+})
+}
+
+// 選択モード
+function toggleSelect(){
+selectMode=!selectMode
+selected.clear()
+render()
+}
+
+// 共有
+async function share(){
+let list=photos.filter(p=>selected.has(p.id))
+if(list.length===0)list=[photos[photos.length-1]]
+
+if(!navigator.share)return alert("共有不可")
+
+let p=list[0]
+let blob=await (await fetch(p.img)).blob()
+
+let file=new File([blob],"photo.jpg",{type:"image/jpeg"})
+
+navigator.share({
+files:[file],
+text:p.memo
+})
+}
+
+renderTpl()
+render()
+
 </script>
 
 </body>
