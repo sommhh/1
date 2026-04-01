@@ -2,253 +2,240 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>現場写真アプリ 完全版</title>
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>現場写真ログ</title>
 
 <style>
-body {
-  font-family: sans-serif;
-  margin: 0;
-  background: #f4f4f4;
+body{margin:0;font-family:sans-serif;background:#f2f2f7}
+
+/* ヘッダー */
+header{
+  background:#007aff;color:#fff;padding:12px;text-align:center;font-size:18px
 }
 
-header {
-  background: #222;
-  color: #fff;
-  padding: 10px;
-  text-align: center;
+/* 上部（撮影・設定） */
+.top{
+  padding:10px;background:#fff;position:sticky;top:0;z-index:10
 }
-
-.controls {
-  padding: 10px;
-  background: #fff;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
+.cam{
+  background:#007aff;color:#fff;padding:28px;text-align:center;
+  font-size:20px;border-radius:12px;position:relative;margin-bottom:8px
 }
+.cam input{position:absolute;inset:0;opacity:0}
 
-select, input, button {
-  padding: 10px;
-  font-size: 16px;
+/* 入力 */
+.row{display:flex;gap:6px;margin-bottom:6px}
+.row > *{flex:1;padding:10px;font-size:15px}
+
+/* ボタン */
+.btn{width:100%;padding:12px;margin-top:6px;font-size:16px;border:none;border-radius:10px;background:#007aff;color:#fff}
+.btn.gray{background:#8e8e93}
+
+/* フォルダ */
+.folder{margin:10px}
+.fhdr{
+  background:#fff;padding:10px;border-radius:10px;display:flex;justify-content:space-between;align-items:center;cursor:pointer
 }
-
-button {
-  background: #007aff;
-  color: white;
-  border: none;
-  border-radius: 6px;
+.fname{font-size:14px;font-weight:bold}
+.fgrid{
+  display:none;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px
 }
+.folder.open .fgrid{display:grid}
 
-.grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 5px;
-  padding: 5px;
+/* 写真 */
+.card{position:relative}
+.card img{width:100%;border-radius:8px}
+.label{
+  position:absolute;bottom:0;width:100%;background:rgba(0,0,0,.6);
+  color:#fff;font-size:10px;text-align:center
 }
-
-.photo {
-  position: relative;
+.sel{
+  position:absolute;top:4px;left:4px;background:#0006;color:#fff;
+  border-radius:50%;width:20px;height:20px;font-size:11px;display:flex;align-items:center;justify-content:center
 }
+.card.selected .sel{background:#007aff}
 
-.photo img {
-  width: 100%;
-  border-radius: 5px;
-}
-
-.label {
-  position: absolute;
-  bottom: 0;
-  background: rgba(0,0,0,0.6);
-  color: white;
-  font-size: 10px;
-  width: 100%;
-  text-align: center;
-}
-
-.delete {
-  position: absolute;
-  top: 0;
-  right: 0;
-  background: red;
-  color: white;
-  border: none;
+/* 印刷 */
+@media print{
+  header,.top,.fhdr{display:none}
+  .fgrid{display:grid!important;grid-template-columns:repeat(3,1fr)}
+  .card{break-inside:avoid}
+  .card:not(.print){display:none}
 }
 </style>
 </head>
 
 <body>
 
-<header>現場写真アプリ（完全版）</header>
+<header>📷 現場写真ログ</header>
 
-<div class="controls">
+<div class="top">
 
-<input id="siteName" placeholder="現場名">
+<!-- 撮影（最上部） -->
+<div class="cam">
+📷 撮影（連続）
+<input type="file" accept="image/*" capture="environment" id="cam">
+</div>
 
-<input id="address" placeholder="住所（編集可）">
+<div class="row">
+<input id="site" placeholder="現場名">
+<input id="addr" placeholder="住所">
+</div>
 
-<input id="date" type="date">
-
+<div class="row">
 <select id="floor"></select>
-<button onclick="editFloor()">階層編集</button>
-
 <select id="tag"></select>
-<button onclick="editTag()">定型文編集</button>
+</div>
 
-<input type="file" accept="image/*" capture="environment" multiple onchange="addPhoto(event)">
+<div class="row">
+<button class="btn gray" onclick="editFloor()">階層編集</button>
+<button class="btn gray" onclick="editTag()">定型文編集</button>
+</div>
 
-<button onclick="startBurst()">連続撮影ON</button>
-<button onclick="stopBurst()">連続撮影OFF</button>
-
-<button onclick="shareLine()">LINE共有</button>
-<button onclick="shareMail()">メール送信</button>
-<button onclick="printPhotos()">印刷</button>
+<button class="btn" onclick="printSelected()">🖨 選択印刷</button>
 
 </div>
 
-<div class="grid" id="photos"></div>
+<div id="folders"></div>
 
 <script>
 
-// ===== 初期設定 =====
-let floors = JSON.parse(localStorage.getItem("floors")) || ["1階","2階"];
-let tags = JSON.parse(localStorage.getItem("tags")) || ["施工前","施工後"];
+/* ===== 初期データ ===== */
+let floors = JSON.parse(localStorage.getItem("floors")) || ["1階","2階","屋上","地下","外","A","B","C","D","E"];
+let tags = JSON.parse(localStorage.getItem("tags")) || ["施工前","施工後","確認","異常なし","要修正","完了","配線","器具","注意","記録"];
+let photos = JSON.parse(localStorage.getItem("photos")||"[]");
+let selected = new Set();
 
-let photos = [];
-let burstMode = false;
-
-// ===== UI初期化 =====
+/* ===== UI ===== */
 function refreshUI(){
-  let f = document.getElementById("floor");
-  let t = document.getElementById("tag");
-
-  f.innerHTML = floors.map(v=>`<option>${v}</option>`).join("");
-  t.innerHTML = tags.map(v=>`<option>${v}</option>`).join("");
+  floor.innerHTML = floors.map(v=>`<option>${v}</option>`).join("");
+  tag.innerHTML = tags.map(v=>`<option>${v}</option>`).join("");
 }
-
 refreshUI();
 
-// ===== 編集 =====
+/* ===== 編集（10個固定） ===== */
 function editFloor(){
-  let txt = prompt("階層をカンマ区切りで入力", floors.join(","));
-  if(txt){
-    floors = txt.split(",");
-    localStorage.setItem("floors", JSON.stringify(floors));
-    refreshUI();
-  }
+  let t = prompt("10個入力（カンマ区切り）", floors.join(","));
+  if(!t) return;
+  floors = t.split(",").slice(0,10);
+  localStorage.setItem("floors",JSON.stringify(floors));
+  refreshUI();
 }
-
 function editTag(){
-  let txt = prompt("定型文をカンマ区切りで入力", tags.join(","));
-  if(txt){
-    tags = txt.split(",");
-    localStorage.setItem("tags", JSON.stringify(tags));
-    refreshUI();
-  }
+  let t = prompt("10個入力（カンマ区切り）", tags.join(","));
+  if(!t) return;
+  tags = t.split(",").slice(0,10);
+  localStorage.setItem("tags",JSON.stringify(tags));
+  refreshUI();
 }
 
-// ===== 写真追加 =====
-function addPhoto(e){
-  let files = e.target.files;
+/* ===== 保存 ===== */
+cam.onchange = async e=>{
+  const f = e.target.files[0];
+  if(!f) return;
 
-  for(let file of files){
-    let reader = new FileReader();
+  const img = await comp(f);
+  const d = new Date();
+  const date = d.toISOString().slice(0,10);
 
-    reader.onload = function(){
-      let obj = {
-        src: reader.result,
-        floor: document.getElementById("floor").value,
-        tag: document.getElementById("tag").value,
-        date: document.getElementById("date").value,
-        address: document.getElementById("address").value,
-        site: document.getElementById("siteName").value
+  photos.push({
+    id:Date.now(),
+    img,
+    site:site.value,
+    addr:addr.value,
+    floor:floor.value,
+    tag:tag.value,
+    date
+  });
+
+  localStorage.setItem("photos",JSON.stringify(photos));
+  render();
+
+  // 🔥 連続撮影
+  e.target.value="";
+};
+
+/* ===== 圧縮 ===== */
+function comp(file){
+  return new Promise(res=>{
+    const r=new FileReader();
+    r.onload=e=>{
+      const i=new Image();
+      i.onload=()=>{
+        const c=document.createElement("canvas");
+        const w=900,s=w/i.width;
+        c.width=w;c.height=i.height*s;
+        c.getContext("2d").drawImage(i,0,0,c.width,c.height);
+        res(c.toDataURL("image/jpeg",0.7));
       };
-
-      photos.push(obj);
-      render();
+      i.src=e.target.result;
     };
-
-    reader.readAsDataURL(file);
-  }
-
-  if(!burstMode){
-    e.target.value = "";
-  }
+    r.readAsDataURL(file);
+  });
 }
 
-// ===== 表示 =====
-function render(){
-  let box = document.getElementById("photos");
-  box.innerHTML = "";
+/* ===== フォルダ分け ===== */
+function key(p){
+  return `${p.site}_${p.addr}_${p.date}_${p.floor}`;
+}
 
-  photos.forEach((p,i)=>{
-    box.innerHTML += `
-    <div class="photo">
-      <img src="${p.src}">
-      <div class="label">${p.floor} / ${p.tag}</div>
-      <button class="delete" onclick="del(${i})">×</button>
+/* ===== 描画 ===== */
+function render(){
+  const fwrap = document.getElementById("folders");
+  fwrap.innerHTML="";
+
+  const map={};
+  photos.forEach(p=>{
+    const k=key(p);
+    if(!map[k]) map[k]=[];
+    map[k].push(p);
+  });
+
+  Object.entries(map).forEach(([k,arr])=>{
+    const box=document.createElement("div");
+    box.className="folder open";
+
+    box.innerHTML=`
+    <div class="fhdr" onclick="this.parentNode.classList.toggle('open')">
+      <div class="fname">${k}</div>
+      <div>${arr.length}枚</div>
+    </div>
+    <div class="fgrid">
+      ${arr.map(p=>`
+      <div class="card ${selected.has(p.id)?'selected':''}" data-id="${p.id}" onclick="sel(event,${p.id})">
+        <div class="sel">${selected.has(p.id)?'✓':''}</div>
+        <img src="${p.img}">
+        <div class="label">${p.floor} / ${p.tag}</div>
+      </div>`).join("")}
     </div>
     `;
+    fwrap.appendChild(box);
   });
 }
 
-// ===== 削除 =====
-function del(i){
-  if(confirm("削除する？")){
-    photos.splice(i,1);
-    render();
-  }
+/* ===== 選択 ===== */
+function sel(e,id){
+  e.stopPropagation();
+  if(selected.has(id)) selected.delete(id);
+  else selected.add(id);
+  render();
 }
 
-// ===== 連続撮影 =====
-function startBurst(){
-  burstMode = true;
-  alert("連続撮影ON");
-}
+/* ===== 印刷 ===== */
+function printSelected(){
+  if(selected.size===0){alert("選択して");return;}
 
-function stopBurst(){
-  burstMode = false;
-  alert("連続撮影OFF");
-}
-
-// ===== 印刷 =====
-function printPhotos(){
-  let win = window.open("");
-  let html = photos.map(p=>`
-    <div style="page-break-after:always">
-      <img src="${p.src}" style="width:100%">
-      <p>${p.site}</p>
-      <p>${p.address}</p>
-      <p>${p.date}</p>
-      <p>${p.floor} / ${p.tag}</p>
-    </div>
-  `).join("");
-
-  win.document.write(html);
-  win.print();
-}
-
-// ===== LINE共有 =====
-function shareLine(){
-  alert("LINEは画像まとめ送信不可。1枚ずつ共有になります");
-}
-
-// ===== メール =====
-function shareMail(){
-  window.location.href = "mailto:?subject=現場写真";
-}
-
-// ===== GPS =====
-navigator.geolocation.getCurrentPosition(pos=>{
-  let lat = pos.coords.latitude;
-  let lon = pos.coords.longitude;
-
-  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}`)
-  .then(r=>r.json())
-  .then(d=>{
-    document.getElementById("address").value = d.display_name;
+  document.querySelectorAll(".card").forEach(el=>{
+    const id = parseInt(el.dataset.id);
+    el.classList.toggle("print", selected.has(id));
   });
-});
 
+  window.print();
+
+  setTimeout(()=>render(),300);
+}
+
+render();
 </script>
 
 </body>
