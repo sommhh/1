@@ -3,24 +3,27 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1.0">
-<title>写真ログ Lite</title>
+<title>写真ログPRO</title>
 
 <style>
-body{font-family:sans-serif;background:#f2f2f7;margin:0}
-header{padding:12px;background:#007aff;color:#fff;text-align:center;font-weight:bold}
+body{margin:0;font-family:sans-serif;background:#f2f2f7}
+header{background:#007aff;color:#fff;padding:12px;text-align:center;font-weight:bold}
 .container{padding:10px}
-button{padding:10px;border:none;border-radius:10px;background:#007aff;color:#fff;font-size:14px}
-input,textarea,select{width:100%;padding:8px;margin:5px 0;border-radius:8px;border:1px solid #ccc}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-.card{background:#fff;border-radius:10px;padding:5px}
+button{padding:12px;border:none;border-radius:10px;background:#007aff;color:#fff;font-size:15px}
+input,textarea,select{width:100%;padding:10px;margin:5px 0;border-radius:10px;border:1px solid #ccc}
+
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.card{background:#fff;border-radius:12px;padding:5px}
 .card img{width:100%;border-radius:8px}
+
+.folder{background:#fff;margin:10px 0;padding:10px;border-radius:12px}
 .small{font-size:11px;color:#666}
 </style>
 </head>
 
 <body>
 
-<header>📷 写真ログ Lite</header>
+<header>📷 写真ログPRO</header>
 
 <div class="container">
 
@@ -29,62 +32,104 @@ input,textarea,select{width:100%;padding:8px;margin:5px 0;border-radius:8px;bord
 <select id="floor"></select>
 <button onclick="editFloor()">階層編集</button>
 
+<select id="tpl"></select>
+<button onclick="editTpl()">定型文編集</button>
+
 <textarea id="memo" placeholder="メモ"></textarea>
 
 <button onclick="save()">保存</button>
 
-<button onclick="exportLine()">LINE共有</button>
-<button onclick="exportMail()">メール送信</button>
+<button onclick="share()">共有（LINE・メール）</button>
+<button onclick="printAll()">印刷</button>
 
-<div class="grid" id="list"></div>
+<div id="folders"></div>
 
 </div>
 
 <script>
 
-const KEY="photoLite_v1";
-const FLOOR_KEY="floor_v1";
+const KEY="photo_pro";
+const FLOOR_KEY="floor_pro";
+const TPL_KEY="tpl_pro";
 
 let floors=JSON.parse(localStorage.getItem(FLOOR_KEY)||'["1階","2階","屋上"]');
+let tpls=JSON.parse(localStorage.getItem(TPL_KEY)||'["施工前","施工後","完了","問題なし","要対応"]');
 
 function renderFloor(){
-  const f=document.getElementById("floor");
+  let f=document.getElementById("floor");
   f.innerHTML="";
   floors.forEach(v=>{
-    const o=document.createElement("option");
+    let o=document.createElement("option");
     o.textContent=v;
     f.appendChild(o);
   });
 }
 
+function renderTpl(){
+  let t=document.getElementById("tpl");
+  t.innerHTML="";
+  tpls.forEach(v=>{
+    let o=document.createElement("option");
+    o.textContent=v;
+    t.appendChild(o);
+  });
+}
+
 function editFloor(){
-  const txt=prompt("階層をカンマ区切りで入力",floors.join(","));
+  let txt=prompt("階層入力（カンマ区切り）",floors.join(","));
   if(!txt)return;
   floors=txt.split(",");
   localStorage.setItem(FLOOR_KEY,JSON.stringify(floors));
   renderFloor();
 }
 
+function editTpl(){
+  let txt=prompt("定型文入力（カンマ区切り）",tpls.join(","));
+  if(!txt)return;
+  tpls=txt.split(",");
+  localStorage.setItem(TPL_KEY,JSON.stringify(tpls));
+  renderTpl();
+}
+
 function load(){return JSON.parse(localStorage.getItem(KEY)||"[]")}
 function saveData(d){localStorage.setItem(KEY,JSON.stringify(d))}
+
+function dist(a,b,c,d){
+  const R=6371000;
+  const toRad=x=>x*Math.PI/180;
+  const dLat=toRad(c-a);
+  const dLon=toRad(d-b);
+  const A=Math.sin(dLat/2)**2+Math.cos(toRad(a))*Math.cos(toRad(c))*Math.sin(dLon/2)**2;
+  return R*2*Math.atan2(Math.sqrt(A),Math.sqrt(1-A));
+}
 
 async function getGPS(){
   return new Promise(res=>{
     navigator.geolocation.getCurrentPosition(p=>{
-      res(p.coords.latitude+","+p.coords.longitude);
-    },()=>res("不明"),{timeout:5000});
+      res({lat:p.coords.latitude,lng:p.coords.longitude});
+    },()=>res(null),{timeout:8000});
   });
+}
+
+async function getAddr(lat,lng){
+  try{
+    let r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&accept-language=ja`);
+    let j=await r.json();
+    return j.display_name;
+  }catch{
+    return "住所取得失敗";
+  }
 }
 
 function resize(file){
   return new Promise(r=>{
-    const reader=new FileReader();
-    reader.onload=e=>{
-      const img=new Image();
+    let fr=new FileReader();
+    fr.onload=e=>{
+      let img=new Image();
       img.onload=()=>{
-        const c=document.createElement("canvas");
-        const w=800;
-        const s=w/img.width;
+        let c=document.createElement("canvas");
+        let w=800;
+        let s=w/img.width;
         c.width=w;
         c.height=img.height*s;
         c.getContext("2d").drawImage(img,0,0,c.width,c.height);
@@ -92,25 +137,43 @@ function resize(file){
       };
       img.src=e.target.result;
     };
-    reader.readAsDataURL(file);
+    fr.readAsDataURL(file);
   });
 }
 
 async function save(){
-  const file=document.getElementById("file").files[0];
+  let file=document.getElementById("file").files[0];
   if(!file)return alert("写真選択");
 
-  const img=await resize(file);
-  const gps=await getGPS();
+  let img=await resize(file);
+  let gps=await getGPS();
 
-  const data=load();
+  let addr="不明";
+  if(gps) addr=await getAddr(gps.lat,gps.lng);
+
+  let data=load();
+  let today=new Date().toISOString().slice(0,10);
+
+  let folder="noGPS";
+
+  if(gps){
+    let found=data.find(v=>{
+      if(!v.lat)return false;
+      return dist(gps.lat,gps.lng,v.lat,v.lng)<=15 && v.day===today;
+    });
+    folder=found?found.folder:"f_"+Date.now();
+  }
+
   data.push({
     id:Date.now(),
     img,
-    memo:document.getElementById("memo").value,
+    memo:document.getElementById("memo").value || document.getElementById("tpl").value,
     floor:document.getElementById("floor").value,
-    gps,
-    date:new Date().toLocaleString()
+    lat:gps?.lat,
+    lng:gps?.lng,
+    addr,
+    day:today,
+    folder
   });
 
   saveData(data);
@@ -118,46 +181,72 @@ async function save(){
 }
 
 function del(id){
-  const d=load().filter(v=>v.id!==id);
+  let d=load().filter(v=>v.id!==id);
   saveData(d);
   render();
 }
 
 function render(){
-  const d=load();
-  const el=document.getElementById("list");
-  el.innerHTML="";
+  let data=load();
+  let wrap=document.getElementById("folders");
+  wrap.innerHTML="";
 
-  d.reverse().forEach(v=>{
-    const c=document.createElement("div");
-    c.className="card";
-    c.innerHTML=`
-      <img src="${v.img}">
-      <div class="small">${v.date}</div>
-      <div>${v.floor}</div>
-      <div>${v.memo||""}</div>
-      <button onclick="del(${v.id})">削除</button>
+  let groups={};
+  data.forEach(v=>{
+    if(!groups[v.folder])groups[v.folder]=[];
+    groups[v.folder].push(v);
+  });
+
+  Object.keys(groups).forEach(k=>{
+    let box=document.createElement("div");
+    box.className="folder";
+
+    let rep=groups[k][0];
+
+    box.innerHTML=`
+      <b>${rep.addr}</b><br>
+      <span class="small">${rep.day}</span>
+      <div class="grid"></div>
     `;
-    el.appendChild(c);
+
+    let g=box.querySelector(".grid");
+
+    groups[k].forEach(v=>{
+      let c=document.createElement("div");
+      c.className="card";
+      c.innerHTML=`
+        <img src="${v.img}">
+        <div class="small">${v.floor}</div>
+        <div>${v.memo}</div>
+        <button onclick="del(${v.id})">削除</button>
+      `;
+      g.appendChild(c);
+    });
+
+    wrap.appendChild(box);
   });
 }
 
-function exportLine(){
-  alert("LINEは共有ボタンから送信してください");
-}
-
-function exportMail(){
-  const d=load();
+function share(){
+  let d=load();
   if(!d.length)return;
 
-  const last=d[d.length-1];
-  const body=encodeURIComponent(
-    `日時:${last.date}\n階層:${last.floor}\nメモ:${last.memo}`
-  );
-  location.href=`mailto:?subject=写真ログ&body=${body}`;
+  let last=d[d.length-1];
+  let text=`${last.addr}\n${last.memo}`;
+
+  if(navigator.share){
+    navigator.share({text});
+  }else{
+    location.href=`mailto:?body=${encodeURIComponent(text)}`;
+  }
+}
+
+function printAll(){
+  window.print();
 }
 
 renderFloor();
+renderTpl();
 render();
 
 </script>
