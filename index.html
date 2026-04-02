@@ -3,19 +3,19 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>現場写真 完成版PRO</title>
-
+<title>現場写真PRO 完成版</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <style>
 body{margin:0;background:#111;color:#fff;font-family:sans-serif}
-header{position:sticky;top:0;background:#000;padding:10px}
-button,input,select{margin:4px;padding:8px;font-size:14px}
+header{position:sticky;top:0;background:#000;padding:10px;z-index:10}
+input,select,button{margin:4px;padding:10px;font-size:16px}
+#cam{width:100%}
 #tabs{display:flex;overflow:auto}
 .tab{padding:6px 10px;background:#333;margin-right:5px}
 .active{background:#0a84ff}
-#photos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
-img{width:100%}
+#photos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:5px}
+img{width:100%;border-radius:6px}
 </style>
 </head>
 
@@ -23,13 +23,13 @@ img{width:100%}
 
 <header>
 
-<input type="file" id="cam" accept="image/*" capture="environment" multiple><br>
-
-現場名 <input id="siteName" placeholder="現場名">
-住所 <input id="addr">
+<input type="file" id="cam" accept="image/*" capture="environment" multiple>
 
 <br>
+現場名 <input id="siteName" placeholder="現場名">
+住所 <input id="addr" placeholder="GPS or 手入力">
 
+<br>
 <select id="floor"></select>
 <select id="status"></select>
 
@@ -40,7 +40,7 @@ img{width:100%}
 <button onclick="getAddress()">住所取得</button>
 <button onclick="downloadZip()">ZIP</button>
 <button onclick="shareLine()">LINE</button>
-<button onclick="print()">印刷</button>
+<button onclick="window.print()">印刷</button>
 
 <div id="tabs"></div>
 
@@ -50,11 +50,12 @@ img{width:100%}
 
 <script>
 
-let db, currentSite=null;
+let db;
+let currentSite=null;
 
 // ===== DB =====
 function initDB(){
- let r=indexedDB.open("proFinal",1);
+ let r=indexedDB.open("genbaDB",1);
  r.onupgradeneeded=e=>{
   db=e.target.result;
   db.createObjectStore("photos",{keyPath:"id",autoIncrement:true});
@@ -65,16 +66,16 @@ function initDB(){
  };
 }
 
-// ===== 住所（爆速） =====
+// ===== 住所取得 =====
 function getAddress(){
- navigator.geolocation.getCurrentPosition(p=>{
-  let lat=p.coords.latitude;
-  let lon=p.coords.longitude;
+ navigator.geolocation.getCurrentPosition(pos=>{
+  let lat=pos.coords.latitude;
+  let lon=pos.coords.longitude;
 
   fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
   .then(r=>r.json())
   .then(d=>{
-   addr.value=d.display_name || "住所不明";
+   addr.value=d.display_name || "";
   });
 
  },()=>alert("GPS失敗"),{enableHighAccuracy:true,timeout:2000});
@@ -86,13 +87,13 @@ cam.onchange=e=>{
   let r=new FileReader();
 
   r.onload=ev=>{
-   let site = siteName.value || "未設定";
-   let key = site + "_" + addr.value;
+
+   let site = (siteName.value||"未設定") + "_" + (addr.value||"住所なし");
 
    let tx=db.transaction("photos","readwrite");
    tx.objectStore("photos").add({
     img:ev.target.result,
-    site:key,
+    site:site,
     floor:floor.value,
     status:status.value,
     date:new Date().toLocaleString()
@@ -121,25 +122,29 @@ function render(list){
  tabs.innerHTML="";
  photos.innerHTML="";
 
- let group={};
+ let grouped={};
 
  list.forEach(p=>{
-  if(!group[p.site])group[p.site]=[];
-  group[p.site].push(p);
+  if(!grouped[p.site]) grouped[p.site]=[];
+  grouped[p.site].push(p);
  });
 
- let keys=Object.keys(group);
+ let keys=Object.keys(grouped);
+
  if(!currentSite) currentSite=keys[0];
 
  keys.forEach(k=>{
   let t=document.createElement("div");
   t.className="tab"+(k==currentSite?" active":"");
   t.textContent=k;
-  t.onclick=()=>{currentSite=k;render(list)};
+  t.onclick=()=>{
+   currentSite=k;
+   render(list);
+  };
   tabs.appendChild(t);
  });
 
- (group[currentSite]||[]).forEach(p=>{
+ (grouped[currentSite]||[]).forEach(p=>{
   let img=document.createElement("img");
   img.src=p.img;
   photos.appendChild(img);
@@ -155,7 +160,7 @@ function downloadZip(){
 
  r.onsuccess=()=>{
   r.result.forEach((p,i)=>{
-   zip.file("p"+i+".jpg",p.img.split(",")[1],{base64:true});
+   zip.file("photo_"+i+".jpg",p.img.split(",")[1],{base64:true});
   });
 
   zip.generateAsync({type:"blob"}).then(b=>{
@@ -169,15 +174,15 @@ function downloadZip(){
 
 // ===== LINE =====
 function shareLine(){
- window.open("https://line.me/R/msg/text/?写真送信");
+ window.open("https://line.me/R/msg/text/?写真ZIP送信しました");
 }
 
 // ===== 編集 =====
 function editList(type){
- let data=JSON.parse(localStorage[type]||"[]");
- let txt=prompt("カンマ区切りで入力",data.join(","));
- if(!txt)return;
- localStorage[type]=JSON.stringify(txt.split(","));
+ let d=JSON.parse(localStorage[type]||"[]");
+ let t=prompt("カンマ区切り",d.join(","));
+ if(!t)return;
+ localStorage[type]=JSON.stringify(t.split(","));
  loadSelect();
 }
 
@@ -186,10 +191,13 @@ function loadSelect(){
  ["floor","status"].forEach(t=>{
   let s=document.getElementById(t);
   s.innerHTML="";
+
   let d=JSON.parse(localStorage[t]||"[]");
 
-  if(d.length==0){
-   d=(t=="floor"?["1階","2階","屋上"]:["施工前","施工中","施工後"]);
+  if(d.length===0){
+   d = (t==="floor")
+     ? ["1階","2階","屋上"]
+     : ["施工前","施工中","施工後"];
   }
 
   d.forEach(v=>{
