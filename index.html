@@ -3,215 +3,196 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>現場写真PRO</title>
-
+<title>現場PRO完成</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <style>
-body{margin:0;font-family:sans-serif;background:#111;color:#fff}
-header{position:sticky;top:0;background:#000;padding:10px;z-index:9}
-button,input,select{margin:4px;padding:8px;font-size:16px}
-#photos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:5px}
-.card{position:relative}
-img{width:100%;border-radius:8px}
-.sel{outline:3px solid red}
-.tag{position:absolute;bottom:3px;left:3px;background:#000a;padding:2px 4px;font-size:10px}
+body{margin:0;background:#111;color:#fff;font-family:sans-serif}
+header{position:sticky;top:0;background:#000;padding:10px}
+button,input,select{margin:4px;padding:8px}
+#tabs{display:flex;overflow:auto}
+.tab{padding:5px 10px;background:#333;margin-right:5px;cursor:pointer}
+.active{background:#0a84ff}
+#photos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px}
+img{width:100%}
 </style>
 </head>
 
 <body>
 
 <header>
-<input type="file" id="cam" accept="image/*" capture="environment" multiple>
 
-<br>
-現場名 <input id="site" placeholder="例：〇〇邸">
-住所 <input id="addr" placeholder="自動取得 or 編集">
-
-<br>
+<input type="file" id="cam" accept="image/*" capture="environment" multiple><br>
 
 <select id="floor"></select>
 <select id="status"></select>
 
-<button onclick="editList('floor')">階層編集</button>
-<button onclick="editList('status')">定型編集</button>
-
-<br>
-<button onclick="getGPS()">GPS取得</button>
+<button onclick="getGPS()">GPS</button>
 <button onclick="zipDownload()">ZIP</button>
 <button onclick="shareLine()">LINE</button>
-<button onclick="printSel()">印刷</button>
+
 </header>
 
+<div id="tabs"></div>
 <div id="photos"></div>
 
 <script>
 
+let db, currentSite=null, sites=[];
+
 // ================= DB =================
-let db;
 function initDB(){
-let r=indexedDB.open("proPhoto",1);
-r.onupgradeneeded=e=>{
-db=e.target.result;
-db.createObjectStore("p",{keyPath:"id",autoIncrement:true});
-};
-r.onsuccess=e=>{
-db=e.target.result;
-load();
-};
+ let r=indexedDB.open("pro",1);
+ r.onupgradeneeded=e=>{
+  db=e.target.result;
+  db.createObjectStore("p",{keyPath:"id",autoIncrement:true});
+ };
+ r.onsuccess=e=>{
+  db=e.target.result;
+  load();
+ };
+}
+
+// ================= GPS =================
+let lastPos=null;
+
+function getGPS(){
+ navigator.geolocation.getCurrentPosition(p=>{
+  lastPos=p.coords;
+  alert("GPS取得OK");
+ },()=>alert("失敗"),{enableHighAccuracy:true,timeout:3000});
+}
+
+// ================= 距離計算 =================
+function dist(a,b){
+ let dx=a.lat-b.lat;
+ let dy=a.lon-b.lon;
+ return Math.sqrt(dx*dx+dy*dy)*111000;
 }
 
 // ================= 保存 =================
+cam.onchange=e=>{
+ for(let f of e.target.files){
+  let r=new FileReader();
+  r.onload=ev=>{
+   let siteId="unknown";
+
+   if(lastPos){
+    let found=sites.find(s=>dist(s,lastPos)<15);
+    if(found){
+     siteId=found.id;
+    }else{
+     siteId="site_"+Date.now();
+     sites.push({id:siteId,lat:lastPos.latitude,lon:lastPos.longitude});
+    }
+   }
+
+   save({
+    img:ev.target.result,
+    site:siteId,
+    floor:floor.value,
+    status:status.value
+   });
+
+   load();
+  };
+  r.readAsDataURL(f);
+ }
+};
+
+// ================= 保存 =================
 function save(p){
-let tx=db.transaction("p","readwrite");
-tx.objectStore("p").add(p);
+ let tx=db.transaction("p","readwrite");
+ tx.objectStore("p").add(p);
 }
 
 // ================= 読み込み =================
 function load(){
-let tx=db.transaction("p","readonly");
-let r=tx.objectStore("p").getAll();
-r.onsuccess=()=>render(r.result);
+ let tx=db.transaction("p","readonly");
+ let r=tx.objectStore("p").getAll();
+ r.onsuccess=()=>render(r.result);
 }
 
-// ================= 表示 =================
+// ================= 描画 =================
 function render(list){
-let box=document.getElementById("photos");
-box.innerHTML="";
-list.forEach(p=>{
-let d=document.createElement("div");
-d.className="card";
 
-let img=document.createElement("img");
-img.src=p.img;
+ let tabBox=document.getElementById("tabs");
+ let photoBox=document.getElementById("photos");
 
-img.onclick=()=>img.classList.toggle("sel");
+ tabBox.innerHTML="";
+ photoBox.innerHTML="";
 
-let tag=document.createElement("div");
-tag.className="tag";
-tag.innerText=p.floor+" "+p.status;
+ let grouped={};
 
-d.appendChild(img);
-d.appendChild(tag);
-box.appendChild(d);
-});
-}
+ list.forEach(p=>{
+  if(!grouped[p.site])grouped[p.site]=[];
+  grouped[p.site].push(p);
+ });
 
-// ================= 撮影 =================
-cam.onchange=e=>{
-for(let f of e.target.files){
-let r=new FileReader();
-r.onload=ev=>{
-let img=drawText(ev.target.result);
+ Object.keys(grouped).forEach(site=>{
 
-save({
-img:img,
-site:site.value,
-addr:addr.value,
-floor:floor.value,
-status:status.value,
-date:new Date().toLocaleString()
-});
+  let t=document.createElement("div");
+  t.className="tab"+(site==currentSite?" active":"");
+  t.textContent=site;
+  t.onclick=()=>{currentSite=site;render(list)};
+  tabBox.appendChild(t);
 
-load();
-};
-r.readAsDataURL(f);
-}
-};
+ });
 
-// ================= 文字焼き込み =================
-function drawText(src){
-let c=document.createElement("canvas");
-let ctx=c.getContext("2d");
-let img=new Image();
+ if(!currentSite) currentSite=Object.keys(grouped)[0];
 
-img.src=src;
-return new Promise(res=>{
-img.onload=()=>{
-c.width=img.width;
-c.height=img.height;
-ctx.drawImage(img,0,0);
+ let data=grouped[currentSite]||[];
 
-ctx.fillStyle="white";
-ctx.font="30px sans-serif";
-ctx.fillText(floor.value+" "+status.value,20,img.height-20);
+ data.forEach(p=>{
+  let img=document.createElement("img");
+  img.src=p.img;
+  photoBox.appendChild(img);
+ });
 
-res(c.toDataURL());
-};
-});
-}
-
-// ================= GPS =================
-function getGPS(){
-navigator.geolocation.getCurrentPosition(pos=>{
-let lat=pos.coords.latitude;
-let lon=pos.coords.longitude;
-
-fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
-.then(r=>r.json())
-.then(d=>{
-addr.value=d.display_name;
-});
-
-},()=>alert("GPS失敗"),{enableHighAccuracy:true,timeout:3000});
 }
 
 // ================= ZIP =================
 async function zipDownload(){
-let zip=new JSZip();
-let tx=db.transaction("p","readonly");
-let r=tx.objectStore("p").getAll();
+ let zip=new JSZip();
+ let tx=db.transaction("p","readonly");
+ let r=tx.objectStore("p").getAll();
 
-r.onsuccess=()=>{
-r.result.forEach((p,i)=>{
-zip.file("photo"+i+".jpg",p.img.split(",")[1],{base64:true});
-});
+ r.onsuccess=()=>{
+  r.result.forEach((p,i)=>{
+   zip.file("p"+i+".jpg",p.img.split(",")[1],{base64:true});
+  });
 
-zip.generateAsync({type:"blob"}).then(b=>{
-let a=document.createElement("a");
-a.href=URL.createObjectURL(b);
-a.download="photos.zip";
-a.click();
-});
-};
+  zip.generateAsync({type:"blob"}).then(b=>{
+   let a=document.createElement("a");
+   a.href=URL.createObjectURL(b);
+   a.download="photos.zip";
+   a.click();
+  });
+ };
 }
 
 // ================= LINE =================
 function shareLine(){
-window.open("https://line.me/R/msg/text/?写真まとめ送信");
+ window.open("https://line.me/R/msg/text/?写真ZIP送信");
 }
 
-// ================= 印刷 =================
-function printSel(){
-window.print();
-}
-
-// ================= 編集 =================
-function editList(type){
-let d=JSON.parse(localStorage[type]||"[]");
-let t=prompt("カンマ区切り",d.join(","));
-if(!t)return;
-localStorage[type]=JSON.stringify(t.split(","));
-loadSel();
-}
-
-// ================= 初期 =================
+// ================= 選択 =================
 function loadSel(){
-["floor","status"].forEach(t=>{
-let s=document.getElementById(t);
-s.innerHTML="";
-let d=JSON.parse(localStorage[t]||"[]");
+ ["floor","status"].forEach(t=>{
+  let s=document.getElementById(t);
+  s.innerHTML="";
+  let d=JSON.parse(localStorage[t]||"[]");
 
-if(d.length==0){
-d=(t=="floor"?["1階","2階","屋上"]:["施工前","施工後"]);
-}
+  if(d.length==0){
+   d=(t=="floor"?["1階","2階"]:["施工前","施工後"]);
+  }
 
-d.forEach(v=>{
-let o=document.createElement("option");
-o.text=v;
-s.add(o);
-});
-});
+  d.forEach(v=>{
+   let o=document.createElement("option");
+   o.text=v;
+   s.add(o);
+  });
+ });
 }
 
 initDB();
