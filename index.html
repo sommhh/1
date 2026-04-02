@@ -3,53 +3,37 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>現場写真PRO 完全版</title>
+<title>現場写真PRO 完成版</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <style>
 body{margin:0;background:#111;color:#fff;font-family:sans-serif}
 header{position:sticky;top:0;background:#000;padding:10px;z-index:10}
 
-input,select,button{
- margin:4px;padding:10px;font-size:15px;border-radius:6px;border:none
+input{
+ width:100%;box-sizing:border-box;margin:4px 0;padding:10px;font-size:15px;border-radius:6px;border:none
+}
+select,button{
+ margin:4px;padding:10px;font-size:14px;border-radius:6px;border:none
 }
 
-#cam{width:100%}
-
-#tabs{
- display:flex;overflow:auto;margin-top:6px
-}
-
+#tabs{display:flex;overflow:auto;margin-top:6px}
 .tab{
- padding:8px 12px;
- background:#333;
- margin-right:6px;
- border-radius:8px;
- white-space:nowrap;
+ padding:8px 12px;background:#333;margin-right:6px;border-radius:8px;white-space:nowrap
 }
 .active{background:#0a84ff}
 
+.groupTitle{
+ font-size:14px;padding:6px;margin-top:10px;background:#222;border-radius:6px
+}
+
 #photos{
- display:grid;
- grid-template-columns:repeat(3,1fr);
- gap:6px;
- padding:6px;
+ display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:6px
 }
 
-.card{
- background:#222;
- border-radius:8px;
- padding:4px;
-}
-
-img{
- width:100%;
- border-radius:6px;
-}
-
-.sel{
- outline:3px solid #ff3b30;
-}
+.card{background:#222;border-radius:8px;padding:4px}
+img{width:100%;border-radius:6px}
+.sel{outline:3px solid #ff3b30}
 </style>
 </head>
 
@@ -59,23 +43,20 @@ img{
 
 <input type="file" id="cam" accept="image/*" capture="environment" multiple>
 
-<br>
 <input id="siteName" placeholder="現場名">
-<input id="addr" placeholder="住所">
+<input id="addr" placeholder="住所（自動 or 手入力）">
 
-<br>
 <select id="floor"></select>
 <select id="status"></select>
 
-<button onclick="editList('floor')">階層</button>
-<button onclick="editList('status')">定型</button>
+<button onclick="editList('floor')">階層編集</button>
+<button onclick="editList('status')">定型編集</button>
 
 <br>
-<button onclick="getAddress()">住所</button>
+<button onclick="getAddress()">住所取得</button>
 <button onclick="deleteSelected()">削除</button>
 <button onclick="downloadZip()">ZIP</button>
 <button onclick="shareLine()">LINE</button>
-<button onclick="window.print()">印刷</button>
 
 <div id="tabs"></div>
 
@@ -102,7 +83,18 @@ function initDB(){
  };
 }
 
-// ===== 住所 =====
+// ===== 住所整形（ここ重要） =====
+function cleanAddress(full){
+ if(!full) return "";
+
+ return full
+  .replace(/日本/g,"")
+  .replace(/〒\d{3}-?\d{4}/g,"")
+  .replace(/東京都|北海道|大阪府|京都府|.+県/g,"")
+  .trim();
+}
+
+// ===== 住所取得 =====
 function getAddress(){
  navigator.geolocation.getCurrentPosition(pos=>{
   let lat=pos.coords.latitude;
@@ -111,7 +103,7 @@ function getAddress(){
   fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
   .then(r=>r.json())
   .then(d=>{
-   addr.value=d.display_name || "";
+   addr.value = cleanAddress(d.display_name);
   });
 
  },()=>alert("GPS失敗"),{enableHighAccuracy:true,timeout:2000});
@@ -147,7 +139,7 @@ function load(){
  r.onsuccess=()=>render(r.result);
 }
 
-// ===== 描画 =====
+// ===== 描画（完全分離） =====
 function render(list){
 
  let tabs=document.getElementById("tabs");
@@ -166,6 +158,7 @@ function render(list){
  let keys=Object.keys(grouped);
  if(!currentSite) currentSite=keys[0];
 
+ // タブ
  keys.forEach(k=>{
   let t=document.createElement("div");
   t.className="tab"+(k==currentSite?" active":"");
@@ -177,47 +170,64 @@ function render(list){
   tabs.appendChild(t);
  });
 
+ // ★階層で完全分離
+ let floors={};
+
  (grouped[currentSite]||[]).forEach(p=>{
-  let d=document.createElement("div");
-  d.className="card";
+  if(!floors[p.floor]) floors[p.floor]=[];
+  floors[p.floor].push(p);
+ });
 
-  let img=document.createElement("img");
-  img.src=p.img;
+ Object.keys(floors).forEach(f=>{
 
-  // ★選択状態維持
-  if(selectedIds.includes(p.id)){
-   img.classList.add("sel");
-  }
+  // 見出し
+  let title=document.createElement("div");
+  title.className="groupTitle";
+  title.textContent="🏢 "+f;
+  photos.appendChild(title);
 
-  img.onclick=()=>{
-   if(selectedIds.includes(p.id)){
-    selectedIds=selectedIds.filter(x=>x!==p.id);
-    img.classList.remove("sel");
-   }else{
-    selectedIds.push(p.id);
-    img.classList.add("sel");
-   }
-  };
+  // グリッド
+  let grid=document.createElement("div");
+  grid.style.display="grid";
+  grid.style.gridTemplateColumns="repeat(3,1fr)";
+  grid.style.gap="6px";
 
-  d.appendChild(img);
-  photos.appendChild(d);
+  floors[f].forEach(p=>{
+   let d=document.createElement("div");
+   d.className="card";
+
+   let img=document.createElement("img");
+   img.src=p.img;
+
+   if(selectedIds.includes(p.id)) img.classList.add("sel");
+
+   img.onclick=()=>{
+    if(selectedIds.includes(p.id)){
+     selectedIds=selectedIds.filter(x=>x!==p.id);
+     img.classList.remove("sel");
+    }else{
+     selectedIds.push(p.id);
+     img.classList.add("sel");
+    }
+   };
+
+   d.appendChild(img);
+   grid.appendChild(d);
+  });
+
+  photos.appendChild(grid);
+
  });
 }
 
-// ===== 削除（完全動作） =====
+// ===== 削除 =====
 function deleteSelected(){
-
- if(selectedIds.length===0){
-  alert("写真選択して");
-  return;
- }
+ if(selectedIds.length===0){alert("選択なし");return;}
 
  let tx=db.transaction("photos","readwrite");
  let store=tx.objectStore("photos");
 
- selectedIds.forEach(id=>{
-  store.delete(id);
- });
+ selectedIds.forEach(id=>store.delete(id));
 
  tx.oncomplete=()=>{
   selectedIds=[];
