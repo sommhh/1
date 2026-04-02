@@ -2,132 +2,205 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>現場写真管理アプリ</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>現場写真アプリ</title>
+
 <style>
-body { font-family: sans-serif; margin:0; padding:0; background:#f5f5f5;}
-header { background:#007acc; color:white; padding:1rem; text-align:center; font-size:1.2rem;}
-#holderList, #photoList { margin:1rem;}
-.holder, .photo { background:white; margin-bottom:0.5rem; padding:0.5rem; border-radius:5px; box-shadow:0 1px 3px rgba(0,0,0,0.2);}
-.holder-header { display:flex; justify-content:space-between; align-items:center;}
-input[type=text], select { width:100%; padding:0.3rem; margin:0.2rem 0; border-radius:3px; border:1px solid #ccc;}
-button { padding:0.4rem 0.7rem; margin:0.2rem; border:none; border-radius:3px; background:#007acc; color:white; cursor:pointer;}
-button:disabled { background:#aaa; cursor:default;}
-.photo img { width:100px; height:100px; object-fit:cover; margin-right:0.3rem; vertical-align:middle;}
-.photo-info { display:inline-block; vertical-align:middle; max-width:calc(100% - 110px);}
-#capture { position:fixed; bottom:1rem; right:1rem; background:#ff6600; font-size:1.2rem; width:50px; height:50px; border-radius:50%; display:flex; justify-content:center; align-items:center; cursor:pointer; }
-#printBtn, #shareBtn { margin:1rem 0; }
+body{margin:0;font-family:sans-serif;background:#111;color:#fff}
+header{position:sticky;top:0;background:#000;padding:10px;z-index:10}
+button,input,select{margin:5px;padding:10px;border-radius:8px;border:none}
+button{background:#0af;color:#fff}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:5px}
+img{width:100%;border-radius:6px}
+.small{font-size:12px}
+.sel{border:3px solid red}
 </style>
 </head>
+
 <body>
 
-<header>現場写真管理アプリ（完全版）</header>
+<header>
 
-<div id="holderList"></div>
+<input type="file" id="cam" accept="image/*" capture="environment" multiple>
 
-<button id="addHolderBtn">ホルダー追加</button>
-<button id="printBtn">選択印刷</button>
-<button id="shareBtn">選択共有（LINE/メール）</button>
+<br>
 
-<div id="capture">📸</div>
+<input id="site" placeholder="現場名">
+<input id="addr" placeholder="住所">
+
+<br>
+
+<select id="floor"></select>
+<select id="type"></select>
+
+<br>
+
+<button onclick="gps()">GPS</button>
+<button onclick="editFloor()">階層編集</button>
+<button onclick="editType()">定型編集</button>
+
+<br>
+
+<button onclick="printSel()">印刷</button>
+<button onclick="share()">共有</button>
+
+</header>
+
+<div id="list" class="grid"></div>
 
 <script>
-// 保存データ構造
-let data = JSON.parse(localStorage.getItem('photoAppData')||'[]');
-const holderList = document.getElementById('holderList');
 
-function saveData(){ localStorage.setItem('photoAppData', JSON.stringify(data)); }
+let floors = JSON.parse(localStorage.getItem("floors")||'["1階","2階","屋上"]');
+let types = JSON.parse(localStorage.getItem("types")||'["施工前","施工後"]');
+let photos = JSON.parse(localStorage.getItem("photos")||"[]");
+let selected=[];
+
+// UI
+function loadUI(){
+  let f=document.getElementById("floor");
+  f.innerHTML="";
+  floors.forEach(v=>{
+    let o=document.createElement("option");o.text=v;f.add(o);
+  });
+
+  let t=document.getElementById("type");
+  t.innerHTML="";
+  types.forEach(v=>{
+    let o=document.createElement("option");o.text=v;t.add(o);
+  });
+}
+loadUI();
+
+// 撮影→即保存（バグ対策済）
+document.getElementById("cam").addEventListener("change",function(){
+
+  let files=this.files;
+  if(!files.length)return;
+
+  let count=0;
+
+  for(let i=0;i<files.length;i++){
+    let reader=new FileReader();
+
+    reader.onload=(e)=>{
+      photos.push({
+        img:e.target.result,
+        date:new Date().toLocaleString(),
+        site:site.value,
+        addr:addr.value,
+        floor:floor.value,
+        type:type.value
+      });
+
+      count++;
+      if(count===files.length){
+        localStorage.setItem("photos",JSON.stringify(photos));
+        render();
+      }
+    };
+
+    reader.readAsDataURL(files[i]);
+  }
+
+  this.value="";
+});
+
+// 表示
 function render(){
-    holderList.innerHTML='';
-    data.forEach((h,i)=>{
-        const div = document.createElement('div');
-        div.className='holder';
-        div.innerHTML=`
-        <div class="holder-header">
-            <strong contenteditable="true" class="holder-name">${h.name}</strong>
-            <button onclick="deleteHolder(${i})">削除</button>
-        </div>
-        <input type="text" class="holder-address" value="${h.address}" placeholder="住所">
-        <input type="date" class="holder-date" value="${h.date}">
-        <select class="holder-floor">
-            <option>施工前</option>
-            <option>1階</option>
-            <option>2階</option>
-            <option>屋上</option>
-        </select>
-        <div class="photoList"></div>
-        `;
-        holderList.appendChild(div);
+  let d=document.getElementById("list");
+  d.innerHTML="";
 
-        const nameInput = div.querySelector('.holder-name');
-        nameInput.addEventListener('input', ()=>{ h.name = nameInput.innerText; saveData(); });
-        const addrInput = div.querySelector('.holder-address');
-        addrInput.addEventListener('input', ()=>{ h.address = addrInput.value; saveData(); });
-        const dateInput = div.querySelector('.holder-date');
-        dateInput.addEventListener('input', ()=>{ h.date = dateInput.value; saveData(); });
-        const floorSelect = div.querySelector('.holder-floor');
-        floorSelect.value = h.floor||'施工前';
-        floorSelect.addEventListener('change', ()=>{ h.floor=floorSelect.value; saveData(); });
+  photos.forEach((p,i)=>{
 
-        const photoListDiv = div.querySelector('.photoList');
-        h.photos.forEach((p,pi)=>{
-            const pDiv = document.createElement('div');
-            pDiv.className='photo';
-            pDiv.innerHTML = `<img src="${p}" alt="写真"><input type="checkbox" class="sel"><input type="text" value="${p.note||''}" placeholder="メモ" class="photo-note"><button onclick="deletePhoto(${i},${pi})">削除</button>`;
-            photoListDiv.appendChild(pDiv);
+    let w=document.createElement("div");
 
-            pDiv.querySelector('.photo-note').addEventListener('input', (e)=>{ h.photos[pi].note=e.target.value; saveData(); });
-        });
+    let img=document.createElement("img");
+    img.src=p.img;
+
+    img.onclick=()=>{
+      if(selected.includes(i)){
+        selected=selected.filter(v=>v!=i);
+        w.classList.remove("sel");
+      }else{
+        selected.push(i);
+        w.classList.add("sel");
+      }
+    };
+
+    let txt=document.createElement("div");
+    txt.className="small";
+    txt.innerHTML=p.floor+" / "+p.type+"<br>"+p.date;
+
+    let del=document.createElement("button");
+    del.innerText="削除";
+    del.onclick=()=>{
+      photos.splice(i,1);
+      localStorage.setItem("photos",JSON.stringify(photos));
+      render();
+    };
+
+    w.appendChild(img);
+    w.appendChild(txt);
+    w.appendChild(del);
+
+    d.appendChild(w);
+  });
+}
+render();
+
+// 爆速GPS
+function gps(){
+  navigator.geolocation.getCurrentPosition(pos=>{
+    let lat=pos.coords.latitude;
+    let lon=pos.coords.longitude;
+
+    fetch(`https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=${lat}&lon=${lon}`)
+    .then(r=>r.json())
+    .then(d=>{
+      addr.value=d.results.lv01Nm;
     });
+  });
 }
 
-function deleteHolder(i){ if(confirm('削除しますか？')){ data.splice(i,1); saveData(); render(); } }
-function deletePhoto(hi,pi){ data[hi].photos.splice(pi,1); saveData(); render(); }
-
-document.getElementById('addHolderBtn').onclick = ()=>{
-    data.push({name:'新現場', address:'', date:new Date().toISOString().slice(0,10), floor:'施工前', photos:[]});
-    saveData(); render();
-};
-
-// カメラ撮影
-document.getElementById('capture').onclick = async ()=>{
-    if(!data.length){ alert('まずホルダーを作ってください'); return; }
-    try{
-        const stream = await navigator.mediaDevices.getUserMedia({video:true});
-        const track = stream.getVideoTracks()[0];
-        const imageCapture = new ImageCapture(track);
-        const photo = await imageCapture.takePhoto();
-        track.stop();
-        const reader = new FileReader();
-        reader.onload = function(){ 
-            // 最新ホルダーに追加
-            data[data.length-1].photos.push({src:this.result, note:''}); 
-            saveData(); render(); 
-        };
-        reader.readAsDataURL(photo);
-    }catch(e){ alert('カメラ取得エラー:'+e); }
-};
-
 // 印刷
-document.getElementById('printBtn').onclick = ()=>{
-    let w = window.open();
-    let html = '<html><head><title>印刷</title></head><body>';
-    data.forEach(h=>{
-        html+=`<h2>${h.name} (${h.floor}) ${h.date} ${h.address}</h2>`;
-        h.photos.forEach(p=>{ html+=`<img src="${p.src}" style="width:100px;height:100px;margin:2px;">` });
-    });
-    html+='</body></html>';
-    w.document.write(html);
-    w.print();
-    w.close();
-};
+function printSel(){
+  let w=window.open("");
+  selected.forEach(i=>{
+    w.document.write(`<img src="${photos[i].img}" style="width:100%">`);
+  });
+  w.print();
+}
 
-// 共有（LINEメール用）
-document.getElementById('shareBtn').onclick = ()=>{
-    alert('LINEまたはメールで写真を送る機能は、端末の共有機能を使って実装してください。');
-};
+// 共有（スマホ標準）
+function share(){
+  if(!navigator.share){alert("共有未対応");return;}
 
-render();
+  navigator.share({
+    title:"写真",
+    text:"現場写真",
+    url:location.href
+  });
+}
+
+// 編集
+function editFloor(){
+  let f=prompt("階層編集(カンマ)",floors.join(","));
+  if(f){
+    floors=f.split(",");
+    localStorage.setItem("floors",JSON.stringify(floors));
+    loadUI();
+  }
+}
+
+function editType(){
+  let t=prompt("定型編集(カンマ)",types.join(","));
+  if(t){
+    types=t.split(",");
+    localStorage.setItem("types",JSON.stringify(types));
+    loadUI();
+  }
+}
+
 </script>
 </body>
 </html>
