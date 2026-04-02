@@ -2,204 +2,220 @@
 <html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
-<title>現場写真アプリ</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>現場写真PRO</title>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <style>
 body{margin:0;font-family:sans-serif;background:#111;color:#fff}
-header{position:sticky;top:0;background:#000;padding:10px;z-index:10}
-button,input,select{margin:5px;padding:10px;border-radius:8px;border:none}
-button{background:#0af;color:#fff}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:5px}
-img{width:100%;border-radius:6px}
-.small{font-size:12px}
-.sel{border:3px solid red}
+header{position:sticky;top:0;background:#000;padding:10px;z-index:9}
+button,input,select{margin:4px;padding:8px;font-size:16px}
+#photos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;padding:5px}
+.card{position:relative}
+img{width:100%;border-radius:8px}
+.sel{outline:3px solid red}
+.tag{position:absolute;bottom:3px;left:3px;background:#000a;padding:2px 4px;font-size:10px}
 </style>
 </head>
 
 <body>
 
 <header>
-
 <input type="file" id="cam" accept="image/*" capture="environment" multiple>
 
 <br>
-
-<input id="site" placeholder="現場名">
-<input id="addr" placeholder="住所">
+現場名 <input id="site" placeholder="例：〇〇邸">
+住所 <input id="addr" placeholder="自動取得 or 編集">
 
 <br>
 
 <select id="floor"></select>
-<select id="type"></select>
+<select id="status"></select>
+
+<button onclick="editList('floor')">階層編集</button>
+<button onclick="editList('status')">定型編集</button>
 
 <br>
-
-<button onclick="gps()">GPS</button>
-<button onclick="editFloor()">階層編集</button>
-<button onclick="editType()">定型編集</button>
-
-<br>
-
+<button onclick="getGPS()">GPS取得</button>
+<button onclick="zipDownload()">ZIP</button>
+<button onclick="shareLine()">LINE</button>
 <button onclick="printSel()">印刷</button>
-<button onclick="share()">共有</button>
-
 </header>
 
-<div id="list" class="grid"></div>
+<div id="photos"></div>
 
 <script>
 
-let floors = JSON.parse(localStorage.getItem("floors")||'["1階","2階","屋上"]');
-let types = JSON.parse(localStorage.getItem("types")||'["施工前","施工後"]');
-let photos = JSON.parse(localStorage.getItem("photos")||"[]");
-let selected=[];
-
-// UI
-function loadUI(){
-  let f=document.getElementById("floor");
-  f.innerHTML="";
-  floors.forEach(v=>{
-    let o=document.createElement("option");o.text=v;f.add(o);
-  });
-
-  let t=document.getElementById("type");
-  t.innerHTML="";
-  types.forEach(v=>{
-    let o=document.createElement("option");o.text=v;t.add(o);
-  });
+// ================= DB =================
+let db;
+function initDB(){
+let r=indexedDB.open("proPhoto",1);
+r.onupgradeneeded=e=>{
+db=e.target.result;
+db.createObjectStore("p",{keyPath:"id",autoIncrement:true});
+};
+r.onsuccess=e=>{
+db=e.target.result;
+load();
+};
 }
-loadUI();
 
-// 撮影→即保存（バグ対策済）
-document.getElementById("cam").addEventListener("change",function(){
+// ================= 保存 =================
+function save(p){
+let tx=db.transaction("p","readwrite");
+tx.objectStore("p").add(p);
+}
 
-  let files=this.files;
-  if(!files.length)return;
+// ================= 読み込み =================
+function load(){
+let tx=db.transaction("p","readonly");
+let r=tx.objectStore("p").getAll();
+r.onsuccess=()=>render(r.result);
+}
 
-  let count=0;
+// ================= 表示 =================
+function render(list){
+let box=document.getElementById("photos");
+box.innerHTML="";
+list.forEach(p=>{
+let d=document.createElement("div");
+d.className="card";
 
-  for(let i=0;i<files.length;i++){
-    let reader=new FileReader();
+let img=document.createElement("img");
+img.src=p.img;
 
-    reader.onload=(e)=>{
-      photos.push({
-        img:e.target.result,
-        date:new Date().toLocaleString(),
-        site:site.value,
-        addr:addr.value,
-        floor:floor.value,
-        type:type.value
-      });
+img.onclick=()=>img.classList.toggle("sel");
 
-      count++;
-      if(count===files.length){
-        localStorage.setItem("photos",JSON.stringify(photos));
-        render();
-      }
-    };
+let tag=document.createElement("div");
+tag.className="tag";
+tag.innerText=p.floor+" "+p.status;
 
-    reader.readAsDataURL(files[i]);
-  }
+d.appendChild(img);
+d.appendChild(tag);
+box.appendChild(d);
+});
+}
 
-  this.value="";
+// ================= 撮影 =================
+cam.onchange=e=>{
+for(let f of e.target.files){
+let r=new FileReader();
+r.onload=ev=>{
+let img=drawText(ev.target.result);
+
+save({
+img:img,
+site:site.value,
+addr:addr.value,
+floor:floor.value,
+status:status.value,
+date:new Date().toLocaleString()
 });
 
-// 表示
-function render(){
-  let d=document.getElementById("list");
-  d.innerHTML="";
-
-  photos.forEach((p,i)=>{
-
-    let w=document.createElement("div");
-
-    let img=document.createElement("img");
-    img.src=p.img;
-
-    img.onclick=()=>{
-      if(selected.includes(i)){
-        selected=selected.filter(v=>v!=i);
-        w.classList.remove("sel");
-      }else{
-        selected.push(i);
-        w.classList.add("sel");
-      }
-    };
-
-    let txt=document.createElement("div");
-    txt.className="small";
-    txt.innerHTML=p.floor+" / "+p.type+"<br>"+p.date;
-
-    let del=document.createElement("button");
-    del.innerText="削除";
-    del.onclick=()=>{
-      photos.splice(i,1);
-      localStorage.setItem("photos",JSON.stringify(photos));
-      render();
-    };
-
-    w.appendChild(img);
-    w.appendChild(txt);
-    w.appendChild(del);
-
-    d.appendChild(w);
-  });
+load();
+};
+r.readAsDataURL(f);
 }
-render();
+};
 
-// 爆速GPS
-function gps(){
-  navigator.geolocation.getCurrentPosition(pos=>{
-    let lat=pos.coords.latitude;
-    let lon=pos.coords.longitude;
+// ================= 文字焼き込み =================
+function drawText(src){
+let c=document.createElement("canvas");
+let ctx=c.getContext("2d");
+let img=new Image();
 
-    fetch(`https://mreversegeocoder.gsi.go.jp/reverse-geocoder/LonLatToAddress?lat=${lat}&lon=${lon}`)
-    .then(r=>r.json())
-    .then(d=>{
-      addr.value=d.results.lv01Nm;
-    });
-  });
+img.src=src;
+return new Promise(res=>{
+img.onload=()=>{
+c.width=img.width;
+c.height=img.height;
+ctx.drawImage(img,0,0);
+
+ctx.fillStyle="white";
+ctx.font="30px sans-serif";
+ctx.fillText(floor.value+" "+status.value,20,img.height-20);
+
+res(c.toDataURL());
+};
+});
 }
 
-// 印刷
+// ================= GPS =================
+function getGPS(){
+navigator.geolocation.getCurrentPosition(pos=>{
+let lat=pos.coords.latitude;
+let lon=pos.coords.longitude;
+
+fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
+.then(r=>r.json())
+.then(d=>{
+addr.value=d.display_name;
+});
+
+},()=>alert("GPS失敗"),{enableHighAccuracy:true,timeout:3000});
+}
+
+// ================= ZIP =================
+async function zipDownload(){
+let zip=new JSZip();
+let tx=db.transaction("p","readonly");
+let r=tx.objectStore("p").getAll();
+
+r.onsuccess=()=>{
+r.result.forEach((p,i)=>{
+zip.file("photo"+i+".jpg",p.img.split(",")[1],{base64:true});
+});
+
+zip.generateAsync({type:"blob"}).then(b=>{
+let a=document.createElement("a");
+a.href=URL.createObjectURL(b);
+a.download="photos.zip";
+a.click();
+});
+};
+}
+
+// ================= LINE =================
+function shareLine(){
+window.open("https://line.me/R/msg/text/?写真まとめ送信");
+}
+
+// ================= 印刷 =================
 function printSel(){
-  let w=window.open("");
-  selected.forEach(i=>{
-    w.document.write(`<img src="${photos[i].img}" style="width:100%">`);
-  });
-  w.print();
+window.print();
 }
 
-// 共有（スマホ標準）
-function share(){
-  if(!navigator.share){alert("共有未対応");return;}
-
-  navigator.share({
-    title:"写真",
-    text:"現場写真",
-    url:location.href
-  });
+// ================= 編集 =================
+function editList(type){
+let d=JSON.parse(localStorage[type]||"[]");
+let t=prompt("カンマ区切り",d.join(","));
+if(!t)return;
+localStorage[type]=JSON.stringify(t.split(","));
+loadSel();
 }
 
-// 編集
-function editFloor(){
-  let f=prompt("階層編集(カンマ)",floors.join(","));
-  if(f){
-    floors=f.split(",");
-    localStorage.setItem("floors",JSON.stringify(floors));
-    loadUI();
-  }
+// ================= 初期 =================
+function loadSel(){
+["floor","status"].forEach(t=>{
+let s=document.getElementById(t);
+s.innerHTML="";
+let d=JSON.parse(localStorage[t]||"[]");
+
+if(d.length==0){
+d=(t=="floor"?["1階","2階","屋上"]:["施工前","施工後"]);
 }
 
-function editType(){
-  let t=prompt("定型編集(カンマ)",types.join(","));
-  if(t){
-    types=t.split(",");
-    localStorage.setItem("types",JSON.stringify(types));
-    loadUI();
-  }
+d.forEach(v=>{
+let o=document.createElement("option");
+o.text=v;
+s.add(o);
+});
+});
 }
+
+initDB();
+loadSel();
 
 </script>
 </body>
