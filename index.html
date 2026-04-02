@@ -1,1 +1,205 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta charset="UTF-8">
+<title>現場PRO 完全版</title>
 
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+
+<style>
+body{margin:0;background:#111;color:#fff;font-family:sans-serif}
+header{position:sticky;top:0;background:#000;padding:10px;z-index:10}
+#cam{width:100%;padding:12px;font-size:18px}
+select,button{margin:4px;padding:10px;font-size:14px}
+#tabs{display:flex;overflow:auto;margin-top:5px}
+.tab{padding:6px 12px;background:#333;margin-right:5px}
+.active{background:#0a84ff}
+#photos{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;padding:5px}
+img{width:100%;border-radius:6px}
+</style>
+</head>
+
+<body>
+
+<header>
+
+<input type="file" id="cam" accept="image/*" capture="environment" multiple>
+
+<select id="floor"></select>
+<select id="status"></select>
+
+<button onclick="getGPS()">GPS</button>
+<button onclick="downloadZip()">ZIP</button>
+<button onclick="shareLine()">LINE</button>
+
+<div id="tabs"></div>
+
+</header>
+
+<div id="photos"></div>
+
+<script>
+
+// ===== DB =====
+let db;
+let currentSite=null;
+let lastPos=null;
+
+function initDB(){
+ let r=indexedDB.open("photoDB",1);
+ r.onupgradeneeded=e=>{
+  db=e.target.result;
+  db.createObjectStore("photos",{keyPath:"id",autoIncrement:true});
+ };
+ r.onsuccess=e=>{
+  db=e.target.result;
+  load();
+ };
+}
+
+// ===== GPS =====
+function getGPS(){
+ navigator.geolocation.getCurrentPosition(p=>{
+  lastPos={
+   lat:p.coords.latitude,
+   lon:p.coords.longitude
+  };
+  alert("GPS取得OK");
+ },()=>alert("GPS失敗"),{enableHighAccuracy:true,timeout:3000});
+}
+
+// ===== 距離 =====
+function distance(a,b){
+ let dx=a.lat-b.lat;
+ let dy=a.lon-b.lon;
+ return Math.sqrt(dx*dx+dy*dy)*111000;
+}
+
+// ===== 現場取得 =====
+function getSite(){
+ let sites=JSON.parse(localStorage.sites||"[]");
+
+ if(!lastPos) return "noGPS";
+
+ let found=sites.find(s=>distance(s,lastPos)<15);
+
+ if(found){
+  return found.id;
+ }else{
+  let id="site_"+Date.now();
+  sites.push({id,lat:lastPos.lat,lon:lastPos.lon});
+  localStorage.sites=JSON.stringify(sites);
+  return id;
+ }
+}
+
+// ===== 保存 =====
+cam.onchange=e=>{
+ for(let f of e.target.files){
+  let r=new FileReader();
+  r.onload=ev=>{
+
+   let site=getSite();
+
+   let tx=db.transaction("photos","readwrite");
+   tx.objectStore("photos").add({
+    img:ev.target.result,
+    site:site,
+    floor:floor.value,
+    status:status.value
+   });
+
+   tx.oncomplete=load;
+  };
+  r.readAsDataURL(f);
+ }
+};
+
+// ===== 読み込み =====
+function load(){
+ let tx=db.transaction("photos","readonly");
+ let r=tx.objectStore("photos").getAll();
+
+ r.onsuccess=()=>{
+  render(r.result);
+ };
+}
+
+// ===== 描画 =====
+function render(list){
+
+ let tabs=document.getElementById("tabs");
+ let photos=document.getElementById("photos");
+
+ tabs.innerHTML="";
+ photos.innerHTML="";
+
+ let grouped={};
+
+ list.forEach(p=>{
+  if(!grouped[p.site])grouped[p.site]=[];
+  grouped[p.site].push(p);
+ });
+
+ let keys=Object.keys(grouped);
+
+ if(!currentSite) currentSite=keys[0];
+
+ keys.forEach(k=>{
+  let t=document.createElement("div");
+  t.className="tab"+(k==currentSite?" active":"");
+  t.textContent=k;
+  t.onclick=()=>{
+   currentSite=k;
+   render(list);
+  };
+  tabs.appendChild(t);
+ });
+
+ (grouped[currentSite]||[]).forEach(p=>{
+  let img=document.createElement("img");
+  img.src=p.img;
+  photos.appendChild(img);
+ });
+}
+
+// ===== ZIP =====
+function downloadZip(){
+ let zip=new JSZip();
+
+ let tx=db.transaction("photos","readonly");
+ let r=tx.objectStore("photos").getAll();
+
+ r.onsuccess=()=>{
+  r.result.forEach((p,i)=>{
+   zip.file("img"+i+".jpg",p.img.split(",")[1],{base64:true});
+  });
+
+  zip.generateAsync({type:"blob"}).then(b=>{
+   let a=document.createElement("a");
+   a.href=URL.createObjectURL(b);
+   a.download="photos.zip";
+   a.click();
+  });
+ };
+}
+
+// ===== LINE =====
+function shareLine(){
+ window.open("https://line.me/R/msg/text/?ZIP作成済み");
+}
+
+// ===== 初期 =====
+function initSelect(){
+ floor.innerHTML="<option>1階</option><option>2階</option><option>屋上</option>";
+ status.innerHTML="<option>施工前</option><option>施工中</option><option>施工後</option>";
+}
+
+initDB();
+initSelect();
+
+</script>
+
+</body>
+</html>
