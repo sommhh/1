@@ -3,19 +3,53 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>現場写真PRO 完成版</title>
+<title>現場写真PRO</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <style>
 body{margin:0;background:#111;color:#fff;font-family:sans-serif}
 header{position:sticky;top:0;background:#000;padding:10px;z-index:10}
-input,select,button{margin:4px;padding:10px;font-size:16px}
+
+input,select,button{
+ margin:4px;padding:10px;font-size:15px;border-radius:6px;border:none
+}
+
 #cam{width:100%}
-#tabs{display:flex;overflow:auto}
-.tab{padding:6px 10px;background:#333;margin-right:5px}
+
+#tabs{
+ display:flex;overflow:auto;margin-top:6px
+}
+
+.tab{
+ padding:8px 12px;
+ background:#333;
+ margin-right:6px;
+ border-radius:8px;
+ white-space:nowrap;
+}
 .active{background:#0a84ff}
-#photos{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:5px}
-img{width:100%;border-radius:6px}
+
+#photos{
+ display:grid;
+ grid-template-columns:repeat(3,1fr);
+ gap:6px;
+ padding:6px;
+}
+
+.card{
+ background:#222;
+ border-radius:8px;
+ padding:4px;
+}
+
+img{
+ width:100%;
+ border-radius:6px;
+}
+
+.sel{
+ outline:3px solid #ff3b30;
+}
 </style>
 </head>
 
@@ -26,18 +60,19 @@ img{width:100%;border-radius:6px}
 <input type="file" id="cam" accept="image/*" capture="environment" multiple>
 
 <br>
-現場名 <input id="siteName" placeholder="現場名">
-住所 <input id="addr" placeholder="GPS or 手入力">
+<input id="siteName" placeholder="現場名">
+<input id="addr" placeholder="住所">
 
 <br>
 <select id="floor"></select>
 <select id="status"></select>
 
-<button onclick="editList('floor')">階層編集</button>
-<button onclick="editList('status')">定型編集</button>
+<button onclick="editList('floor')">階層</button>
+<button onclick="editList('status')">定型</button>
 
 <br>
-<button onclick="getAddress()">住所取得</button>
+<button onclick="getAddress()">住所</button>
+<button onclick="deleteSelected()">削除</button>
 <button onclick="downloadZip()">ZIP</button>
 <button onclick="shareLine()">LINE</button>
 <button onclick="window.print()">印刷</button>
@@ -52,6 +87,7 @@ img{width:100%;border-radius:6px}
 
 let db;
 let currentSite=null;
+let selectedIds=[];
 
 // ===== DB =====
 function initDB(){
@@ -66,7 +102,7 @@ function initDB(){
  };
 }
 
-// ===== 住所取得 =====
+// ===== 住所 =====
 function getAddress(){
  navigator.geolocation.getCurrentPosition(pos=>{
   let lat=pos.coords.latitude;
@@ -88,15 +124,14 @@ cam.onchange=e=>{
 
   r.onload=ev=>{
 
-   let site = (siteName.value||"未設定") + "_" + (addr.value||"住所なし");
+   let site=(siteName.value||"未設定")+"_"+(addr.value||"住所なし");
 
    let tx=db.transaction("photos","readwrite");
    tx.objectStore("photos").add({
     img:ev.target.result,
     site:site,
     floor:floor.value,
-    status:status.value,
-    date:new Date().toLocaleString()
+    status:status.value
    });
 
    tx.oncomplete=load;
@@ -106,7 +141,7 @@ cam.onchange=e=>{
  }
 };
 
-// ===== 読み込み =====
+// ===== 読込 =====
 function load(){
  let tx=db.transaction("photos","readonly");
  let r=tx.objectStore("photos").getAll();
@@ -115,6 +150,8 @@ function load(){
 
 // ===== 描画 =====
 function render(list){
+
+ selectedIds=[];
 
  let tabs=document.getElementById("tabs");
  let photos=document.getElementById("photos");
@@ -125,12 +162,11 @@ function render(list){
  let grouped={};
 
  list.forEach(p=>{
-  if(!grouped[p.site]) grouped[p.site]=[];
+  if(!grouped[p.site])grouped[p.site]=[];
   grouped[p.site].push(p);
  });
 
  let keys=Object.keys(grouped);
-
  if(!currentSite) currentSite=keys[0];
 
  keys.forEach(k=>{
@@ -145,10 +181,39 @@ function render(list){
  });
 
  (grouped[currentSite]||[]).forEach(p=>{
+  let d=document.createElement("div");
+  d.className="card";
+
   let img=document.createElement("img");
   img.src=p.img;
-  photos.appendChild(img);
+
+  img.onclick=()=>{
+   if(selectedIds.includes(p.id)){
+    selectedIds=selectedIds.filter(x=>x!==p.id);
+    img.classList.remove("sel");
+   }else{
+    selectedIds.push(p.id);
+    img.classList.add("sel");
+   }
+  };
+
+  d.appendChild(img);
+  photos.appendChild(d);
  });
+}
+
+// ===== 削除 =====
+function deleteSelected(){
+ if(selectedIds.length===0)return alert("選択なし");
+
+ let tx=db.transaction("photos","readwrite");
+ let store=tx.objectStore("photos");
+
+ selectedIds.forEach(id=>{
+  store.delete(id);
+ });
+
+ tx.oncomplete=load;
 }
 
 // ===== ZIP =====
@@ -160,7 +225,7 @@ function downloadZip(){
 
  r.onsuccess=()=>{
   r.result.forEach((p,i)=>{
-   zip.file("photo_"+i+".jpg",p.img.split(",")[1],{base64:true});
+   zip.file("p"+i+".jpg",p.img.split(",")[1],{base64:true});
   });
 
   zip.generateAsync({type:"blob"}).then(b=>{
@@ -174,7 +239,7 @@ function downloadZip(){
 
 // ===== LINE =====
 function shareLine(){
- window.open("https://line.me/R/msg/text/?写真ZIP送信しました");
+ window.open("https://line.me/R/msg/text/?写真送信");
 }
 
 // ===== 編集 =====
@@ -195,7 +260,7 @@ function loadSelect(){
   let d=JSON.parse(localStorage[t]||"[]");
 
   if(d.length===0){
-   d = (t==="floor")
+   d=(t==="floor")
      ? ["1階","2階","屋上"]
      : ["施工前","施工中","施工後"];
   }
