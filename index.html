@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>現場写真PRO 最終版</title>
+<title>現場写真PRO 最終完成</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 
 <style>
@@ -75,7 +75,7 @@ function initDB(){
  };
 }
 
-// ===== 住所取得（郵便番号なし） =====
+// ===== 住所取得（完全版） =====
 function getAddress(){
  navigator.geolocation.getCurrentPosition(pos=>{
   let lat=pos.coords.latitude;
@@ -85,13 +85,23 @@ function getAddress(){
   .then(r=>r.json())
   .then(d=>{
    let a=d.address||{};
+
    let result=[
-    a.city||a.town||a.village||"",
-    a.suburb||"",
-    a.road||"",
-    a.house_number||""
+     a.city||a.town||a.village||"",
+     a.suburb||a.neighbourhood||"",
+     a.road||"",
+     a.block||"",
+     a.house_number||""
    ].join("");
-   addr.value=result||"取得失敗";
+
+   result=result.replace(/丁目/g,"-")
+                .replace(/日本/g,"")
+                .replace(/〒\d{3}-?\d{4}/g,"")
+                .replace(/東京都|北海道|大阪府|京都府|.+県/g,"")
+                .replace(/\s+/g,"")
+                .trim();
+
+   addr.value=result||"住所取得失敗";
   });
 
  },()=>alert("GPS失敗"),{enableHighAccuracy:true,timeout:2000});
@@ -148,10 +158,7 @@ function render(list){
   let t=document.createElement("div");
   t.className="tab"+(k==currentSite?" active":"");
   t.textContent=k;
-  t.onclick=()=>{
-   currentSite=k;
-   render(list);
-  };
+  t.onclick=()=>{currentSite=k;render(list);};
   tabs.appendChild(t);
  });
 
@@ -208,7 +215,7 @@ function deleteSelected(){
  tx.oncomplete=()=>{selectedIds=[];load();}
 }
 
-// ===== 選択印刷（ここ復活） =====
+// ===== 選択印刷 =====
 function printSelected(){
  if(selectedIds.length===0){alert("選択して");return;}
 
@@ -219,7 +226,7 @@ function printSelected(){
   let list=r.result.filter(p=>selectedIds.includes(p.id));
 
   let w=window.open("");
-  let html="<html><body style='margin:0'>";
+  let html="<html><body>";
 
   list.forEach(p=>{
    html+=`<img src="${p.img}" style="width:100%;page-break-after:always">`;
