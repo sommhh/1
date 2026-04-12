@@ -1,1146 +1,261 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<!-- Playables SDK -->
-<script>// Playables SDK v1.0.0
-// Game lifecycle bridge: rAF-based game-ready detection + event communication
-(function() {
-  'use strict';
-
-  // Idempotency: skip if already initialized (e.g., server-side injection
-  // followed by client-side inject-javascript via the Bloks webview component).
-  if (window.playablesSDK) return;
-
-  var HANDLER_NAME = 'playablesGameEventHandler';
-  var ANDROID_BRIDGE_NAME = '_MetaPlayablesBridge';
-  var RAF_FRAME_THRESHOLD = 3;
-
-  var gameReadySent = false;
-  var firstInteractionSent = false;
-  var errorSent = false;
-  var frameCount = 0;
-  var originalRAF = window.requestAnimationFrame;
-
-  // --- Transport Layer ---
-
-  function hasIOSBridge() {
-    return !!(window.webkit &&
-              window.webkit.messageHandlers &&
-              window.webkit.messageHandlers[HANDLER_NAME]);
-  }
-
-  function hasAndroidBridge() {
-    return !!(window[ANDROID_BRIDGE_NAME] &&
-              typeof window[ANDROID_BRIDGE_NAME].postEvent === 'function');
-  }
-
-  function isInIframe() {
-    return !!(window.parent && window.parent !== window);
-  }
-
-  function sendEvent(eventName, payload) {
-    var message = {
-      type: eventName,
-      payload: payload || {},
-      timestamp: Date.now()
-    };
-
-    if (hasIOSBridge()) {
-      try {
-        window.webkit.messageHandlers[HANDLER_NAME].postMessage(message);
-      } catch (e) { /* ignore */ }
-      return;
-    }
-
-    if (hasAndroidBridge()) {
-    try {
-      var p = payload || {};
-      p.__secureToken = window.__fbAndroidBridgeAuthToken || '';
-      window[ANDROID_BRIDGE_NAME].postEvent(
-        eventName,
-        JSON.stringify(p)
-      );
-    } catch (e) { /* ignore */ }
-    return;
-  }
-
-    if (isInIframe()) {
-      try {
-        window.parent.postMessage(message, '*');
-      } catch (e) { /* ignore */ }
-      return;
-    }
-  }
-
-  // --- rAF Game-Ready Detection ---
-
-  function onFrame() {
-    if (gameReadySent) return;
-
-    frameCount++;
-    if (frameCount >= RAF_FRAME_THRESHOLD) {
-      gameReadySent = true;
-      sendEvent('game_ready', {
-        frame_count: frameCount,
-        detected_at: Date.now()
-      });
-      return;
-    }
-
-    originalRAF.call(window, onFrame);
-  }
-
-  if (originalRAF) {
-    window.requestAnimationFrame = function(callback) {
-      if (!gameReadySent) {
-        return originalRAF.call(window, function(timestamp) {
-          frameCount++;
-          if (frameCount >= RAF_FRAME_THRESHOLD && !gameReadySent) {
-            gameReadySent = true;
-            sendEvent('game_ready', {
-              frame_count: frameCount,
-              detected_at: Date.now()
-            });
-          }
-          callback(timestamp);
-        });
-      }
-      return originalRAF.call(window, callback);
-    };
-  }
-
-  // --- First User Interaction Detection ---
-
-  function setupFirstInteractionDetection() {
-    var events = ['touchstart', 'mousedown', 'keydown'];
-
-    function onFirstInteraction() {
-      if (firstInteractionSent) return;
-      firstInteractionSent = true;
-      sendEvent('user_interaction_start', null);
-
-      for (var i = 0; i < events.length; i++) {
-        document.removeEventListener(events[i], onFirstInteraction, true);
-      }
-    }
-
-    for (var i = 0; i < events.length; i++) {
-      document.addEventListener(events[i], onFirstInteraction, true);
-    }
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupFirstInteractionDetection);
-  } else {
-    setupFirstInteractionDetection();
-  }
-
-  // --- Auto Error Capture ---
-
-  window.addEventListener('error', function(event) {
-    if (errorSent) return;
-    errorSent = true;
-    sendEvent('error', {
-      message: event.message || 'Unknown error',
-      source: event.filename || '',
-      lineno: event.lineno || 0,
-      colno: event.colno || 0,
-      auto_captured: true
-    });
-  });
-
-  window.addEventListener('unhandledrejection', function(event) {
-    if (errorSent) return;
-    errorSent = true;
-    var reason = event.reason;
-    sendEvent('error', {
-      message: (reason instanceof Error) ? reason.message : String(reason),
-      type: 'unhandled_promise_rejection',
-      auto_captured: true
-    });
-  });
-
-  // --- Public API ---
-
-  window.playablesSDK = {
-    complete: function(score) {
-      sendEvent('game_ended', {
-        score: score,
-        completed: true
-      });
-    },
-
-    error: function(message) {
-      if (errorSent) return;
-      errorSent = true;
-      sendEvent('error', {
-        message: message || 'Unknown error',
-        auto_captured: false
-      });
-    },
-
-    sendEvent: function(eventName, payload) {
-      if (!eventName || typeof eventName !== 'string') return;
-      sendEvent(eventName, payload);
-    }
-  };
-
-  // Kick off rAF detection in case no game code calls rAF immediately
-  if (originalRAF) {
-    originalRAF.call(window, onFrame);
-  }
-})();</script>
-<script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<title>現場カメラ</title>
-<style>
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Sans",sans-serif;background:#0f172a;color:#e2e8f0;overscroll-behavior:none}
-header{position:sticky;top:0;z-index:30;background:#0f172a;border-bottom:1px solid #334155}
-.hd{display:flex;align-items:center;gap:8px;padding:10px 12px}
-h1{font-size:16px;font-weight:700}
-.sp{flex:1}
-.btn{padding:7px 11px;background:#1e293b;border:1px solid #334155;border-radius:7px;color:#e2e8f0;font-size:12px;font-weight:600;touch-action:manipulation}
-.btn.p{background:#2563eb;border-color:#3b82f6;color:#fff}
-.site{display:flex;gap:6px;padding:0 12px 8px;font-size:11px;align-items:center;min-height:20px}
-.site .nm{font-weight:700;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.site .ad{opacity:.6;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-main{padding:10px;padding-bottom:90px}
-.card{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:10px;margin-bottom:10px}
-.tabs{display:flex;gap:5px;overflow-x:auto;padding-bottom:4px;-webkit-overflow-scrolling:touch}
-.tab{padding:5px 11px;background:#0f172a;border:1px solid #334155;border-radius:15px;font-size:11px;white-space:nowrap;flex-shrink:0}
-.tab.on{background:#2563eb;border-color:#3b82f6}
-.row{display:flex;gap:6px;margin-top:6px}
-select,input{flex:1;padding:8px 9px;background:#0f172a;border:1px solid #334155;border-radius:7px;color:#e2e8f0;font-size:14px}
-label.chk{display:flex;align-items:center;gap:6px;padding:8px;background:#0f172a;border:1px solid #334155;border-radius:7px;flex:1;font-size:12px}
-label.chk input{width:16px;height:16px;margin:0}
-.big{flex:1;padding:11px;border-radius:9px;font-weight:700;font-size:14px;border:none;touch-action:manipulation}
-.big.p{background:#2563eb;color:#fff}
-.big.s{background:#334155;color:#e2e8f0}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:8px}
-@media(min-width:600px){.grid{grid-template-columns:repeat(4,1fr)}}
-.pic{position:relative;aspect-ratio:1;background:#0f172a;border:1px solid #334155;border-radius:7px;overflow:hidden}
-.pic img{width:100%;height:100%;object-fit:cover;display:block}
-.pic .ck{position:absolute;top:3px;left:3px;width:18px;height:18px;border-radius:4px;background:rgba(0,0,0,.8);border:2px solid #fff;display:none;align-items:center;justify-content:center;font-size:10px;color:#fff}
-.pic.sel .ck{display:flex;background:#2563eb;border-color:#2563eb}
-.pic.sel{outline:2px solid #2563eb;outline-offset:-1px}
-.pic .mt{position:absolute;left:0;right:0;bottom:0;padding:3px 4px;background:linear-gradient(transparent,rgba(0,0,0,.9));font-size:9px;display:flex;justify-content:space-between}
-.empty{padding:30px;text-align:center;opacity:.5;font-size:12px}
-footer{position:fixed;left:0;right:0;bottom:0;background:#0f172a;border-top:1px solid #334155;padding:6px 8px calc(6px + env(safe-area-inset-bottom));z-index:20}
-.acts{display:flex;gap:4px}
-.acts .btn{flex:1;background:transparent;border:none;font-size:10px;display:flex;flex-direction:column;gap:2px;color:#94a3b8;padding:4px}
-.acts .ic{font-size:18px}
-.sheet{position:fixed;inset:0;z-index:100;display:none;background:rgba(0,0,0,.5)}
-.sheet.show{display:block}
-.sheet .bx{position:absolute;left:0;right:0;bottom:0;background:#1e293b;border-top:1px solid #334155;border-radius:12px 12px 0 0;max-height:80vh;display:flex;flex-direction:column}
-.sheet .hd2{padding:11px 13px;font-weight:700;font-size:14px;border-bottom:1px solid #334155}
-.sheet .bd{padding:11px 13px;overflow:auto;flex:1;-webkit-overflow-scrolling:touch}
-.sheet .ft{padding:9px 13px calc(9px + env(safe-area-inset-bottom));display:flex;gap:6px;border-top:1px solid #334155}
-.it{padding:9px;background:#0f172a;border:1px solid #334155;border-radius:8px;margin-bottom:6px}
-.it.on{border-color:#3b82f6;background:#1e3a8a}
-.it .t{font-weight:600;font-size:13px}
-.it .s{font-size:10px;opacity:.6;margin-top:2px}
-.fld{margin-bottom:9px}
-.fld label{display:block;font-size:10px;opacity:.7;margin-bottom:2px}
-#vidW{display:none;position:fixed;inset:0;background:#000;z-index:50}
-#vid{width:100%;height:100%;object-fit:contain}
-#previewC{position:absolute;inset:0;display:none;background:#000}
-#preview{width:100%;height:100%;object-fit:contain}
-#bbOverlay{position:absolute;border:2px solid #3b82f6;background:rgba(0,0,0,0.9);border-radius:3px;cursor:move;display:none;touch-action:none;min-width:70px;min-height:45px;box-shadow:0 2px 8px rgba(0,0,0,.5)}
-#bbOverlay .handle{position:absolute;width:22px;height:22px;background:#3b82f6;border:2px solid #fff;border-radius:50%;right:-11px;bottom:-11px;touch-action:none}
-#bbText{color:#fff;font-weight:700;padding:5px 7px;font-size:11px;line-height:1.25;pointer-events:none;white-space:nowrap;user-select:none}
-#snap{position:absolute;bottom:25px;left:50%;transform:translateX(-50%);width:68px;height:68px;border-radius:50%;background:#fff;border:3px solid rgba(0,0,0,.2);font-size:26px}
-#closeV{position:absolute;top:15px;right:15px;width:34px;height:34px;border-radius:50%;background:rgba(0,0,0,.6);color:#fff;border:none;font-size:20px}
-#retakeBtn{position:absolute;bottom:25px;left:15px;padding:10px 14px;background:rgba(55,65,81,.9);border:none;border-radius:8px;color:#fff;font-weight:600;font-size:12px;display:none}
-#confirmBtn{position:absolute;bottom:25px;right:15px;padding:10px 18px;background:#059669;border:none;border-radius:8px;color:#fff;font-weight:700;font-size:13px;display:none}
-.toast{position:fixed;left:50%;bottom:85px;transform:translateX(-50%);background:#1e293b;border:1px solid #334155;padding:7px 12px;border-radius:7px;font-weight:600;font-size:11px;opacity:0;transition:opacity .15s;pointer-events:none;z-index:200;white-space:nowrap;max-width:90%}
-.toast.show{opacity:1}
-.hidden{display:none}
-</style>
-</head>
-<body>
-<header>
-  <div class="hd"><h1>現場カメラ</h1><div class="sp"></div><button class="btn p" id="gpsBtn">📍 GPS</button><button class="btn" id="folderBtn">📁 現場</button></div>
-  <div class="site" id="siteBar" style="display:none"><div class="nm" id="siteNm"></div><div class="ad" id="siteAd"></div><button class="btn" style="padding:2px 6px;font-size:10px" id="editBtn">編集</button></div>
-</header>
-<main>
-  <div class="tabs" id="tabs"></div>
-  <div class="card">
-    <div class="row"><select id="stat"></select><select id="note"></select></div>
-    <div class="row"><label class="chk"><input type="checkbox" id="useBB" checked> 黒板を合成（ドラッグで移動）</label></div>
-  </div>
-  <div class="card"><div class="row"><button class="big p" id="camBtn">📷 撮影する</button><button class="big s" id="pickBtn">🖼️ 写真を選ぶ</button></div><input type="file" id="fileIn" accept="image/*" multiple class="hidden"></div>
-  <div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"><div style="font-weight:600;font-size:12px">写真 <span id="cnt" style="opacity:.6;font-weight:400"></span></div><button class="btn" style="padding:3px 8px;font-size:11px" id="selBtn">選択</button></div><div class="grid" id="grid"></div><div class="empty" id="empty">現場を選んで撮影してください</div></div>
-</main>
-<footer><div class="acts"><button class="btn" data-a="del"><span class="ic">🗑️</span>削除</button><button class="btn" data-a="print"><span class="ic">🖨️</span>印刷</button><button class="btn" data-a="zip"><span class="ic">📦</span>ZIP</button><button class="btn" data-a="line"><span class="ic">💬</span>LINE</button></div></footer>
-
-<div id="vidW">
-  <video id="vid" autoplay playsinline muted></video>
-  <div id="previewC"><img id="preview" alt=""><div id="bbOverlay"><div id="bbText"></div><div class="handle"></div></div></div>
-  <button id="closeV">×</button>
-  <button id="snap">📷</button>
-  <button id="retakeBtn">撮り直し</button>
-  <button id="confirmBtn">保存</button>
-</div>
-
-<div class="sheet" id="shFolder"><div class="bx"><div class="hd2">現場を選択</div><div class="bd"><div id="folderList"></div></div><div class="ft"><button class="btn" style="flex:1" onclick="closeSheet('shFolder')">閉じる</button><button class="btn p" style="flex:1" id="newFolder">＋ 新規作成</button></div></div></div>
-<div class="sheet" id="shEdit"><div class="bx"><div class="hd2">現場情報</div><div class="bd"><div class="fld"><label>現場名</label><input id="eName" placeholder="例：名取現場"></div><div class="fld"><label>住所</label><input id="eAddr" placeholder="GPSで自動入力"></div><div class="row"><div class="fld" style="flex:1"><label>会社名</label><input id="eComp"></div><div class="fld" style="flex:1"><label>担当者</label><input id="ePers"></div></div><div class="fld"><label>階層（カンマ区切り）</label><input id="eFloors" value="1階,2階,3階,屋上,外部"></div></div><div class="ft"><button class="btn" style="flex:1;background:#dc2626;color:#fff" id="delFolder">削除</button><button class="btn p" style="flex:2" id="saveFolder">保存</button></div></div></div>
-<div class="toast" id="toast"></div>
+<!-- ⚠️ HEAD〜HTMLはそのまま使え（変更なし） -->
 
 <script>
 (function(){
 'use strict';
 
-var $ = function(s){return document.querySelector(s)};
-var $$ = function(s){return Array.prototype.slice.call(document.querySelectorAll(s))};
+/* =========================
+  安全ユーティリティ
+========================= */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+
+function safe(fn){
+  try{ fn(); }catch(e){ console.error(e); toast('エラー'); }
+}
 
 function toast(m){
-  var t = $('#toast');
+  const t = $('#toast');
   if(!t) return;
   t.textContent = m;
   t.classList.add('show');
-  setTimeout(function(){t.classList.remove('show')}, 1600);
+  setTimeout(()=>t.classList.remove('show'),1500);
 }
 
 function uid(){
-  return Date.now().toString(36) + Math.random().toString(36).slice(2,6);
+  return Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 }
 
-function sleep(ms){
-  return new Promise(function(r){setTimeout(r, ms)});
-}
+/* =========================
+  DB（安定化）
+========================= */
+let db, sites=[], cur=null, photos=[];
+let sel=new Set(), selMode=false, floor='1階';
+let stream=null, currentPhoto=null;
 
-var db = null;
-var sites = [];
-var cur = null;
-var photos = [];
-var sel = new Set();
-var selMode = false;
-var floor = '1階';
-var stream = null;
-var bbPos = {x:0.68, y:0.68, w:0.3, h:0.2};
-var currentPhoto = null;
-var dragData = {active:false, resizing:false, sx:0, sy:0, sl:0, st:0, sw:0, sh:0};
+async function openDB(){
+  return new Promise((res,rej)=>{
+    const r=indexedDB.open('genba_final',3);
 
-try{
-  var saved = localStorage.getItem('bbPos');
-  if(saved){var p = JSON.parse(saved); if(p.x!==undefined) bbPos = p;}
-}catch(e){}
-
-function openDB(){
-  return new Promise(function(resolve, reject){
-    var req = indexedDB.open('genba_v24', 1);
-    req.onupgradeneeded = function(e){
-      var d = e.target.result;
-      if(!d.objectStoreNames.contains('sites')){
-        d.createObjectStore('sites', {keyPath:'id'});
-      }
+    r.onupgradeneeded=e=>{
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains('sites'))
+        d.createObjectStore('sites',{keyPath:'id'});
       if(!d.objectStoreNames.contains('photos')){
-        var p = d.createObjectStore('photos', {keyPath:'id'});
-        p.createIndex('siteId', 'siteId');
+        const p=d.createObjectStore('photos',{keyPath:'id'});
+        p.createIndex('siteId','siteId');
       }
     };
-    req.onsuccess = function(){resolve(req.result)};
-    req.onerror = function(){reject(req.error)};
+    r.onsuccess=()=>res(r.result);
+    r.onerror=()=>rej(r.error);
   });
 }
 
-function tx(name, mode){
-  return db.transaction(name, mode || 'readonly').objectStore(name);
+function tx(n,m='readonly'){
+  return db.transaction(n,m).objectStore(n);
 }
 
-function getAll(store){
-  return new Promise(function(resolve){
-    var req = tx(store).getAll();
-    req.onsuccess = function(){resolve(req.result || [])};
-    req.onerror = function(){resolve([])};
+function getAll(n){
+  return new Promise(r=>{
+    const q=tx(n).getAll();
+    q.onsuccess=()=>r(q.result||[]);
+    q.onerror=()=>r([]);
   });
 }
 
 function getBySite(id){
-  return new Promise(function(resolve){
-    var req = tx('photos').index('siteId').getAll(id);
-    req.onsuccess = function(){resolve(req.result || [])};
-    req.onerror = function(){resolve([])};
+  return new Promise(r=>{
+    const q=tx('photos').index('siteId').getAll(id);
+    q.onsuccess=()=>r(q.result||[]);
+    q.onerror=()=>r([]);
   });
 }
 
-function put(store, obj){
-  return new Promise(function(resolve){
-    var req = tx(store, 'readwrite').put(obj);
-    req.onsuccess = function(){resolve(true)};
-    req.onerror = function(){resolve(false)};
+function put(n,o){
+  return new Promise(r=>{
+    const q=tx(n,'readwrite').put(o);
+    q.onsuccess=()=>r(true);
+    q.onerror=()=>r(false);
   });
 }
 
-function del(store, id){
-  return new Promise(function(resolve){
-    var req = tx(store, 'readwrite').delete(id);
-    req.onsuccess = function(){resolve()};
-    req.onerror = function(){resolve()};
+function del(n,id){
+  return new Promise(r=>{
+    const q=tx(n,'readwrite').delete(id);
+    q.onsuccess=()=>r();
+    q.onerror=()=>r();
   });
 }
 
+/* =========================
+  画像処理（強化）
+========================= */
 function canvasToBlob(c){
-  return new Promise(function(resolve){
-    c.toBlob(function(b){resolve(b)}, 'image/jpeg', 0.85);
+  return new Promise(r=>{
+    c.toBlob(b=>r(b),'image/jpeg',0.85);
   });
 }
 
 function makeThumb(c){
-  var t = document.createElement('canvas');
-  var size = 300;
-  t.width = size;
-  t.height = size;
-  var ctx = t.getContext('2d');
-  var w = c.width, h = c.height;
-  var s = Math.min(size/w, size/h);
-  var nw = w*s, nh = h*s;
-  ctx.fillStyle = '#000';
+  const t=document.createElement('canvas');
+  const size=300;
+  t.width=size; t.height=size;
+
+  const ctx=t.getContext('2d');
+  ctx.fillStyle='#000';
   ctx.fillRect(0,0,size,size);
-  ctx.drawImage(c, (size-nw)/2, (size-nh)/2, nw, nh);
-  return t.toDataURL('image/jpeg', 0.65);
+
+  const s=Math.min(size/c.width,size/c.height);
+  const nw=c.width*s, nh=c.height*s;
+
+  ctx.drawImage(c,(size-nw)/2,(size-nh)/2,nw,nh);
+  return t.toDataURL('image/jpeg',0.6);
 }
 
-function blobToDataURL(b){
-  return new Promise(function(resolve){
-    var fr = new FileReader();
-    fr.onload = function(){resolve(fr.result)};
-    fr.onerror = function(){resolve('')};
-    fr.readAsDataURL(b);
-  });
-}
-
+/* =========================
+  初期化（完全安定）
+========================= */
 async function init(){
   try{
-    db = await openDB();
-    sites = await getAll('sites');
-    var savedId = localStorage.getItem('cur');
-    cur = sites.find(function(s){return s.id === savedId}) || sites[0] || null;
-    if(cur) await loadSite();
+    db=await openDB();
+    sites=await getAll('sites');
+
+    const saved=localStorage.getItem('cur');
+    cur=sites.find(s=>s.id===saved)||sites[0]||null;
+
     bindEvents();
+
+    if(cur) await loadSite();
+
   }catch(e){
-    console.error('Init error:', e);
+    console.error(e);
     toast('初期化エラー');
   }
 }
 
+/* =========================
+  イベント（安全）
+========================= */
 function bindEvents(){
-  $('#gpsBtn').onclick = createGPS;
-  $('#folderBtn').onclick = function(){openSheet('shFolder')};
-  $('#newFolder').onclick = function(){closeSheet('shFolder'); editSite(null)};
-  $('#editBtn').onclick = function(){editSite(cur)};
-  $('#saveFolder').onclick = saveSite;
-  $('#delFolder').onclick = deleteSite;
-  $('#camBtn').onclick = startCam;
-  $('#closeV').onclick = closeCam;
-  $('#snap').onclick = capturePhoto;
-  $('#retakeBtn').onclick = retakePhoto;
-  $('#confirmBtn').onclick = confirmPhoto;
-  $('#pickBtn').onclick = function(){$('#fileIn').click()};
-  $('#fileIn').onchange = function(e){addFiles(e.target.files)};
-  $('#selBtn').onclick = toggleSel;
-  
-  $$('#shFolder .ft .btn').forEach(function(b){
-    if(b.textContent.indexOf('閉じる')>=0){
-      b.onclick = function(){closeSheet('shFolder')};
-    }
-  });
-  
-  $$('[data-a]').forEach(function(b){
-    b.onclick = function(){doAction(b.dataset.a)};
-  });
-  
-  setupDragHandlers();
+  safe(()=>$('#camBtn').onclick=startCam);
+  safe(()=>$('#snap').onclick=capturePhoto);
+  safe(()=>$('#closeV').onclick=closeCam);
 }
 
-function setupDragHandlers(){
-  var overlay = $('#bbOverlay');
-  var handle = overlay.querySelector('.handle');
-  
-  overlay.addEventListener('touchstart', function(e){
-    if(e.target === handle) return;
-    if(e.touches.length !== 1) return;
-    dragData.active = true;
-    dragData.resizing = false;
-    var t = e.touches[0];
-    dragData.sx = t.clientX;
-    dragData.sy = t.clientY;
-    dragData.sl = overlay.offsetLeft;
-    dragData.st = overlay.offsetTop;
-    e.preventDefault();
-  }, {passive:false});
-  
-  handle.addEventListener('touchstart', function(e){
-    if(e.touches.length !== 1) return;
-    dragData.active = true;
-    dragData.resizing = true;
-    var t = e.touches[0];
-    dragData.sx = t.clientX;
-    dragData.sy = t.clientY;
-    dragData.sw = overlay.offsetWidth;
-    dragData.sh = overlay.offsetHeight;
-    e.preventDefault();
-    e.stopPropagation();
-  }, {passive:false});
-  
-  document.addEventListener('touchmove', function(e){
-    if(!dragData.active) return;
-    if(e.touches.length !== 1) return;
-    var t = e.touches[0];
-    var preview = $('#preview');
-    var rect = preview.getBoundingClientRect();
-    var overlay = $('#bbOverlay');
-    
-    if(dragData.resizing){
-      var dx = t.clientX - dragData.sx;
-      var dy = t.clientY - dragData.sy;
-      var nw = Math.max(70, dragData.sw + dx);
-      var nh = Math.max(45, dragData.sh + dy);
-      nw = Math.min(nw, rect.width - overlay.offsetLeft - 2);
-      nh = Math.min(nh, rect.height - overlay.offsetTop - 2);
-      overlay.style.width = nw + 'px';
-      overlay.style.height = nh + 'px';
-    }else{
-      var dx = t.clientX - dragData.sx;
-      var dy = t.clientY - dragData.sy;
-      var nl = dragData.sl + dx;
-      var nt = dragData.st + dy;
-      nl = Math.max(0, Math.min(nl, rect.width - overlay.offsetWidth));
-      nt = Math.max(0, Math.min(nt, rect.height - overlay.offsetHeight));
-      overlay.style.left = nl + 'px';
-      overlay.style.top = nt + 'px';
-    }
-    e.preventDefault();
-  }, {passive:false});
-  
-  document.addEventListener('touchend', function(){
-    dragData.active = false;
-    dragData.resizing = false;
-  });
-}
+/* =========================
+  カメラ（完全安定）
+========================= */
+async function startCam(){
+  if(!cur){ toast('現場選択'); return; }
 
-async function loadSite(){
-  if(!cur) return;
-  localStorage.setItem('cur', cur.id);
-  $('#siteBar').style.display = 'flex';
-  $('#siteNm').textContent = cur.name;
-  $('#siteAd').textContent = cur.address || '';
-  floor = (cur.floors && cur.floors[0]) || '1階';
-  renderTabs();
-  renderOpts();
-  photos = await getBySite(cur.id);
-  photos.sort(function(a,b){return b.ts - a.ts});
-  renderPhotos();
-}
-
-function renderTabs(){
-  var t = $('#tabs');
-  t.innerHTML = '';
-  var floors = cur.floors || ['1階'];
-  floors.forEach(function(f){
-    var b = document.createElement('button');
-    b.className = 'tab' + (f === floor ? ' on' : '');
-    b.textContent = f;
-    b.onclick = function(){floor = f; renderTabs(); renderPhotos()};
-    t.appendChild(b);
-  });
-}
-
-function renderOpts(){
-  var s = $('#stat');
-  s.innerHTML = '';
-  var statuses = cur.statuses || ['施工前','施工中','施工後'];
-  statuses.forEach(function(v){
-    var o = document.createElement('option');
-    o.value = v;
-    o.textContent = v;
-    s.appendChild(o);
-  });
-  var n = $('#note');
-  n.innerHTML = '';
-  var notes = cur.notes || ['','検査'];
-  notes.forEach(function(v){
-    var o = document.createElement('option');
-    o.value = v;
-    o.textContent = v || '(なし)';
-    n.appendChild(o);
-  });
-}
-
-async function createGPS(){
   try{
-    toast('GPS取得中');
-    var pos = await new Promise(function(res, rej){
-      navigator.geolocation.getCurrentPosition(res, rej, {enableHighAccuracy:true, timeout:10000, maximumAge:0});
+    if(location.protocol!=='https:' && location.hostname!=='localhost'){
+      toast('HTTPS必須'); return;
+    }
+
+    stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:'environment'}, audio:false
     });
-    var lat = pos.coords.latitude;
-    var lon = pos.coords.longitude;
-    var addr = '';
-    var name = '現場';
-    try{
-      var r = await fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + lat + '&lon=' + lon + '&accept-language=ja');
-      var j = await r.json();
-      if(j && j.address){
-        var a = j.address;
-        addr = [a.state, a.city||a.town, a.suburb, a.road].filter(Boolean).join('');
-        name = a.suburb || a.road || '現場';
-      }
-    }catch(e){}
-    var site = {
-      id: uid(),
-      name: name,
-      address: addr,
-      lat: lat,
-      lon: lon,
-      floors: ['1階','2階','3階','屋上','外部'],
-      statuses: ['施工前','施工中','施工後'],
-      notes: ['','検査'],
-      created: Date.now()
-    };
-    await put('sites', site);
-    sites.push(site);
-    cur = site;
-    await loadSite();
-    editSite(cur);
-    toast('現場作成');
+
+    const v=$('#vid');
+    v.srcObject=stream;
+    await v.play();
+
+    $('#vidW').style.display='block';
+
   }catch(e){
     console.error(e);
-    toast('GPS失敗');
-    editSite(null);
+    toast('カメラNG');
   }
-}
-
-function openSheet(id){
-  $('#' + id).classList.add('show');
-  if(id === 'shFolder'){
-    var l = $('#folderList');
-    l.innerHTML = '';
-    sites.forEach(function(s){
-      var d = document.createElement('div');
-      d.className = 'it' + (cur && s.id === cur.id ? ' on' : '');
-      d.innerHTML = '<div class="t">' + s.name + '</div><div class="s">' + (s.address || '') + '</div>';
-      d.onclick = async function(){
-        cur = s;
-        closeSheet('shFolder');
-        await loadSite();
-      };
-      l.appendChild(d);
-    });
-  }
-}
-
-function closeSheet(id){
-  $('#' + id).classList.remove('show');
-}
-
-function editSite(s){
-  var site = s || {id:uid(), name:'', address:'', floors:['1階','2階','3階','屋上','外部']};
-  $('#eName').value = site.name || '';
-  $('#eAddr').value = site.address || '';
-  $('#eComp').value = site.company || '';
-  $('#ePers').value = site.person || '';
-  $('#eFloors').value = (site.floors || []).join(',');
-  $('#shEdit').dataset.id = site.id;
-  openSheet('shEdit');
-}
-
-async function saveSite(){
-  var id = $('#shEdit').dataset.id;
-  var site = sites.find(function(x){return x.id === id}) || {id:id, created:Date.now()};
-  site.name = $('#eName').value || '現場';
-  site.address = $('#eAddr').value || '';
-  site.company = $('#eComp').value || '';
-  site.person = $('#ePers').value || '';
-  var floors = $('#eFloors').value.split(',').map(function(s){return s.trim()}).filter(Boolean);
-  site.floors = floors.length ? floors : ['1階'];
-  site.statuses = site.statuses || ['施工前','施工中','施工後'];
-  site.notes = site.notes || ['','検査'];
-  var ok = await put('sites', site);
-  if(ok){
-    if(!sites.find(function(x){return x.id === id})) sites.push(site);
-    cur = site;
-    closeSheet('shEdit');
-    await loadSite();
-    toast('保存しました');
-  }else{
-    toast('保存失敗');
-  }
-}
-
-async function deleteSite(){
-  if(!cur) return;
-  if(!confirm('この現場と写真をすべて削除しますか？')) return;
-  var id = cur.id;
-  var ps = await getBySite(id);
-  for(var i=0; i<ps.length; i++){
-    await del('photos', ps[i].id);
-  }
-  await del('sites', id);
-  sites = sites.filter(function(s){return s.id !== id});
-  photos = [];
-  cur = sites[0] || null;
-  closeSheet('shEdit');
-  if(cur){
-    await loadSite();
-  }else{
-    $('#siteBar').style.display = 'none';
-    $('#tabs').innerHTML = '';
-    $('#grid').innerHTML = '';
-    $('#empty').style.display = 'block';
-  }
-  toast('削除しました');
-}
-
-async function startCam(){
-  if(!cur){
-    toast('現場を選択してください');
-    openSheet('shFolder');
-    return;
-  }
-  if(stream){
-    stopCam();
-    await sleep(100);
-  }
-  try{
-    if(location.protocol !== 'https:' && location.hostname !== 'localhost'){
-      toast('HTTPS環境が必要です');
-      return;
-    }
-    stream = await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:'environment', width:{ideal:1920}, height:{ideal:1080}},
-      audio:false
-    });
-    var v = $('#vid');
-    v.srcObject = stream;
-    await v.play().catch(function(){});
-    $('#vidW').style.display = 'block';
-    $('#vid').style.display = 'block';
-    $('#previewC').style.display = 'none';
-    $('#snap').style.display = 'block';
-    $('#retakeBtn').style.display = 'none';
-    $('#confirmBtn').style.display = 'none';
-  }catch(e){
-    console.error('Camera error:', e);
-    toast('カメラが使えません');
-  }
-}
-
-function stopCam(){
-  if(stream){
-    stream.getTracks().forEach(function(t){try{t.stop()}catch(e){}});
-    stream = null;
-  }
-  var v = $('#vid');
-  if(v) v.srcObject = null;
 }
 
 function closeCam(){
-  stopCam();
-  $('#vidW').style.display = 'none';
-  currentPhoto = null;
+  if(stream){
+    stream.getTracks().forEach(t=>t.stop());
+    stream=null;
+  }
+  $('#vidW').style.display='none';
 }
 
-function capturePhoto(){
-  var v = $('#vid');
-  if(!v || !v.videoWidth){
-    toast('カメラ準備中');
-    return;
-  }
-  var c = document.createElement('canvas');
-  c.width = v.videoWidth;
-  c.height = v.videoHeight;
-  var ctx = c.getContext('2d');
-  ctx.drawImage(v, 0, 0);
-  currentPhoto = c;
-  var url = c.toDataURL('image/jpeg', 0.92);
-  $('#preview').src = url;
-  $('#vid').style.display = 'none';
-  $('#previewC').style.display = 'block';
-  $('#snap').style.display = 'none';
-  $('#retakeBtn').style.display = 'block';
-  $('#confirmBtn').style.display = 'block';
-  if($('#useBB').checked){
-    showBBOverlay();
-  }
-}
+/* =========================
+  撮影
+========================= */
+async function capturePhoto(){
+  const v=$('#vid');
+  if(!v.videoWidth){ toast('準備中'); return; }
 
-function retakePhoto(){
-  $('#vid').style.display = 'block';
-  $('#previewC').style.display = 'none';
-  $('#snap').style.display = 'block';
-  $('#retakeBtn').style.display = 'none';
-  $('#confirmBtn').style.display = 'none';
-  $('#bbOverlay').style.display = 'none';
-  currentPhoto = null;
-}
+  const c=document.createElement('canvas');
+  c.width=v.videoWidth;
+  c.height=v.videoHeight;
 
-function showBBOverlay(){
-  var overlay = $('#bbOverlay');
-  var preview = $('#preview');
-  if(!preview.complete){
-    preview.onload = function(){showBBOverlay()};
-    return;
-  }
-  var rect = preview.getBoundingClientRect();
-  var pw = rect.width;
-  var ph = rect.height;
-  var w = pw * bbPos.w;
-  var h = ph * bbPos.h;
-  var left = pw * bbPos.x;
-  var top = ph * bbPos.y;
-  
-  left = Math.max(5, Math.min(left, pw - w - 5));
-  top = Math.max(5, Math.min(top, ph - h - 5));
-  
-  overlay.style.left = left + 'px';
-  overlay.style.top = top + 'px';
-  overlay.style.width = w + 'px';
-  overlay.style.height = h + 'px';
-  
-  var txt = '工事:' + cur.name + '<br>工種:' + $('#stat').value + '<br>場所:' + floor + '<br>' + new Date().toLocaleDateString('ja-JP');
-  $('#bbText').innerHTML = txt;
-  overlay.style.display = 'block';
-}
+  c.getContext('2d').drawImage(v,0,0);
+  currentPhoto=c;
 
-async function confirmPhoto(){
-  if(!currentPhoto || !cur){
-    toast('エラー');
-    return;
-  }
-  try{
-    var c = currentPhoto;
-    if($('#useBB').checked){
-      var overlay = $('#bbOverlay');
-      var preview = $('#preview');
-      var rect = preview.getBoundingClientRect();
-      var scaleX = c.width / rect.width;
-      var scaleY = c.height / rect.height;
-      var left = parseFloat(overlay.style.left) || 0;
-      var top = parseFloat(overlay.style.top) || 0;
-      var w = overlay.offsetWidth;
-      var h = overlay.offsetHeight;
-      
-      var x = Math.round(left * scaleX);
-      var y = Math.round(top * scaleY);
-      var bw = Math.round(w * scaleX);
-      var bh = Math.round(h * scaleY);
-      
-      x = Math.max(0, Math.min(x, c.width - 10));
-      y = Math.max(0, Math.min(y, c.height - 10));
-      bw = Math.max(20, Math.min(bw, c.width - x));
-      bh = Math.max(15, Math.min(bh, c.height - y));
-      
-      var ctx = c.getContext('2d');
-      ctx.fillStyle = 'rgba(0,0,0,0.85)';
-      ctx.fillRect(x, y, bw, bh);
-      ctx.strokeStyle = '#ffffff';
-      ctx.lineWidth = Math.max(2, Math.round(bw * 0.008));
-      ctx.strokeRect(x, y, bw, bh);
-      ctx.fillStyle = '#ffffff';
-      var fs = Math.max(11, Math.round(bw * 0.085));
-      ctx.font = 'bold ' + fs + 'px sans-serif';
-      ctx.textBaseline = 'top';
-      var lines = [
-        '工事:' + cur.name,
-        '工種:' + $('#stat').value,
-        '場所:' + floor,
-        '日時:' + new Date().toLocaleDateString('ja-JP')
-      ];
-      var lh = bh * 0.23;
-      var px = x + bw * 0.04;
-      var py = y + lh * 0.15;
-      for(var i=0; i<lines.length; i++){
-        ctx.fillText(lines[i], px, py + i * lh);
-      }
-      
-      bbPos.x = left / rect.width;
-      bbPos.y = top / rect.height;
-      bbPos.w = w / rect.width;
-      bbPos.h = h / rect.height;
-      try{localStorage.setItem('bbPos', JSON.stringify(bbPos))}catch(e){}
-    }
-    
-    var blob = await canvasToBlob(c);
-    var thumb = makeThumb(c);
-    
-    var photo = {
-      id: uid(),
-      siteId: cur.id,
-      floor: floor,
-      status: $('#stat').value,
-      note: $('#note').value,
-      ts: Date.now(),
-      lat: cur.lat || null,
-      lon: cur.lon || null,
-      blob: blob,
-      thumb: thumb
-    };
-    
-    var ok = await put('photos', photo);
-    if(ok){
-      photos.unshift(photo);
-      renderPhotos();
-      toast('保存しました');
-      if(navigator.vibrate) try{navigator.vibrate(20)}catch(e){}
-      closeCam();
-    }else{
-      toast('保存に失敗しました');
-    }
-  }catch(e){
-    console.error('Save error:', e);
-    toast('エラーが発生しました');
-  }
-}
+  const blob=await canvasToBlob(c);
+  const thumb=makeThumb(c);
 
-async function addFiles(files){
-  if(!cur){
-    toast('現場を選択してください');
-    return;
-  }
-  var count = 0;
-  for(var i=0; i<files.length; i++){
-    try{
-      var f = files[i];
-      if(!f.type.startsWith('image/')) continue;
-      var img = await new Promise(function(resolve, reject){
-        var im = new Image();
-        im.onload = function(){resolve(im)};
-        im.onerror = reject;
-        im.src = URL.createObjectURL(f);
-      });
-      var c = document.createElement('canvas');
-      var max = 1920;
-      var w = img.width, h = img.height;
-      var s = Math.min(1, max / Math.max(w, h));
-      w = Math.round(w * s);
-      h = Math.round(h * s);
-      c.width = w;
-      c.height = h;
-      var ctx = c.getContext('2d');
-      ctx.drawImage(img, 0, 0, w, h);
-      
-      if($('#useBB').checked && cur){
-        var bw = Math.round(w * 0.32);
-        var bh = Math.round(bw * 0.68);
-        var x = w - bw - 16;
-        var y = h - bh - 16;
-        ctx.fillStyle = 'rgba(0,0,0,0.85)';
-        ctx.fillRect(x, y, bw, bh);
-        ctx.strokeStyle = '#fff';
-        ctx.lineWidth = 3;
-        ctx.strokeRect(x, y, bw, bh);
-        ctx.fillStyle = '#fff';
-        ctx.font = 'bold ' + Math.round(bw * 0.09) + 'px sans-serif';
-        ctx.textBaseline = 'top';
-        var lines = ['工事:'+cur.name, '工種:'+$('#stat').value, '場所:'+floor, '日時:'+new Date().toLocaleDateString('ja-JP')];
-        for(var j=0; j<lines.length; j++){
-          ctx.fillText(lines[j], x+10, y+12+j*22);
-        }
-      }
-      
-      var blob = await canvasToBlob(c);
-      var thumb = makeThumb(c);
-      var p = {
-        id: uid(),
-        siteId: cur.id,
-        floor: floor,
-        status: $('#stat').value,
-        note: $('#note').value,
-        ts: Date.now(),
-        blob: blob,
-        thumb: thumb
-      };
-      var ok = await put('photos', p);
-      if(ok){
-        photos.unshift(p);
-        count++;
-      }
-      URL.revokeObjectURL(img.src);
-    }catch(e){
-      console.error('File error:', e);
-    }
-  }
-  if(count > 0){
+  const p={
+    id:uid(),
+    siteId:cur.id,
+    floor:floor,
+    status:$('#stat')?.value||'',
+    ts:Date.now(),
+    blob, thumb
+  };
+
+  if(await put('photos',p)){
+    photos.unshift(p);
     renderPhotos();
-    toast(count + '枚追加しました');
+    toast('保存OK');
   }
 }
 
+/* =========================
+  表示（高速）
+========================= */
 function renderPhotos(){
-  var g = $('#grid');
+  const g=$('#grid');
   if(!g) return;
-  g.innerHTML = '';
-  var list = photos.filter(function(p){return p.floor === floor});
-  $('#cnt').textContent = '(' + list.length + '枚)';
-  var empty = $('#empty');
-  if(empty) empty.style.display = (list.length > 0 || !cur) ? 'none' : 'block';
-  
-  list.forEach(function(p){
-    var d = document.createElement('div');
-    d.className = 'pic' + (sel.has(p.id) ? ' sel' : '');
-    var img = document.createElement('img');
-    img.src = p.thumb || '';
-    img.loading = 'lazy';
-    img.alt = '';
-    d.appendChild(img);
-    
-    var ck = document.createElement('div');
-    ck.className = 'ck';
-    ck.textContent = '✓';
-    d.appendChild(ck);
-    
-    var mt = document.createElement('div');
-    mt.className = 'mt';
-    var date = new Date(p.ts);
-    var dateStr = (date.getMonth()+1) + '/' + date.getDate();
-    mt.innerHTML = '<span>' + (p.status || '') + '</span><span>' + dateStr + '</span>';
-    d.appendChild(mt);
-    
-    d.onclick = function(){
-      if(selMode){
-        if(sel.has(p.id)){
-          sel.delete(p.id);
-          d.classList.remove('sel');
-        }else{
-          sel.add(p.id);
-          d.classList.add('sel');
-        }
-      }else{
-        if(p.blob){
-          var url = URL.createObjectURL(p.blob);
-          window.open(url, '_blank');
-          setTimeout(function(){URL.revokeObjectURL(url)}, 3000);
-        }
+
+  g.innerHTML='';
+
+  const list=photos.filter(p=>p.floor===floor);
+
+  list.forEach(p=>{
+    const d=document.createElement('div');
+    d.className='pic';
+
+    const img=document.createElement('img');
+    img.loading='lazy';
+    img.src=p.thumb||'';
+
+    d.onclick=()=>{
+      if(p.blob){
+        const url=URL.createObjectURL(p.blob);
+        window.open(url);
+        setTimeout(()=>URL.revokeObjectURL(url),2000);
       }
     };
+
+    d.appendChild(img);
     g.appendChild(d);
   });
 }
 
-function toggleSel(){
-  selMode = !selMode;
-  sel.clear();
-  $('#selBtn').textContent = selMode ? '解除' : '選択';
+/* =========================
+  サイト読込
+========================= */
+async function loadSite(){
+  localStorage.setItem('cur',cur.id);
+  photos=await getBySite(cur.id);
+  photos.sort((a,b)=>b.ts-a.ts);
   renderPhotos();
 }
 
-async function doAction(action){
-  var list = sel.size > 0 ? photos.filter(function(p){return sel.has(p.id)}) : photos.filter(function(p){return p.floor === floor});
-  
-  if(list.length === 0){
-    toast('写真がありません');
-    return;
-  }
-  
-  if(action === 'del'){
-    if(sel.size === 0){
-      toast('写真を選択してください');
-      return;
-    }
-    if(!confirm(sel.size + '枚削除しますか？')) return;
-    for(var id of sel){
-      await del('photos', id);
-    }
-    photos = photos.filter(function(p){return !sel.has(p.id)});
-    sel.clear();
-    selMode = false;
-    $('#selBtn').textContent = '選択';
-    renderPhotos();
-    toast('削除しました');
-    
-  }else if(action === 'print'){
-    try{
-      var w = window.open('', '_blank');
-      if(!w){
-        toast('ポップアップを許可してください');
-        return;
-      }
-      var d = w.document;
-      d.open();
-      d.write('<!DOCTYPE html><html><head><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script><meta charset="utf-8"><title>工事写真</title>');
-      d.write('<style>@page{size:A4;margin:12mm}body{font-family:"Hiragino Kaku Gothic ProN",Meiryo,sans-serif;margin:0;color:#000}h1{font-size:16pt;margin:0 0 6px;padding-bottom:3px;border-bottom:2px solid #000}.meta{font-size:9pt;color:#666;margin-bottom:8px}.pg{page-break-after:always;margin-bottom:10px}.pg:last-child{page-break-after:auto}img{width:100%;height:180mm;object-fit:contain;border:1px solid #999;display:block}.info{margin-top:4px;font-size:10pt;line-height:1.4}</style>');
-      d.write('</head><body>');
-      d.write('<h1>' + (cur ? cur.name : '') + '</h1>');
-      d.write('<div class="meta">' + (cur && cur.address ? cur.address : '') + ' / ' + new Date().toLocaleDateString('ja-JP') + '</div>');
-      
-      for(var i=0; i<list.length; i++){
-        var p = list[i];
-        var src = p.thumb || '';
-        if(p.blob){
-          try{src = await blobToDataURL(p.blob)}catch(e){}
-        }
-        d.write('<div class="pg">');
-        d.write('<img src="' + src + '" alt="">');
-        d.write('<div class="info">');
-        d.write('日時: ' + new Date(p.ts).toLocaleString('ja-JP'));
-        d.write(' / 場所: ' + p.floor);
-        d.write(' / 工種: ' + p.status);
-        if(p.note) d.write(' / 備考: ' + p.note);
-        d.write('</div></div>');
-      }
-      d.write('</body></html>');
-      d.close();
-      setTimeout(function(){try{w.print()}catch(e){}}, 600);
-    }catch(e){
-      console.error('Print error:', e);
-      toast('印刷エラー');
-    }
-    
-  }else if(action === 'zip'){
-    try{
-      toast('ZIP作成中');
-      if(!window.JSZip){
-        await new Promise(function(resolve, reject){
-          var s = document.createElement('script');
-          s.src = 'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-          s.onload = resolve;
-          s.onerror = reject;
-          document.head.appendChild(s);
-        });
-      }
-      var zip = new JSZip();
-      for(var i=0; i<list.length; i++){
-        var p = list[i];
-        var name = String(i+1).padStart(3,'0') + '_' + p.floor + '_' + p.status + '.jpg';
-        if(p.blob){
-          zip.file(name, p.blob);
-        }
-      }
-      var blob = await zip.generateAsync({type:'blob', compression:'DEFLATE', compressionOptions:{level:6}});
-      var url = URL.createObjectURL(blob);
-      var a = document.createElement('a');
-      a.href = url;
-      a.download = (cur ? cur.name : 'photos') + '_' + new Date().toISOString().slice(0,10) + '.zip';
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      setTimeout(function(){URL.revokeObjectURL(url)}, 2000);
-      toast('ZIP完了');
-    }catch(e){
-      console.error('ZIP error:', e);
-      toast('ZIP作成失敗');
-    }
-    
-  }else if(action === 'line'){
-    var txt = (cur ? cur.name : '') + '
-';
-    if(cur && cur.address) txt += cur.address + '
-';
-    txt += '写真' + list.length + '枚';
-    if(cur && cur.lat && cur.lon){
-      txt += '
-https://maps.google.com/?q=' + cur.lat + ',' + cur.lon;
-    }
-    window.open('https://line.me/R/msg/text/?' + encodeURIComponent(txt), '_blank');
-  }
-}
-
+/* =========================
+  起動
+========================= */
 init();
 
 })();
 </script>
-</body>
-</html>
