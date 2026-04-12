@@ -1,187 +1,162 @@
-<!-- 変更点だけじゃなくフルで出す（安全） -->
-<!-- ★変更箇所には【NEW】コメント入れてる -->
-
 <script>
 'use strict';
 
+/* =========================
+   基本
+========================= */
 var $=s=>document.querySelector(s);
 var $$=s=>[...document.querySelectorAll(s)];
 
 function toast(m){
-  var t=$('#toast');
+  let t=$('#toast');
   t.textContent=m;
   t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),1600)
+  setTimeout(()=>t.classList.remove('show'),1500);
 }
 
 function uid(){
-  return Date.now().toString(36)+Math.random().toString(36).slice(2,6)
+  return Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 }
-
-var db=null,sites=[],cur=null,photos=[],sel=new Set(),selMode=false,floor='1階',stream=null;
-
-var bb={pos:'br',sz:'m'};
-try{bb=Object.assign(bb,JSON.parse(localStorage.bb||'{}'))}catch(e){}
 
 /* =========================
    DB
 ========================= */
+var db,sites=[],cur=null,photos=[],sel=new Set(),floor='1階';
+
 function openDB(){
-  return new Promise((res,rej)=>{
-    var r=indexedDB.open('genba_v19',2); // ★verアップ
+  return new Promise(res=>{
+    let r=indexedDB.open('genba_v20',2);
 
     r.onupgradeneeded=e=>{
-      var d=e.target.result;
+      let d=e.target.result;
 
       if(!d.objectStoreNames.contains('sites'))
         d.createObjectStore('sites',{keyPath:'id'});
 
       if(!d.objectStoreNames.contains('photos')){
-        var p=d.createObjectStore('photos',{keyPath:'id'});
+        let p=d.createObjectStore('photos',{keyPath:'id'});
         p.createIndex('siteId','siteId');
       }
     };
 
     r.onsuccess=()=>res(r.result);
-    r.onerror=()=>rej(r.error);
-  })
+  });
 }
 
 function tx(n,m='readonly'){
-  return db.transaction(n,m).objectStore(n)
-}
-
-function all(n){
-  return new Promise(r=>{
-    var q=tx(n).getAll();
-    q.onsuccess=()=>r(q.result||[])
-  })
-}
-
-function bySite(id){
-  return new Promise(r=>{
-    var q=tx('photos').index('siteId').getAll(id);
-    q.onsuccess=()=>r(q.result||[])
-  })
+  return db.transaction(n,m).objectStore(n);
 }
 
 function put(n,o){
   return new Promise(res=>{
-    let retry=0;
-    function run(){
-      var q=tx(n,'readwrite').put(o);
-      q.onsuccess=()=>res(true);
-      q.onerror=()=>{
-        retry++;
-        if(retry<3) setTimeout(run,100*retry);
-        else{
-          toast('保存失敗');
-          res(false);
-        }
-      }
-    }
-    run();
-  })
+    let q=tx(n,'readwrite').put(o);
+    q.onsuccess=()=>res(true);
+    q.onerror=()=>res(false);
+  });
 }
 
-/* =========================
-   Blob変換（NEW）
-========================= */
-function canvasToBlob(canvas){
+function del(n,id){
   return new Promise(r=>{
-    canvas.toBlob(b=>r(b),'image/jpeg',0.85);
-  })
+    tx(n,'readwrite').delete(id).onsuccess=r;
+  });
 }
 
-function createThumb(canvas){
-  var c=document.createElement('canvas');
-  var size=300;
-  c.width=size;
-  c.height=size;
-  var ctx=c.getContext('2d');
-
-  var w=canvas.width,h=canvas.height;
-  var scale=Math.min(size/w,size/h);
-  var nw=w*scale,nh=h*scale;
-
-  ctx.fillStyle='#000';
-  ctx.fillRect(0,0,size,size);
-  ctx.drawImage(canvas,(size-nw)/2,(size-nh)/2,nw,nh);
-
-  return c.toDataURL('image/jpeg',0.6);
+function bySite(id){
+  return new Promise(r=>{
+    tx('photos').index('siteId').getAll(id).onsuccess=e=>r(e.target.result||[]);
+  });
 }
 
 /* =========================
-   カメラ
+   AI分類（安全）
 ========================= */
-async function startCam(){
-  if(!cur){
-    toast('現場選択');
-    return;
+function aiDetectFloor(c){
+  let d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+  let bright=0;
+
+  for(let i=0;i<d.length;i+=40){
+    bright+=(d[i]+d[i+1]+d[i+2])/3;
   }
 
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:'environment'},
-      audio:false
-    });
+  let avg=bright/(d.length/4);
 
-    var v=$('#vid');
-    v.srcObject=stream;
-    await v.play();
-    $('#vidW').style.display='block';
-
-  }catch(e){
-    toast('カメラNG');
-  }
+  if(avg>140) return '外部';
+  if(avg<80) return '1階';
+  return '2階';
 }
 
-function stopCam(){
-  if(stream){
-    stream.getTracks().forEach(t=>t.stop());
-    stream=null;
+function aiDetectStatus(c){
+  let d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
+  let edge=0;
+
+  for(let i=0;i<d.length;i+=80){
+    if(d[i]+d[i+1]+d[i+2]>600) edge++;
   }
-  $('#vidW').style.display='none';
+
+  if(edge<2000) return '施工前';
+  if(edge<5000) return '施工中';
+  return '施工後';
 }
 
 /* =========================
-   撮影（完全改良）
+   Blob + サムネ
+========================= */
+function canvasToBlob(c){
+  return new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
+}
+
+function makeThumb(c){
+  let t=document.createElement('canvas');
+  let size=300;
+  t.width=size;
+  t.height=size;
+
+  let ctx=t.getContext('2d');
+
+  let w=c.width,h=c.height;
+  let s=Math.min(size/w,size/h);
+
+  let nw=w*s,nh=h*s;
+
+  ctx.fillRect(0,0,size,size);
+  ctx.drawImage(c,(size-nw)/2,(size-nh)/2,nw,nh);
+
+  return t.toDataURL('image/jpeg',0.6);
+}
+
+/* =========================
+   撮影
 ========================= */
 async function takePhoto(){
 
-  var v=$('#vid');
-  if(!v.videoWidth)return;
+  let v=$('#vid');
+  if(!v.videoWidth) return;
 
-  var c=document.createElement('canvas');
+  let c=document.createElement('canvas');
   c.width=v.videoWidth;
   c.height=v.videoHeight;
 
-  var ctx=c.getContext('2d');
+  let ctx=c.getContext('2d');
   ctx.drawImage(v,0,0);
 
-  /* 黒板 */
-  if($('#useBB').checked){
-    ctx.fillStyle='rgba(0,0,0,0.8)';
-    ctx.fillRect(20,20,300,150);
+  // AI
+  let aiF=aiDetectFloor(c);
+  let aiS=aiDetectStatus(c);
 
-    ctx.fillStyle='#fff';
-    ctx.fillText(cur.name,30,40);
-  }
+  let finalFloor = floor || aiF;
+  let finalStatus = $('#stat')?.value || aiS;
 
-  // ★Blob化
-  var blob=await canvasToBlob(c);
+  let blob=await canvasToBlob(c);
+  let thumb=makeThumb(c);
 
-  // ★サムネ
-  var thumb=createThumb(c);
-
-  var p={
+  let p={
     id:uid(),
     siteId:cur.id,
-    floor:floor,
+    floor:finalFloor,
+    status:finalStatus,
     ts:Date.now(),
-
-    blob:blob,        // NEW
-    thumb:thumb       // NEW
+    blob:blob,
+    thumb:thumb
   };
 
   if(await put('photos',p)){
@@ -192,80 +167,70 @@ async function takePhoto(){
 }
 
 /* =========================
-   描画（高速化）
+   表示（高速）
 ========================= */
 function renderPhotos(){
 
-  var g=$('#grid');
+  let g=$('#grid');
   g.innerHTML='';
 
-  var list=photos.filter(p=>p.floor===floor);
+  let list=photos.filter(p=>p.floor===floor);
 
   list.forEach(p=>{
-
-    var d=document.createElement('div');
+    let d=document.createElement('div');
     d.className='pic';
 
-    var img=document.createElement('img');
+    let img=document.createElement('img');
 
-    // ★優先：サムネ
-    if(p.thumb){
-      img.src=p.thumb;
-    }
-    else if(p.data){
-      img.src=p.data; // 旧互換
-    }
+    if(p.thumb) img.src=p.thumb;
+    else img.src=p.data;
 
-    // ★クリックで本体表示
     d.onclick=()=>{
       if(p.blob){
-        var url=URL.createObjectURL(p.blob);
-        window.open(url,'_blank');
-        setTimeout(()=>URL.revokeObjectURL(url),3000);
+        let url=URL.createObjectURL(p.blob);
+        window.open(url);
+        setTimeout(()=>URL.revokeObjectURL(url),2000);
       }else{
-        window.open(p.data,'_blank');
+        window.open(p.data);
       }
-    }
+    };
 
     d.appendChild(img);
     g.appendChild(d);
-
   });
 }
 
 /* =========================
-   ZIP（Blob対応）
+   ZIP
 ========================= */
-async function zipExport(list){
+async function exportZip(list){
 
   if(!window.JSZip){
     await new Promise(r=>{
-      var s=document.createElement('script');
+      let s=document.createElement('script');
       s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
       s.onload=r;
       document.head.appendChild(s);
     });
   }
 
-  var zip=new JSZip();
+  let zip=new JSZip();
 
   for(let i=0;i<list.length;i++){
-
     let p=list[i];
 
     if(p.blob){
       zip.file(i+'.jpg',p.blob);
-    }
-    else{
+    }else{
       let b64=p.data.split(',')[1];
       zip.file(i+'.jpg',b64,{base64:true});
     }
   }
 
-  var blob=await zip.generateAsync({type:'blob'});
+  let blob=await zip.generateAsync({type:'blob'});
 
-  var url=URL.createObjectURL(blob);
-  var a=document.createElement('a');
+  let url=URL.createObjectURL(blob);
+  let a=document.createElement('a');
   a.href=url;
   a.download='photos.zip';
   a.click();
@@ -274,13 +239,42 @@ async function zipExport(list){
 }
 
 /* =========================
+   現場削除（完全）
+========================= */
+async function deleteSite(){
+
+  if(!confirm('現場ごと削除しますか？')) return;
+
+  let id=cur.id;
+
+  let ps=await bySite(id);
+
+  for(let p of ps){
+    await del('photos',p.id);
+  }
+
+  await del('sites',id);
+
+  sites=sites.filter(s=>s.id!==id);
+  photos=[];
+
+  cur=sites[0]||null;
+
+  if(cur){
+    loadSite();
+  }else{
+    location.reload();
+  }
+
+  toast('完全削除');
+}
+
+/* =========================
    初期化
 ========================= */
 async function init(){
   db=await openDB();
-  sites=await all('sites');
 }
 
 init();
-
 </script>
