@@ -192,355 +192,590 @@
 })();</script>
 <script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
-<title>現場カメラ v5</title>
-<script src="https://cdn.tailwindcss.com"></script>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<title>現場カメラ v6 - フォルダ管理版</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
-<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
-html{font-family:"Noto Sans JP",system-ui,-apple-system,BlinkMacSystemFont,sans-serif}
-*{-webkit-tap-highlight-color:transparent}
-input,textarea{outline:none}
-.pos-grid button.active{box-shadow:inset 0 0 0 2px #2563eb}
+:root{--safe-top:env(safe-area-inset-top);--safe-bottom:env(safe-area-inset-bottom)}
+html,body{height:100%;-webkit-tap-highlight-color:transparent}
+body{font-family:"Noto Sans JP",system-ui,-apple-system,BlinkMacSystemFont,sans-serif;background:#0b1020;color:#e5e7eb;overscroll-behavior:none}
+.glass{background:rgba(17,24,39,.7);backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px)}
+.btn{padding:.75rem 1rem;border-radius:1rem;font-weight:700;transition:.2s;display:inline-flex;align-items:center;justify-content:center;gap:.5rem;user-select:none}
+.btn:active{transform:scale(.97)}
+.btn-primary{background:linear-gradient(135deg,#3b82f6,#06b6d4);color:white;box-shadow:0 8px 20px rgba(6,182,212,.25)}
+.btn-ghost{background:rgba(255,255,255,.08);border:1px solid rgba(255,255,255,.12)}
+.chip{padding:.5rem .9rem;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);font-weight:600;font-size:.85rem;white-space:nowrap}
+.chip.active{background:linear-gradient(135deg,#3b82f6,#06b6d4);border-color:transparent;color:white}
+.card{background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.12);border-radius:1.25rem}
+.toast{position:fixed;left:50%;transform:translateX(-50%);bottom:calc(90px + var(--safe-bottom));z-index:100;padding:.7rem 1rem;border-radius:.9rem;background:rgba(0,0,0,.85);color:#fff;font-weight:700;opacity:0;transition:.3s;pointer-events:none}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(-8px)}
+.scrollbar-hide::-webkit-scrollbar{display:none}
+.fab{width:64px;height:64px;border-radius:50%;display:grid;place-items:center;font-size:28px;box-shadow:0 12px 30px rgba(59,130,246,.4);background:linear-gradient(135deg,#3b82f6,#06b6d4);color:white}
+.grid-photo{display:grid;grid-template-columns:repeat(2,1fr);gap:.6rem}
+@media(min-width:768px){.grid-photo{grid-template-columns:repeat(4,1fr)}}
+.sheet{position:fixed;inset:0;z-index:60;display:none}
+.sheet.show{display:block}
+.sheet .bg{position:absolute;inset:0;background:rgba(0,0,0,.6);backdrop-filter:blur(4px)}
+.sheet .panel{position:absolute;left:0;right:0;bottom:0;background:#0f172a;border-top-left-radius:1.5rem;border-top-right-radius:1.5rem;max-height:85vh;display:flex;flex-direction:column;border:1px solid rgba(255,255,255,.1);padding-bottom:var(--safe-bottom)}
+.handle{width:44px;height:5px;border-radius:999px;background:rgba(255,255,255,.2);margin:.6rem auto}
+.input{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);border-radius:.9rem;padding:.75rem .9rem;width:100%;color:white;outline:none}
+.input:focus{border-color:#38bdf8;box-shadow:0 0 0 3px rgba(56,189,248,.2)}
+.select{background:rgba(0,0,0,.35);border:1px solid rgba(255,255,255,.15);border-radius:.9rem;padding:.75rem .9rem;width:100%;color:white}
 </style>
 </head>
-<body class="bg-[#f6f7fb] text-slate-800 min-h-screen">
-<div class="max-w-[1200px] mx-auto p-3 md:p-6">
-  <header class="flex items-center justify-between mb-5">
-    <h1 class="text-[26px] md:text-3xl font-bold tracking-tight flex items-center gap-2.5">
-      <span class="w-10 h-10 rounded-2xl bg-blue-600 text-white grid place-items-center shadow-lg shadow-blue-600/25">現</span>
-      現場カメラ <span class="text-slate-400 font-medium text-base">v5</span>
-    </h1>
-    <div class="flex gap-2">
-      <button id="btnGallery" class="h-10 px-4 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-medium shadow-sm">ギャラリー</button>
-      <button id="btnSettings" class="h-10 px-4 rounded-xl bg-slate-900 text-white hover:bg-black text-sm font-semibold shadow-sm">黒板設定</button>
+<body class="select-none">
+<div id="app" class="min-h-screen flex flex-col">
+  <!-- Header -->
+  <header class="sticky top-0 z-30 glass border-b border-white/10" style="padding-top:var(--safe-top)">
+    <div class="px-4 py-3 flex items-center gap-2">
+      <div class="w-9 h-9 rounded-xl bg-gradient-to-br from-cyan-400 to-blue-600 grid place-items-center font-black">現</div>
+      <div>
+        <div class="font-extrabold leading-none">現場カメラ <span class="text-cyan-400">v6</span></div>
+        <div class="text-[11px] opacity-70 -mt-0.5">フォルダ・GPS・LINE・印刷</div>
+      </div>
+      <div class="ml-auto flex gap-2">
+        <button id="btnGPS" class="btn btn-primary text-sm !py-2">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83M2 12h4M18 12h4M4.93 19.07l2.83-2.83M16.24 7.76l2.83-2.83"/><circle cx="12" cy="12" r="4"/></svg>
+          GPS現場
+        </button>
+        <button id="btnSitePicker" class="btn btn-ghost text-sm !py-2">📁 現場</button>
+      </div>
+    </div>
+    
+    <!-- Current Site Bar -->
+    <div id="siteBar" class="px-4 pb-3 hidden">
+      <div class="card p-3">
+        <div class="flex items-start gap-3">
+          <div class="flex-1 min-w-0">
+            <div class="flex items-center gap-2">
+              <div id="curSiteName" class="font-bold text-lg truncate">未選択</div>
+              <button id="btnEditSite" class="text-[11px] px-2 py-1 rounded-lg bg-white/10 border border-white/10">編集</button>
+            </div>
+            <div id="curSiteAddr" class="text-xs opacity-70 truncate mt-0.5">住所未設定</div>
+            <div class="flex items-center gap-3 mt-1.5 text-[11px]">
+              <span class="opacity-60">写真: <b id="curSiteCount" class="text-white">0</b>枚</span>
+              <span class="opacity-60">作成: <span id="curSiteDate">-</span></span>
+            </div>
+          </div>
+          <div class="text-right">
+            <div class="text-[10px] opacity-60">現在地</div>
+            <div id="gpsStatus" class="text-xs font-mono">--</div>
+          </div>
+        </div>
+      </div>
     </div>
   </header>
 
-  <div id="cameraView">
-    <section class="bg-white/90 backdrop-blur-xl rounded-3xl border border-slate-200 shadow-sm p-4 mb-4">
-      <div class="grid md:grid-cols-3 gap-3">
+  <!-- Floor Tabs -->
+  <nav class="sticky top-[104px] z-20 glass border-b border-white/5">
+    <div class="flex items-center gap-2 px-3 py-2 scrollbar-hide overflow-x-auto">
+      <div id="floorTabs" class="flex gap-1.5"></div>
+      <button id="btnEditFloors" class="chip !px-2.5 shrink-0" title="階層を編集">＋</button>
+    </div>
+  </nav>
+
+  <main class="flex-1 px-4 py-4 pb-28">
+    <!-- Capture Card -->
+    <section class="card p-4">
+      <div class="flex items-center justify-between mb-3">
+        <h2 class="font-bold">撮影</h2>
+        <label class="flex items-center gap-2 text-sm">
+          <input id="toggleBB" type="checkbox" class="accent-cyan-500 w-4 h-4" checked>
+          <span>黒板合成</span>
+        </label>
+      </div>
+      
+      <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="text-[11px] text-slate-500 font-medium">工事名</label>
-          <input id="inpProject" placeholder="例）〇〇ビル新築工事" class="mt-1 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white">
+          <label class="text-xs opacity-70">工種</label>
+          <select id="selStatus" class="select mt-1 text-sm"></select>
         </div>
         <div>
-          <label class="text-[11px] text-slate-500 font-medium">工種</label>
-          <input id="inpWork" placeholder="例）配筋検査" class="mt-1 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white">
-        </div>
-        <div>
-          <label class="text-[11px] text-slate-500 font-medium">備考・測点</label>
-          <input id="inpNote" placeholder="例）3F スラブ中央" class="mt-1 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white">
+          <label class="text-xs opacity-70">備考</label>
+          <div class="flex gap-1 mt-1">
+            <select id="selNote" class="select text-sm flex-1"></select>
+            <button id="btnAddNote" class="btn btn-ghost !p-2.5" title="備考追加">＋</button>
+          </div>
         </div>
       </div>
+
+      <div class="mt-4 grid grid-cols-2 gap-3">
+        <button id="btnShot" class="btn btn-primary py-4 text-base">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"/><circle cx="12" cy="13" r="3"/></svg>
+          カメラ
+        </button>
+        <button id="btnPick" class="btn btn-ghost py-4 text-base">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5L5 21"/></svg>
+          アルバム
+        </button>
+      </div>
+      <input id="inCam" type="file" accept="image/*" capture="environment" class="hidden">
+      <input id="inPick" type="file" accept="image/*" multiple class="hidden">
+      <p class="text-[11px] opacity-60 mt-2">※ 黒板には【工事名・工種・場所・日時・位置】を自動記載</p>
     </section>
 
-    <div class="grid lg:grid-cols-3 gap-4">
-      <div class="lg:col-span-2">
-        <div class="relative bg-black rounded-3xl overflow-hidden shadow-xl aspect-[4/3]">
-          <video id="video" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover"></video>
-          <img id="previewImg" class="absolute inset-0 w-full h-full object-contain hidden bg-black" alt="">
-          <div id="noCamera" class="absolute inset-0 hidden place-items-center text-white/80 text-center p-8">
-            <div>
-              <div class="text-5xl mb-3">📷</div>
-              <p class="leading-relaxed">カメラが利用できません<br>「画像を選択」からアップロードできます</p>
-            </div>
-          </div>
+    <!-- Gallery -->
+    <section class="mt-6">
+      <div class="flex items-center justify-between mb-2">
+        <h3 class="font-bold">写真一覧 <span id="photoCount" class="text-xs opacity-60 ml-1">(0)</span></h3>
+        <div class="flex gap-2">
+          <button id="btnSelectMode" class="chip text-xs">選択</button>
+          <button id="btnSort" class="chip text-xs">新しい順</button>
         </div>
+      <div id="gallery" class="grid-photo"></div>
+      <div id="emptyState" class="text-center py-16 opacity-70">
+        <div class="text-5xl mb-3">📷</div>
+        <p class="font-bold">現場を選択して撮影開始</p>
+        <p class="text-sm mt-1">「GPS現場」で住所から自動作成できます</p>
       </div>
-      <div class="space-y-3">
-        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5">
-          <div class="flex items-center justify-between mb-3">
-            <h2 class="font-bold">撮影</h2>
-            <span id="settingsSummary" class="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-medium">右下・中・100%</span>
-          </div>
-          <button id="btnCapture" class="w-full h-[56px] rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 transition">
-            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V6a2 2 0 0 1 2-2h2M8 4h8M16 4h2a2 2 0 0 1 2 2v2M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
-            撮影する
-          </button>
-          <div id="afterCapture" class="hidden grid grid-cols-2 gap-2 mt-2.5">
-            <button id="btnRetake" class="h-12 rounded-xl bg-slate-100 hover:bg-slate-200 font-semibold">再撮影</button>
-            <button id="btnSave" class="h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">保存</button>
-          </div>
-          <div class="grid grid-cols-2 gap-2 mt-3">
-            <button id="btnSwitch" class="h-11 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-medium">カメラ切替</button>
-            <label class="h-11 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-medium grid place-items-center cursor-pointer">
-              画像を選択
-              <input id="fileInput" type="file" accept="image/*" class="hidden">
-            </label>
-          </div>
-          <p class="text-[11px] text-slate-500 mt-3">黒板は撮影時に自動合成。位置とサイズは黒板設定で変更。</p>
-        </div>
-        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4">
-          <h3 class="font-semibold text-sm mb-2">クイックガイド</h3>
-          <ol class="text-xs text-slate-600 space-y-1.5 list-decimal list-inside">
-            <li>工事名・工種を入力</li>
-            <li>黒板設定で会社・担当・位置を設定</li>
-            <li>撮影 → プレビュー → 保存</li>
-            <li>ギャラリーでZIP一括出力</li>
-          </ol>
-        </div>
-      </div>
-    </div>
-  </div>
+    </section>
+  </main>
 
-  <div id="galleryView" class="hidden">
-    <div class="flex items-center justify-between mb-4">
-      <div class="flex items-center gap-3">
-        <button id="btnBackCamera" class="w-9 h-9 grid place-items-center rounded-xl bg-white border border-slate-200 hover:bg-slate-50">←</button>
-        <h2 class="text-xl font-bold">ギャラリー <span id="photoCount" class="ml-1 text-base font-medium text-slate-400">0枚</span></h2>
-      </div>
-      <div class="flex gap-2">
-        <button id="btnDownloadAll" class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-black">ZIPダウンロード</button>
-        <button id="btnClearAll" class="h-10 px-3 rounded-xl bg-white border border-slate-200 text-sm hover:bg-red-50 hover:text-red-600 hover:border-red-200">全削除</button>
+  <!-- Bottom Action Bar -->
+  <footer class="fixed bottom-0 inset-x-0 z-30" style="padding-bottom:var(--safe-bottom)">
+    <div class="mx-auto max-w-screen-sm px-4 pb-3">
+      <div class="glass rounded-[1.5rem] border border-white/10 p-2.5 flex items-center justify-around">
+        <button data-act="delete" class="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-white/5">
+          <div class="text-xl">🗑️</div><div class="text-[10px] opacity-80">削除</div>
+        </button>
+        <button data-act="print" class="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-white/5">
+          <div class="text-xl">🖨️</div><div class="text-[10px] opacity-80">印刷</div>
+        </button>
+        <div class="relative -top-6">
+          <button id="fabCamera" class="fab">📷</button>
+        </div>
+        <button data-act="zip" class="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-white/5">
+          <div class="text-xl">📦</div><div class="text-[10px] opacity-80">ZIP</div>
+        </button>
+        <button data-act="line" class="flex flex-col items-center gap-1 p-2 rounded-xl hover:bg-white/5">
+          <div class="text-xl">💬</div><div class="text-[10px] opacity-80">LINE</div>
+        </button>
       </div>
     </div>
-    <div id="galleryGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"></div>
-    <div id="emptyGallery" class="hidden text-center py-24 text-slate-500">
-      <div class="text-6xl mb-4">🖼️</div>
-      <p>まだ写真がありません</p>
+  </footer>
+</div>
+
+<!-- Sheets -->
+<!-- Site Picker -->
+<div id="sheetSites" class="sheet">
+  <div class="bg" data-close></div>
+  <div class="panel">
+    <div class="handle"></div>
+    <div class="px-4 py-2 flex items-center justify-between">
+      <h3 class="font-bold text-lg">現場フォルダ</h3>
+      <button id="btnNewSite" class="btn btn-primary !py-1.5 text-sm">＋新規</button>
     </div>
+    <div id="siteList" class="overflow-auto px-3 pb-4 space-y-2"></div>
   </div>
 </div>
 
-<!-- Settings -->
-<div id="settingsModal" class="fixed inset-0 z-[100] hidden">
-  <div id="settingsBackdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-xl"></div>
-  <div class="relative w-full max-w-xl mx-auto mt-4 md:mt-10 p-3">
-    <div class="bg-white rounded-[28px] shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
-      <div class="px-6 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between">
-        <h3 class="text-[20px] font-bold">黒板設定</h3>
-        <button id="btnCloseSettings" class="w-8 h-8 grid place-items-center rounded-full hover:bg-slate-100 text-slate-500">✕</button>
+<!-- Site Editor -->
+<div id="sheetSiteEdit" class="sheet">
+  <div class="bg" data-close></div>
+  <div class="panel">
+    <div class="handle"></div>
+    <div class="px-4 py-2">
+      <h3 class="font-bold text-lg">現場を編集</h3>
+    </div>
+    <div class="overflow-auto px-4 pb-6 space-y-3">
+      <div>
+        <label class="text-xs opacity-70">現場名（工事名）*</label>
+        <input id="edSiteName" class="input mt-1" placeholder="例：田中邸新築工事">
       </div>
-      <div class="p-6 overflow-y-auto space-y-6">
-        <div class="grid sm:grid-cols-2 gap-4">
-          <div>
-            <label class="text-xs text-slate-500">会社名</label>
-            <input id="setCompany" placeholder="〇〇建設株式会社" class="mt-1 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">
-          </div>
-          <div>
-            <label class="text-xs text-slate-500">担当者</label>
-            <input id="setPerson" placeholder="山田 太郎" class="mt-1 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">
-          </div>
-        </div>
-
-        <div class="grid sm:grid-cols-2 gap-6">
-          <fieldset>
-            <legend class="text-xs text-slate-500 mb-2">サイズ</legend>
-            <div class="grid grid-cols-3 gap-2">
-              <label><input type="radio" name="size" value="small" class="sr-only peer"><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 font-semibold cursor-pointer">小</div></label>
-              <label><input type="radio" name="size" value="medium" class="sr-only peer" checked><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 font-semibold cursor-pointer">中</div></label>
-              <label><input type="radio" name="size" value="large" class="sr-only peer"><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 font-semibold cursor-pointer">大</div></label>
-            </div>
-          </fieldset>
-          <fieldset>
-            <legend class="text-xs text-slate-500 mb-2">不透明度</legend>
-            <div class="grid grid-cols-4 gap-2">
-              <label><input type="radio" name="opacity" value="100" class="sr-only peer" checked><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-sm font-medium cursor-pointer">100</div></label>
-              <label><input type="radio" name="opacity" value="70" class="sr-only peer"><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-sm font-medium cursor-pointer">70</div></label>
-              <label><input type="radio" name="opacity" value="50" class="sr-only peer"><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-sm font-medium cursor-pointer">50</div></label>
-              <label><input type="radio" name="opacity" value="30" class="sr-only peer"><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-sm font-medium cursor-pointer">30</div></label>
-            </div>
-          </fieldset>
-        </div>
-
-        <fieldset>
-          <legend class="text-xs text-slate-500 mb-2">位置</legend>
-          <div class="pos-grid grid grid-cols-3 gap-2 w-[216px]">
-            <button type="button" data-pos="top-left" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">↖</button>
-            <button type="button" data-pos="top" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">↑</button>
-            <button type="button" data-pos="top-right" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">↗</button>
-            <button type="button" data-pos="left" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">←</button>
-            <button type="button" data-pos="center" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">●</button>
-            <button type="button" data-pos="right" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">→</button>
-            <button type="button" data-pos="bottom-left" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">↙</button>
-            <button type="button" data-pos="bottom" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">↓</button>
-            <button type="button" data-pos="bottom-right" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">↘</button>
-          </div>
-          <p class="text-[11px] text-slate-500 mt-2">9点から選択。既定は右下。</p>
-        </fieldset>
-
+      <div>
+        <label class="text-xs opacity-70">住所（GPS自動入力）</label>
+        <input id="edSiteAddr" class="input mt-1" placeholder="自動入力／手入力可">
+        <button id="btnRefillGPS" class="text-xs mt-1.5 px-2 py-1 rounded bg-white/10">📍 現在地で更新</button>
+      </div>
+      <div class="grid grid-cols-2 gap-3">
         <div>
-          <label class="text-xs text-slate-500 mb-2 block">インタラクティブプレビュー</label>
-          <div class="bg-slate-950 rounded-2xl p-2.5">
-            <canvas id="previewCanvas" width="800" height="600" class="w-full h-auto rounded-xl"></canvas>
-          </div>
+          <label class="text-xs opacity-70">元請会社</label>
+          <input id="edCompany" class="input mt-1" placeholder="○○建設">
+        </div>
+        <div>
+          <label class="text-xs opacity-70">担当</label>
+          <input id="edStaff" class="input mt-1" placeholder="氏名">
         </div>
       </div>
-      <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
-        <button id="btnCancelSettings" class="px-5 h-11 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 font-medium">キャンセル</button>
-        <button id="btnSaveSettings" class="px-6 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow">保存</button>
+      <div class="flex gap-2 pt-2">
+        <button id="btnSaveSite" class="btn btn-primary flex-1">保存</button>
+        <button id="btnDeleteSite" class="btn btn-ghost text-red-400">削除</button>
+      </div>
+      <p class="text-[11px] opacity-60">※ 現場名は黒板の「工事名」に印字されます</p>
+    </div>
+  </div>
+</div>
+
+<!-- Floors Editor -->
+<div id="sheetFloors" class="sheet">
+  <div class="bg" data-close></div>
+  <div class="panel">
+    <div class="handle"></div>
+    <div class="px-4 py-2">
+      <h3 class="font-bold text-lg">階層を編集</h3>
+      <p class="text-xs opacity-70">この現場専用の階層です。カンマ区切りでもOK</p>
+    </div>
+    <div class="overflow-auto px-4 pb-6">
+      <div id="floorChips" class="flex flex-wrap gap-2 mb-3"></div>
+      <div class="flex gap-2">
+        <input id="inNewFloor" class="input" placeholder="例：地下1階">
+        <button id="btnAddFloor" class="btn btn-ghost">追加</button>
+      </div>
+      <div class="flex gap-2 mt-4">
+        <button id="btnSaveFloors" class="btn btn-primary flex-1">保存</button>
+        <button data-close class="btn btn-ghost">閉じる</button>
       </div>
     </div>
   </div>
 </div>
+
+<div id="toast" class="toast"></div>
+<canvas id="bbCanvas" width="1440" height="1080" class="hidden"></canvas>
 
 <script>
+/* ===== Utils ===== */
 const $ = s => document.querySelector(s);
-const video = $('#video'), previewImg = $('#previewImg'), noCamera = $('#noCamera');
-let stream = null, currentFacing = 'environment', db = null, currentBlob = null, tempMeta = null;
-const DB_NAME='genba-v5', STORE='photos';
-const posBtns = document.querySelectorAll('.pos-grid button');
+const $$ = s => [...document.querySelectorAll(s)];
+const toast = (m, t=2200) => { const el=$('#toast'); el.textContent=m; el.classList.add('show'); setTimeout(()=>el.classList.remove('show'), t); };
+const fmtDate = ts => new Date(ts).toLocaleString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'});
+const uid = () => Math.random().toString(36).slice(2)+Date.now().toString(36);
 
-function getBBSettings(){
+/* ===== DB ===== */
+const DB_NAME='genba-v6'; const DB_VER=1;
+let db;
+function idb(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,DB_VER);r.onupgradeneeded=()=>{const d=r.result;if(!d.objectStoreNames.contains('sites')){const s=d.createObjectStore('sites',{keyPath:'id'});s.createIndex('updated','updatedAt')}if(!d.objectStoreNames.contains('photos')){const p=d.createObjectStore('photos',{keyPath:'id'});p.createIndex('site','siteId');p.createIndex('ts','timestamp')}};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)});}
+async function tx(name,mode='readonly'){if(!db)db=await idb();return db.transaction(name,mode).objectStore(name)}
+async function putSite(site){site.updatedAt=Date.now();const s=await tx('sites','readwrite');await s.put(site)}
+async function getSite(id){const s=await tx('sites');return await s.get(id)}
+async function getAllSites(){const s=await tx('sites');return await s.getAll()}
+async function delSite(id){const s=await tx('sites','readwrite');await s.delete(id);const p=await tx('photos','readwrite');const idx=p.index('site');const cur=idx.openCursor(IDBKeyRange.only(id));cur.onsuccess=()=>{const c=cur.result;if(c){c.delete();c.continue()}}}}
+async function putPhoto(p){const s=await tx('photos','readwrite');await s.put(p)}
+async function getPhotosBySite(siteId){const s=await tx('photos');const idx=s.index('site');return await idx.getAll(IDBKeyRange.only(siteId))}
+async function delPhotos(ids){const s=await tx('photos','readwrite');for(const id of ids)await s.delete(id)}
+
+/* ===== State ===== */
+let sites=[], currentSiteId=null, currentSite=null;
+let photos=[], selectedIds=new Set(), selectMode=false;
+let currentFloor='1階', sortNewest=true;
+let lastPos=null;
+
+/* ===== GPS ===== */
+async function getPos(){return new Promise((res,rej)=>{if(!navigator.geolocation)return rej('GPS未対応');navigator.geolocation.getCurrentPosition(p=>{lastPos=p; $('#gpsStatus').textContent=`${p.coords.latitude.toFixed(5)},${p.coords.longitude.toFixed(5)}`; res(p)},e=>rej(e),{enableHighAccuracy:true,timeout:12000,maximumAge:10000})})}
+async function reverseGeocode(lat,lon){
   try{
-    const v = JSON.parse(localStorage.getItem('bbSettings')||'{}');
-    return {company:v.company||'', person:v.person||'', size:v.size||'medium', opacity:v.opacity||'100', position:v.position||'bottom-right'};
-  }catch{ return {company:'',person:'',size:'medium',opacity:'100',position:'bottom-right'} }
-}
-function saveBB(s){ localStorage.setItem('bbSettings', JSON.stringify(s)); }
-
-function toast(msg){
-  const t=document.createElement('div');
-  t.className='fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-xl z-[200] text-sm font-medium';
-  t.textContent=msg; document.body.appendChild(t);
-  setTimeout(()=>{t.style.transition='opacity .3s'; t.style.opacity='0'; setTimeout(()=>t.remove(),300)},2000);
+    const url=`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=ja&zoom=18&addressdetails=1`;
+    const r=await fetch(url,{headers:{'User-Agent':'genba-camera-v6'}}); const j=await r.json(); const a=j.address||{};
+    const pref=a.state||''; const city=a.city||a.town||a.village||''; const ward=a.city_district||''; const town=a.suburb||a.quarter||a.neighbourhood||''; const road=a.road||''; const num=a.house_number||'';
+    const address=`${pref}${city}${ward}${town}${road}${num}`;
+    const shortName = `${town||ward||city}${road}${num}` || (j.name||'新規現場');
+    return {address, shortName: shortName.replace(/^\d+/,'').slice(0,30), display:j.display_name};
+  }catch{ return {address:'', shortName:'新規現場', display:''} }
 }
 
-function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
-function drawBlackboard(ctx,x,y,w,h,data,settings){
-  ctx.save();
-  const opacity = parseInt(settings.opacity||'100')/100;
-  ctx.globalAlpha = opacity;
-  ctx.fillStyle='#0c2516';
-  const r=Math.max(10, w*0.02); roundRect(ctx,x,y,w,h,r); ctx.fill();
-  ctx.globalAlpha=Math.min(1,opacity+0.1);
-  ctx.strokeStyle='#fff'; ctx.lineWidth=Math.max(3,w*0.012); roundRect(ctx,x,y,w,h,r); ctx.stroke();
-  ctx.lineWidth=Math.max(1.5,w*0.004); ctx.beginPath();
-  const rowH=h/4;
-  for(let i=1;i<4;i++){ctx.moveTo(x,y+i*rowH);ctx.lineTo(x+w,y+i*rowH);}
-  const colX=x+w*0.26; ctx.moveTo(colX,y);ctx.lineTo(colX,y+h);
-  ctx.moveTo(x+w*0.5,y+rowH*3);ctx.lineTo(x+w*0.5,y+h); ctx.stroke();
-  ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.shadowColor='rgba(0,0,0,.35)'; ctx.shadowBlur=w*0.01;
-  const pad=w*0.022, fs=w*0.058;
-  const labels=['工事名','工種','備考'], values=[data.project||'',data.work||'',data.note||''];
-  for(let i=0;i<3;i++){const cy=y+rowH*(i+0.5); ctx.font=`600 ${fs*0.88}px "Noto Sans JP",system-ui`; ctx.fillText(labels[i],x+pad,cy); ctx.font=`500 ${fs}px "Noto Sans JP",system-ui`; ctx.fillText(values[i],colX+pad,cy,w-colX-pad*2);}
-  const by=y+rowH*3+rowH/2; ctx.font=`${fs*0.84}px "Noto Sans JP"`; ctx.fillText(data.date||'',x+pad,by);
-  ctx.fillText(data.company||'',x+w*0.5+pad,by-rowH*0.22,w*0.48); ctx.font=`${fs*0.76}px "Noto Sans JP"`; ctx.globalAlpha=opacity*0.9; ctx.fillText(data.person||'',x+w*0.5+pad,by+rowH*0.22,w*0.48);
-  ctx.restore();
+/* ===== Site Management ===== */
+async function loadSites(){
+  sites = await getAllSites();
+  sites.sort((a,b)=>b.updatedAt-a.updatedAt);
+  if(!currentSiteId && sites.length) currentSiteId = localStorage.getItem('currentSiteId') || sites[0].id;
+  currentSite = sites.find(s=>s.id===currentSiteId) || null;
+  renderSiteBar(); renderSiteList(); renderFloors(); await loadPhotos();
 }
-function blobToImage(blob){return new Promise(res=>{const i=new Image();i.onload=()=>res(i);i.src=URL.createObjectURL(blob);});}
-
-async function compositeBlackboard(imgBlob, data){
-  const img = await blobToImage(imgBlob);
-  const canvas=document.createElement('canvas'); canvas.width=img.naturalWidth; canvas.height=img.naturalHeight;
-  const ctx=canvas.getContext('2d'); ctx.drawImage(img,0,0);
-  const settings=getBBSettings();
-  const scale={small:0.35,medium:0.45,large:0.55}[settings.size]||0.45;
-  const boardW=canvas.width*scale, boardH=boardW*0.65, margin=canvas.width*0.02;
-  const positions = {
-    'top-left': {x: margin, y: margin},
-    'top': {x: (canvas.width - boardW)/2, y: margin},
-    'top-right': {x: canvas.width - boardW - margin, y: margin},
-    'left': {x: margin, y: (canvas.height - boardH)/2},
-    'center': {x: (canvas.width - boardW)/2, y: (canvas.height - boardH)/2},
-    'right': {x: canvas.width - boardW - margin, y: (canvas.height - boardH)/2},
-    'bottom-left': {x: margin, y: canvas.height - boardH - margin},
-    'bottom': {x: (canvas.width - boardW)/2, y: canvas.height - boardH - margin},
-    'bottom-right': {x: canvas.width - boardW - margin, y: canvas.height - boardH - margin}
-  };
-  const pos = positions[settings.position || 'bottom-right'];
-  const x=pos.x; const y=pos.y;
-  drawBlackboard(ctx,x,y,boardW,boardH,data,settings);
-  return new Promise(r=>canvas.toBlob(r,'image/jpeg',0.88));
+function renderSiteBar(){
+  const bar=$('#siteBar');
+  if(!currentSite){bar.classList.add('hidden');return}
+  bar.classList.remove('hidden');
+  $('#curSiteName').textContent=currentSite.name||'名称未設定';
+  $('#curSiteAddr').textContent=currentSite.address||'住所未設定';
+  $('#curSiteDate').textContent=new Date(currentSite.createdAt).toLocaleDateString('ja-JP');
 }
-
-function initDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=e=>{const d=e.target.result;if(!d.objectStoreNames.contains(STORE)){d.createObjectStore(STORE,{keyPath:'id',autoIncrement:true})}};r.onsuccess=e=>{db=e.target.result;res()};r.onerror=rej;});}
-function addPhoto(blob,thumb,meta){return new Promise((res,rej)=>{const tx=db.transaction(STORE,'readwrite');const q=tx.objectStore(STORE).add({blob,thumb,...meta});q.onsuccess=()=>res(q.result);q.onerror=rej;});}
-function getAllPhotos(){return new Promise(res=>{const tx=db.transaction(STORE,'readonly');const q=tx.objectStore(STORE).getAll();q.onsuccess=()=>res(q.result||[]);});}
-function deletePhoto(id){return new Promise(res=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).delete(id).onsuccess=()=>res();});}
-function clearAll(){return new Promise(res=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).clear().onsuccess=()=>res();});}
-
-async function startCamera(){stopCamera();try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:currentFacing},width:{ideal:1920},height:{ideal:1440}},audio:false});video.srcObject=stream;await video.play();noCamera.classList.add('hidden');noCamera.classList.remove('grid');}catch(e){noCamera.classList.remove('hidden');noCamera.classList.add('grid');}}
-function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}}
-
-function showLive(){previewImg.classList.add('hidden');video.classList.remove('hidden');$('#btnCapture').classList.remove('hidden');$('#afterCapture').classList.add('hidden');if(previewImg.src)URL.revokeObjectURL(previewImg.src);currentBlob=null;}
-function showPreview(blob){previewImg.src=URL.createObjectURL(blob);previewImg.classList.remove('hidden');video.classList.add('hidden');$('#btnCapture').classList.add('hidden');$('#afterCapture').classList.remove('hidden');}
-
-async function handleCapture(){
-  if(!video.videoWidth){toast('カメラ準備中');return;}
-  const c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;c.getContext('2d').drawImage(video,0,0);
-  const raw=await new Promise(r=>c.toBlob(r,'image/jpeg',0.92));
-  const s=getBBSettings(); const data={project:$('#inpProject').value.trim(),work:$('#inpWork').value.trim(),note:$('#inpNote').value.trim(),date:new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit'}),company:s.company,person:s.person};
-  const finalBlob=await compositeBlackboard(raw,data); currentBlob=finalBlob; tempMeta={...data,createdAt:Date.now()}; showPreview(finalBlob);
+function renderSiteList(){
+  const box=$('#siteList'); box.innerHTML='';
+  if(!sites.length){box.innerHTML=`<div class="text-center py-10 opacity-70">現場がありません<br><span class="text-xs">「GPS現場」または「新規」で作成</span></div>`;return}
+  sites.forEach(s=>{
+    const active=s.id===currentSiteId;
+    const el=document.createElement('div');
+    el.className=`card p-3 cursor-pointer ${active?'ring-2 ring-cyan-500':''}`;
+    el.innerHTML=`<div class="flex items-start gap-3">
+      <div class="w-10 h-10 rounded-xl bg-white/10 grid place-items-center shrink-0">📁</div>
+      <div class="flex-1 min-w-0">
+        <div class="font-bold truncate">${s.name||'名称未設定'}</div>
+        <div class="text-xs opacity-70 truncate">${s.address||'住所未設定'}</div>
+        <div class="text-[11px] opacity-50 mt-1">${new Date(s.updatedAt).toLocaleDateString('ja-JP')} 更新</div>
+      </div>
+      <div class="text-xs px-2 py-1 rounded bg-white/10">${s.floors?.length||0}層</div>
+    </div>`;
+    el.onclick=async()=>{currentSiteId=s.id; localStorage.setItem('currentSiteId',s.id); await loadSites(); closeSheet('sheetSites'); toast('現場を切替')};
+    box.appendChild(el);
+  });
 }
-async function saveCurrent(){
-  if(!currentBlob)return;
-  const img=await blobToImage(currentBlob); const tw=900, th=Math.round(img.height*tw/img.width);
-  const c=document.createElement('canvas');c.width=tw;c.height=th;c.getContext('2d').drawImage(img,0,0,tw,th);
-  const thumb=await new Promise(r=>c.toBlob(r,'image/jpeg',0.78));
-  await addPhoto(currentBlob,thumb,tempMeta); toast('保存しました'); showLive();
+async function createSiteFromGPS(){
+  try{
+    toast('GPS取得中…'); $('#btnGPS').disabled=true;
+    const p=await getPos(); const {latitude,longitude}=p.coords;
+    const rev=await reverseGeocode(latitude,longitude);
+    const site={id:'s_'+uid(), name:rev.shortName||'新規現場', address:rev.address, lat:latitude, lon:longitude, company:'', staff:'', createdAt:Date.now(), updatedAt:Date.now(),
+      floors:['1階','2階','3階','屋上','外部'],
+      statuses:['施工前','施工後','配筋','型枠','打設','検査','是正前','是正後'],
+      notes:['','基準墨','アンカー','スリーブ','鉄筋','型枠','レベル']
+    };
+    await putSite(site); currentSiteId=site.id; await loadSites();
+    openSiteEditor(); $('#edSiteName').focus(); $('#edSiteName').select();
+    toast('現場作成。名称を編集できます');
+  }catch(e){console.error(e);toast('GPS取得失敗。手入力で作成してください'); openNewSite()}
+  finally{$('#btnGPS').disabled=false}
 }
-
-function saveForm(){localStorage.setItem('genbaForm',JSON.stringify({project:$('#inpProject').value,work:$('#inpWork').value,note:$('#inpNote').value}));}
-function loadForm(){try{const f=JSON.parse(localStorage.getItem('genbaForm')||'{}');$('#inpProject').value=f.project||'';$('#inpWork').value=f.work||'';$('#inpNote').value=f.note||'';}catch{}}
-
-function updateSettingsSummary(){const s=getBBSettings();const p={ 'top-left':'左上',top:'上','top-right':'右上',left:'左',center:'中央',right:'右','bottom-left':'左下',bottom:'下','bottom-right':'右下'};const z={small:'小',medium:'中',large:'大'};$('#settingsSummary').textContent=`${p[s.position]}・${z[s.size]}・${s.opacity}%`;}
-
-function updatePreview(){
-  const cv=$('#previewCanvas'),ctx=cv.getContext('2d'),w=cv.width,h=cv.height;
-  const grad=ctx.createLinearGradient(0,0,0,h);grad.addColorStop(0,'#334155');grad.addColorStop(1,'#0f172a');ctx.fillStyle=grad;ctx.fillRect(0,0,w,h);
-  ctx.fillStyle='#1e293b';ctx.fillRect(0,h*0.55,w,h*0.45);
-  ctx.fillStyle='#475569';for(let i=0;i<5;i++)ctx.fillRect(w*0.12+i*w*0.16,h*0.32,w*0.1,h*0.22);
-  const size=document.querySelector('input[name="size"]:checked').value; const opacity=document.querySelector('input[name="opacity"]:checked').value;
-  const company=$('#setCompany').value, person=$('#setPerson').value;
-  const pos=document.querySelector('.pos-grid button.active')?.dataset.pos||'bottom-right';
-  const settings={size,opacity,position:pos};
-  const data={project:'〇〇ビル新築工事',work:'配筋検査',note:'3FL スラブ',date:new Date().toLocaleDateString('ja-JP'),company:company||'山田建設',person:person||'田中'};
-  const scale={small:0.35,medium:0.45,large:0.55}[size]; const bw=w*scale, bh=bw*0.65, m=w*0.02;
-  const positions={'top-left':{x:m,y:m},top:{x:(w-bw)/2,y:m},'top-right':{x:w-bw-m,y:m},left:{x:m,y:(h-bh)/2},center:{x:(w-bw)/2,y:(h-bh)/2},right:{x:w-bw-m,y:(h-bh)/2},'bottom-left':{x:m,y:h-bh-m},bottom:{x:(w-bw)/2,y:h-bh-m},'bottom-right':{x:w-bw-m,y:h-bh-m}};
-  const p=positions[pos]; drawBlackboard(ctx,p.x,p.y,bw,bh,data,settings);
+function openNewSite(){
+  currentSite={id:'s_'+uid(), name:'', address:'', lat:null, lon:null, company:'', staff:'', createdAt:Date.now(), updatedAt:Date.now(),
+    floors:['1階','2階','3階','屋上'], statuses:['施工前','施工後'], notes:['']};
+  $('#edSiteName').value=''; $('#edSiteAddr').value=''; $('#edCompany').value=''; $('#edStaff').value='';
+  openSheet('sheetSiteEdit');
+}
+function openSiteEditor(){
+  if(!currentSite)return;
+  $('#edSiteName').value=currentSite.name||'';
+  $('#edSiteAddr').value=currentSite.address||'';
+  $('#edCompany').value=currentSite.company||'';
+  $('#edStaff').value=currentSite.staff||'';
+  openSheet('sheetSiteEdit');
+}
+async function saveSiteFromEditor(){
+  const name=$('#edSiteName').value.trim()||'名称未設定';
+  const addr=$('#edSiteAddr').value.trim();
+  const company=$('#edCompany').value.trim();
+  const staff=$('#edStaff').value.trim();
+  if(!currentSite) return;
+  currentSite.name=name; currentSite.address=addr; currentSite.company=company; currentSite.staff=staff; currentSite.updatedAt=Date.now();
+  if(!currentSite.id) currentSite.id='s_'+uid();
+  if(!currentSite.createdAt) currentSite.createdAt=Date.now();
+  if(!currentSite.floors) currentSite.floors=['1階','2階','3階','屋上'];
+  if(!currentSite.statuses) currentSite.statuses=['施工前','施工後'];
+  if(!currentSite.notes) currentSite.notes=[''];
+  await putSite(currentSite); currentSiteId=currentSite.id; await loadSites(); closeSheet('sheetSiteEdit'); toast('保存しました');
 }
 
-function openSettings(){
-  const s=getBBSettings(); $('#setCompany').value=s.company; $('#setPerson').value=s.person;
-  document.querySelector(`input[name="size"][value="${s.size}"]`).checked=true;
-  document.querySelector(`input[name="opacity"][value="${s.opacity}"]`).checked=true;
-  posBtns.forEach(b=>{const on=b.dataset.pos===s.position; b.classList.toggle('active',on); b.classList.toggle('bg-blue-600',on); b.classList.toggle('text-white',on); b.classList.toggle('border-blue-600',on);});
-  $('#settingsModal').classList.remove('hidden'); updatePreview();
+/* ===== Floors ===== */
+function renderFloors(){
+  const box=$('#floorTabs'); box.innerHTML='';
+  const floors=currentSite?.floors||['1階','2階','3階','屋上'];
+  if(!floors.includes(currentFloor)) currentFloor=floors[0]||'1階';
+  floors.forEach(f=>{
+    const b=document.createElement('button');
+    b.className='chip '+(f===currentFloor?'active':'');
+    b.textContent=f; b.onclick=()=>{currentFloor=f; renderFloors(); renderGallery()}; box.appendChild(b);
+  });
+  renderStatusNoteOptions();
 }
-function closeSettings(){$('#settingsModal').classList.add('hidden');}
+function renderStatusNoteOptions(){
+  const st=$('#selStatus'); st.innerHTML=''; (currentSite?.statuses||['施工前','施工後']).forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;st.appendChild(o)});
+  const nt=$('#selNote'); nt.innerHTML=''; (currentSite?.notes||['']).forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v||'(なし)';nt.appendChild(o)});
+}
+function openFloorEditor(){
+  if(!currentSite)return; const box=$('#floorChips'); box.innerHTML='';
+  (currentSite.floors||[]).forEach((f,i)=>{
+    const chip=document.createElement('div'); chip.className='chip flex items-center gap-1'; chip.innerHTML=`<span>${f}</span><button class="opacity-60 hover:opacity-100" data-i="${i}">×</button>`;
+    chip.querySelector('button').onclick=()=>{currentSite.floors.splice(i,1);openFloorEditor()}; box.appendChild(chip);
+  });
+  openSheet('sheetFloors');
+}
 
-async function renderGallery(){
-  const photos=await getAllPhotos(); const grid=$('#galleryGrid'); grid.innerHTML=''; $('#photoCount').textContent=`${photos.length}枚`;
-  $('#emptyGallery').classList.toggle('hidden',photos.length>0);
-  photos.sort((a,b)=>b.createdAt-a.createdAt);
-  for(const p of photos){
-    const url=URL.createObjectURL(p.thumb||p.blob);
-    const d=new Date(p.createdAt);
-    const el=document.createElement('div'); el.className='group relative bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm';
-    el.innerHTML=`<img src="${url}" class="w-full aspect-[4/3] object-cover"><div class="p-3"><div class="text-[13px] font-semibold truncate">${p.project||'無題'}</div><div class="text-[11px] text-slate-500 mt-0.5">${d.toLocaleDateString('ja-JP')} ${p.work||''}</div></div><div class="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition"><button data-dl="${p.id}" class="w-8 h-8 grid place-items-center rounded-lg bg-black/70 text-white hover:bg-black">↓</button><button data-del="${p.id}" class="w-8 h-8 grid place-items-center rounded-lg bg-red-600/90 text-white hover:bg-red-600">×</button></div>`;
-    grid.appendChild(el);
+/* ===== Photos ===== */
+async function loadPhotos(){
+  if(!currentSiteId){photos=[]; renderGallery(); return}
+  photos = await getPhotosBySite(currentSiteId);
+  photos.sort((a,b)=> sortNewest ? b.timestamp-a.timestamp : a.timestamp-b.timestamp);
+  $('#curSiteCount').textContent=photos.length;
+  renderGallery();
+}
+function renderGallery(){
+  const grid=$('#gallery'); grid.innerHTML=''; const empty=$('#emptyState');
+  const list = photos.filter(p=>p.floor===currentFloor);
+  $('#photoCount').textContent=`(${list.length}/${photos.length})`;
+  if(!currentSite || list.length===0){ empty.classList.toggle('hidden', !!currentSite && photos.length>0); }
+  else empty.classList.add('hidden');
+  list.forEach(p=>{
+    const card=document.createElement('div'); card.className='relative card overflow-hidden cursor-pointer';
+    card.innerHTML=`
+      <img src="${p.thumbUrl||p.dataUrl}" class="w-full aspect-[4/3] object-cover">
+      <div class="absolute top-1.5 left-1.5 flex gap-1">
+        <span class="text-[10px] px-1.5 py-0.5 rounded bg-black/70">${p.status||''}</span>
+        ${p.note?`<span class="text-[10px] px-1.5 py-0.5 rounded bg-black/70">${p.note}</span>`:''}
+      </div>
+      <div class="absolute bottom-1 left-1 right-1 flex justify-between items-end">
+        <span class="text-[10px] px-1.5 py-0.5 rounded bg-black/70">${fmtDate(p.timestamp).slice(5,16)}</span>
+        ${p.withBB?`<span class="text-[10px] px-1 py-0.5 rounded bg-cyan-600">黒板</span>`:''}
+      </div>
+      <div class="sel absolute top-2 right-2 w-6 h-6 rounded-full border-2 border-white/80 bg-black/40 grid place-items-center text-xs hidden">✓</div>`;
+    const sel=card.querySelector('.sel');
+    const updateSel=()=>{ const on=selectedIds.has(p.id); sel.classList.toggle('hidden', !(selectMode && on)); card.style.outline = on?'3px solid #22d3ee':'none' };
+    card.onclick=()=>{ if(selectMode){ if(selectedIds.has(p.id))selectedIds.delete(p.id); else selectedIds.add(p.id); updateSel(); } else { openPreview(p) } };
+    card.oncontextmenu=(e)=>{e.preventDefault(); selectMode=true; selectedIds.add(p.id); renderGallery()};
+    grid.appendChild(card); updateSel();
+  });
+}
+function openPreview(p){
+  const w=window.open('','_blank'); w.document.write(`<!DOCTYPE html><html><head><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${currentSite.name}</title><style>body{margin:0;background:#000;color:#fff;font-family:sans-serif;display:flex;flex-direction:column;min-height:100vh}img{max-width:100%;max-height:80vh;object-fit:contain;margin:auto}header,footer{padding:12px 16px}header{border-bottom:1px solid #333}footer{border-top:1px solid #333;font-size:12px;opacity:.8} .row{display:flex;gap:16px;flex-wrap:wrap}</style></head><body><header><b>${currentSite.name}</b> - ${p.floor} / ${p.status}</header><img src="${p.dataUrl}"><footer><div class="row"><div>日時: ${fmtDate(p.timestamp)}</div><div>場所: ${p.floor}</div><div>工種: ${p.status}</div>${p.note?`<div>備考: ${p.note}</div>`:''}${p.lat?`<div>位置: ${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}</div>`:''}</div></footer></body></html>`); w.document.close();
+}
+
+/* ===== Capture ===== */
+async function handleFiles(fileList){
+  if(!currentSite){ toast('先に現場を選択'); openSheet('sheetSites'); return }
+  const files=[...fileList]; if(!files.length)return;
+  for(const file of files){
+    const img=await fileToImage(file);
+    const withBB=$('#toggleBB').checked;
+    const dataUrl = withBB ? await drawWithBlackboard(img) : await imageToDataURL(img, 0.9);
+    const thumb = await makeThumb(img);
+    const pos = lastPos || await getPos().catch(()=>null);
+    const photo={id:'p_'+uid(), siteId:currentSiteId, floor:currentFloor, status:$('#selStatus').value, note:$('#selNote').value, timestamp:Date.now(), lat:pos?.coords.latitude||null, lon:pos?.coords.longitude||null, address:currentSite.address||'', dataUrl, thumbUrl:thumb, withBB:withBB?1:0, pairId:null};
+    await putPhoto(photo); photos.unshift(photo);
   }
-  grid.querySelectorAll('[data-dl]').forEach(b=>b.onclick=async()=>{const id=+b.dataset.dl;const ph=(await getAllPhotos()).find(x=>x.id===id);const a=document.createElement('a');a.href=URL.createObjectURL(ph.blob);a.download=`genba_${id}.jpg`;a.click();});
-  grid.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(confirm('削除しますか？')){await deletePhoto(+b.dataset.del);renderGallery();}});
+  await loadPhotos(); toast(`${files.length}枚 保存`);
 }
-async function downloadAll(){
-  const photos=await getAllPhotos(); if(!photos.length){toast('写真がありません');return;}
-  const zip=new JSZip(); const folder=zip.folder('現場写真');
-  photos.sort((a,b)=>a.createdAt-b.createdAt);
-  for(let i=0;i<photos.length;i++){const p=photos[i]; const d=new Date(p.createdAt); const name=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}_${(p.project||'').replace(/[\\/:*?"<>|]/g,'')||'photo'}.jpg`; folder.file(name,p.blob);}
-  toast('ZIPを作成中...'); const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`現場写真_${new Date().toISOString().slice(0,10)}.zip`;a.click();
+function fileToImage(file){return new Promise((res,rej)=>{const u=URL.createObjectURL(file);const i=new Image();i.onload=()=>{URL.revokeObjectURL(u);res(i)};i.onerror=rej;i.src=u})}
+function imageToDataURL(img,q=.9){const c=document.createElement('canvas');const max=2400;let {width:w,height:h}=img;const r=Math.min(1,max/Math.max(w,h));w=Math.round(w*r);h=Math.round(h*r);c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);return c.toDataURL('image/jpeg',q)}
+async function makeThumb(img){const c=document.createElement('canvas');const s=480;let {width:w,height:h}=img;const r=Math.min(s/w,s/h);c.width=Math.round(w*r);c.height=Math.round(h*r);c.getContext('2d').drawImage(img,0,0,c.width,c.height);return c.toDataURL('image/jpeg',0.7)}
+
+async function drawWithBlackboard(img){
+  const c=$('#bbCanvas'), ctx=c.getContext('2d');
+  const W=c.width, H=c.height; ctx.fillStyle='#000'; ctx.fillRect(0,0,W,H);
+  // draw photo 4:3 top area
+  const ph=Math.round(H*0.78); const iw=img.width, ih=img.height; const ir=iw/ih, cr=W/ph;
+  let dw, dh; if(ir>cr){dw=W; dh=W/ir}else{dh=ph; dw=ph*ir}; const dx=(W-dw)/2, dy=0;
+  ctx.drawImage(img, dx, dy, dw, dh);
+  // blackboard
+  const bh=H-ph; ctx.fillStyle='#111827'; ctx.fillRect(0,ph,W,bh);
+  ctx.fillStyle='#0b1220'; ctx.fillRect(16,ph+16,W-32,bh-32);
+  ctx.strokeStyle='#334155'; ctx.lineWidth=4; ctx.strokeRect(16,ph+16,W-32,bh-32);
+  const pad=32; let y=ph+48;
+  const line=(label,val,bold=false)=>{ctx.fillStyle='#9ca3af';ctx.font='28px "Noto Sans JP"';ctx.fillText(label,pad,y);ctx.fillStyle='#e5e7eb';ctx.font=`${bold?'700':'500'} 32px "Noto Sans JP"`;ctx.fillText(val,pad+160,y);y+=48};
+  const dt=new Date();
+  line('工事名', currentSite?.name||'', true);
+  line('工種', $('#selStatus').value||'');
+  line('場所', currentFloor);
+  line('日時', dt.toLocaleString('ja-JP'));
+  if(lastPos) line('位置', `${lastPos.coords.latitude.toFixed(6)}, ${lastPos.coords.longitude.toFixed(6)}`);
+  if($('#selNote').value) line('備考', $('#selNote').value);
+  // company
+  ctx.fillStyle='#64748b'; ctx.font='24px "Noto Sans JP"'; ctx.fillText(`請負者: ${currentSite?.company||''}`, W-420, ph+bh-24);
+  return c.toDataURL('image/jpeg',0.92);
 }
 
-document.addEventListener('DOMContentLoaded', async ()=>{
-  await initDB(); await startCamera(); loadForm(); updateSettingsSummary();
-  ['inpProject','inpWork','inpNote'].forEach(id=>$('#'+id).addEventListener('input',saveForm));
-  $('#btnCapture').onclick=handleCapture; $('#btnRetake').onclick=showLive; $('#btnSave').onclick=saveCurrent;
-  $('#btnSwitch').onclick=async()=>{currentFacing=currentFacing==='environment'?'user':'environment'; await startCamera();};
-  $('#fileInput').onchange=async e=>{const f=e.target.files[0]; if(!f)return; const s=getBBSettings(); const data={project:$('#inpProject').value.trim(),work:$('#inpWork').value.trim(),note:$('#inpNote').value.trim(),date:new Date().toLocaleDateString('ja-JP'),company:s.company,person:s.person}; const out=await compositeBlackboard(f,data); currentBlob=out; tempMeta={...data,createdAt:Date.now()}; showPreview(out); e.target.value='';};
-  $('#btnSettings').onclick=openSettings; $('#btnCloseSettings').onclick=closeSettings; $('#settingsBackdrop').onclick=closeSettings; $('#btnCancelSettings').onclick=closeSettings;
-  $('#btnSaveSettings').onclick=()=>{const s={company:$('#setCompany').value.trim(),person:$('#setPerson').value.trim(),size:document.querySelector('input[name="size"]:checked').value,opacity:document.querySelector('input[name="opacity"]:checked').value,position:document.querySelector('.pos-grid button.active').dataset.pos}; saveBB(s); updateSettingsSummary(); closeSettings(); toast('黒板設定を保存');};
-  posBtns.forEach(b=>b.onclick=()=>{posBtns.forEach(x=>{x.classList.remove('active','bg-blue-600','text-white','border-blue-600');}); b.classList.add('active','bg-blue-600','text-white','border-blue-600'); updatePreview();});
-  ['setCompany','setPerson'].forEach(id=>$('#'+id).addEventListener('input',updatePreview));
-  document.querySelectorAll('input[name="size"],input[name="opacity"]').forEach(r=>r.addEventListener('change',updatePreview));
-  $('#btnGallery').onclick=async()=>{stopCamera();$('#cameraView').classList.add('hidden');$('#galleryView').classList.remove('hidden');await renderGallery();};
-  $('#btnBackCamera').onclick=()=>{$('#galleryView').classList.add('hidden');$('#cameraView').classList.remove('hidden');startCamera();};
-  $('#btnDownloadAll').onclick=downloadAll;
-  $('#btnClearAll').onclick=async()=>{if(confirm('全ての写真を削除しますか？')){await clearAll();await renderGallery();toast('削除しました');}};
+/* ===== Actions ===== */
+async function deleteSelected(){
+  const ids=[...selectedIds]; if(!ids.length){toast('選択なし');return}
+  if(!confirm(`${ids.length}枚削除しますか？`))return;
+  await delPhotos(ids); selectedIds.clear(); selectMode=false; await loadPhotos(); toast('削除しました')
+}
+async function exportZIP(silent=false){
+  const list = selectedIds.size? photos.filter(p=>selectedIds.has(p.id)) : photos.filter(p=>p.floor===currentFloor);
+  if(!list.length){toast('写真がありません');return}
+  const zip=new JSZip(); const folder=zip.folder(`${currentSite.name}_${currentFloor}`);
+  for(const p of list){ const base64=p.dataUrl.split(',')[1]; const name=`${currentSite.name}_${p.floor}_${p.status}_${new Date(p.timestamp).toISOString().replace(/[:.]/g,'-')}.jpg`; folder.file(name, base64, {base64:true}) }
+  const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${currentSite.name}_${currentFloor}.zip`; a.click(); URL.revokeObjectURL(a.href); if(!silent) toast('ZIP作成')
+}
+async function printPhotos(){
+  const list = selectedIds.size? photos.filter(p=>selectedIds.has(p.id)) : photos.filter(p=>p.floor===currentFloor);
+  if(!list.length){toast('印刷する写真を選択');return}
+  const w=window.open('','_blank');
+  const css=`@page{size:A4;margin:12mm} body{font-family:"Noto Sans JP",sans-serif;margin:0;color:#111} h1{font-size:18pt;margin:0 0 4mm;border-bottom:2px solid #000;padding-bottom:2mm} .meta{font-size:10pt;margin:0 0 6mm} .page{page-break-after:always} .page:last-child{page-break-after:auto} .photo{width:100%;height:165mm;object-fit:contain;border:1px solid #999;background:#fff} .info{margin-top:3mm;font-size:11pt;display:grid;grid-template-columns:110px 1fr;row-gap:1mm} .lab{color:#555} .grid2{display:grid;grid-template-columns:1fr 1fr;gap:8mm} .grid2 .photo{height:90mm} .grid2 .cap{font-size:9pt;margin-top:1mm}`;
+  let html=`<!DOCTYPE html><html><head><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script><meta charset="utf-8"><title>${currentSite.name}</title><style>${css}</style></head><body>`;
+  const perPage = list.length>3 ? 2 : 1;
+  for(let i=0;i<list.length;i+=perPage){
+    html+=`<div class="page"><h1>${currentSite.name}</h1><div class="meta">住所: ${currentSite.address||''}　／　出力日: ${new Date().toLocaleDateString('ja-JP')}</div>`;
+    if(perPage===1){
+      const p=list[i]; html+=`<img class="photo" src="${p.dataUrl}"><div class="info"><div class="lab">撮影日時</div><div>${fmtDate(p.timestamp)}</div><div class="lab">場所</div><div>${p.floor}</div><div class="lab">工種</div><div>${p.status}</div>${p.note?`<div class="lab">備考</div><div>${p.note}</div>`:''}${p.lat?`<div class="lab">位置情報</div><div>${p.lat.toFixed(6)}, ${p.lon.toFixed(6)}</div>`:''}<div class="lab">請負者</div><div>${currentSite.company||''}</div></div>`;
+    }else{
+      html+=`<div class="grid2">`;
+      for(let j=0;j<2 && i+j<list.length;j++){const p=list[i+j]; html+=`<div><img class="photo" src="${p.dataUrl}"><div class="cap">${p.floor} / ${p.status} / ${new Date(p.timestamp).toLocaleDateString('ja-JP')}</div></div>`}
+      html+=`</div>`;
+    }
+    html+=`</div>`;
+  }
+  html+=`<script>window.onload=()=>setTimeout(()=>window.print(),300)</script></body></html>`;
+  w.document.write(html); w.document.close();
+}
+async function shareToLINE(){
+  const list = selectedIds.size? photos.filter(p=>selectedIds.has(p.id)) : photos.slice(0,5);
+  if(!list.length){toast('写真を選択');return}
+  // Try Web Share with files (opens LINE via share sheet)
+  try{
+    if(navigator.canShare){
+      const files=[]; 
+      for(const p of list.slice(0,5)){
+        const res=await fetch(p.dataUrl); const blob=await res.blob();
+        const name=`${currentSite.name}_${p.floor}.jpg`.replace(/[\\/:*?"<>|]/g,'_');
+        files.push(new File([blob], name, {type:'image/jpeg'}));
+      }
+      if(navigator.canShare({files})){
+        await navigator.share({title:currentSite.name, text:`【${currentSite.name}】${currentSite.address}\n${list.length}枚`, files});
+        return;
+      }
+    }
+  }catch(e){console.log(e)}
+  // Fallback: open LINE with text, guide to send ZIP
+  const text=encodeURIComponent(`【${currentSite.name}】\n${currentSite.address}\n写真${list.length}枚\n`);
+  window.open(`https://line.me/R/msg/text/?${text}`,'_blank');
+  toast('LINEを開きました。写真はZIPで送信してください');
+  exportZIP(true);
+}
+
+/* ===== Sheets helpers ===== */
+function openSheet(id){$('#'+id).classList.add('show')}
+function closeSheet(id){$('#'+id).classList.remove('show')}
+$$('.sheet .bg, [data-close]').forEach(el=>el.addEventListener('click',e=>{const s=e.target.closest('.sheet'); if(s) s.classList.remove('show')}))
+
+/* ===== Init ===== */
+async function init(){
+  await idb(); 
+  // try get GPS early (non-blocking)
+  getPos().catch(()=>{}); 
+  setInterval(()=>{getPos().catch(()=>{})}, 30000);
+  await loadSites();
+  if(!sites.length){
+    // show helper
+    $('#emptyState').classList.remove('hidden');
+  }
+}
+document.addEventListener('DOMContentLoaded', init);
+
+/* ===== Events ===== */
+$('#btnGPS').onclick=createSiteFromGPS;
+$('#btnSitePicker').onclick=()=>openSheet('sheetSites');
+$('#btnNewSite').onclick=()=>{closeSheet('sheetSites'); openNewSite()};
+$('#btnEditSite').onclick=openSiteEditor;
+$('#btnSaveSite').onclick=saveSiteFromEditor;
+$('#btnDeleteSite').onclick=async()=>{if(!currentSite)return; if(confirm('現場フォルダごと削除しますか？写真も全て削除されます')){await delSite(currentSite.id); currentSiteId=null; currentSite=null; await loadSites(); closeSheet('sheetSiteEdit'); toast('削除しました')}};
+$('#btnRefillGPS').onclick=async()=>{try{const p=await getPos(); const rev=await reverseGeocode(p.coords.latitude,p.coords.longitude); $('#edSiteAddr').value=rev.address; if(!$('#edSiteName').value) $('#edSiteName').value=rev.shortName; toast('住所更新')}catch{toast('GPS失敗')}};
+$('#btnEditFloors').onclick=openFloorEditor;
+$('#btnAddFloor').onclick=()=>{const v=$('#inNewFloor').value.trim(); if(!v)return; currentSite.floors=currentSite.floors||[]; if(!currentSite.floors.includes(v))currentSite.floors.push(v); $('#inNewFloor').value=''; openFloorEditor()};
+$('#btnSaveFloors').onclick=async()=>{await putSite(currentSite); renderFloors(); closeSheet('sheetFloors'); toast('階層を保存')};
+$('#btnShot').onclick=()=>$('#inCam').click();
+$('#btnPick').onclick=()=>$('#inPick').click();
+$('#fabCamera').onclick=()=>$('#inCam').click();
+$('#inCam').onchange=e=>handleFiles(e.target.files);
+$('#inPick').onchange=e=>handleFiles(e.target.files);
+$('#btnSelectMode').onclick=()=>{selectMode=!selectMode; if(!selectMode)selectedIds.clear(); $('#btnSelectMode').classList.toggle('active',selectMode); renderGallery(); toast(selectMode?'選択モード':'選択解除')};
+$('#btnSort').onclick=()=>{sortNewest=!sortNewest; $('#btnSort').textContent=sortNewest?'新しい順':'古い順'; loadPhotos()};
+$('#btnAddNote').onclick=()=>{const v=prompt('備考を追加'); if(!v)return; currentSite.notes=currentSite.notes||[]; if(!currentSite.notes.includes(v))currentSite.notes.push(v); putSite(currentSite); renderStatusNoteOptions(); $('#selNote').value=v};
+
+$$('footer [data-act]').forEach(b=>b.onclick=()=>{
+  const act=b.dataset.act;
+  if(act==='delete') deleteSelected();
+  if(act==='print') printPhotos();
+  if(act==='zip') exportZIP();
+  if(act==='line') shareToLINE();
 });
+
+// Long press to select
+let pressTimer;
+document.addEventListener('touchstart',e=>{if(e.target.closest('#gallery img')){pressTimer=setTimeout(()=>{selectMode=true;$('#btnSelectMode').classList.add('active');},600)}},{passive:true});
+document.addEventListener('touchend',()=>clearTimeout(pressTimer));
+
+// register SW for offline (simple)
+if('serviceWorker' in navigator){ window.addEventListener('load',()=>{ const sw=`self.addEventListener('install',e=>{e.waitUntil(caches.open('genba-v6').then(c=>c.addAll(['./'])))});self.addEventListener('fetch',e=>{e.respondWith(caches.match(e.request).then(r=>r||fetch(e.request)))})`; const blob=new Blob([sw],{type:'text/javascript'}); navigator.serviceWorker.register(URL.createObjectURL(blob)).catch(()=>{}) }) }
 </script>
 </body>
 </html>
