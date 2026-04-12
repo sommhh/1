@@ -1,728 +1,213 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<!-- Playables SDK -->
-<script>// Playables SDK v1.0.0
-// Game lifecycle bridge: rAF-based game-ready detection + event communication
-(function() {
-  'use strict';
-
-  // Idempotency: skip if already initialized (e.g., server-side injection
-  // followed by client-side inject-javascript via the Bloks webview component).
-  if (window.playablesSDK) return;
-
-  var HANDLER_NAME = 'playablesGameEventHandler';
-  var ANDROID_BRIDGE_NAME = '_MetaPlayablesBridge';
-  var RAF_FRAME_THRESHOLD = 3;
-
-  var gameReadySent = false;
-  var firstInteractionSent = false;
-  var errorSent = false;
-  var frameCount = 0;
-  var originalRAF = window.requestAnimationFrame;
-
-  // --- Transport Layer ---
-
-  function hasIOSBridge() {
-    return !!(window.webkit &&
-              window.webkit.messageHandlers &&
-              window.webkit.messageHandlers[HANDLER_NAME]);
-  }
-
-  function hasAndroidBridge() {
-    return !!(window[ANDROID_BRIDGE_NAME] &&
-              typeof window[ANDROID_BRIDGE_NAME].postEvent === 'function');
-  }
-
-  function isInIframe() {
-    return !!(window.parent && window.parent !== window);
-  }
-
-  function sendEvent(eventName, payload) {
-    var message = {
-      type: eventName,
-      payload: payload || {},
-      timestamp: Date.now()
-    };
-
-    if (hasIOSBridge()) {
-      try {
-        window.webkit.messageHandlers[HANDLER_NAME].postMessage(message);
-      } catch (e) { /* ignore */ }
-      return;
-    }
-
-    if (hasAndroidBridge()) {
-    try {
-      var p = payload || {};
-      p.__secureToken = window.__fbAndroidBridgeAuthToken || '';
-      window[ANDROID_BRIDGE_NAME].postEvent(
-        eventName,
-        JSON.stringify(p)
-      );
-    } catch (e) { /* ignore */ }
-    return;
-  }
-
-    if (isInIframe()) {
-      try {
-        window.parent.postMessage(message, '*');
-      } catch (e) { /* ignore */ }
-      return;
-    }
-  }
-
-  // --- rAF Game-Ready Detection ---
-
-  function onFrame() {
-    if (gameReadySent) return;
-
-    frameCount++;
-    if (frameCount >= RAF_FRAME_THRESHOLD) {
-      gameReadySent = true;
-      sendEvent('game_ready', {
-        frame_count: frameCount,
-        detected_at: Date.now()
-      });
-      return;
-    }
-
-    originalRAF.call(window, onFrame);
-  }
-
-  if (originalRAF) {
-    window.requestAnimationFrame = function(callback) {
-      if (!gameReadySent) {
-        return originalRAF.call(window, function(timestamp) {
-          frameCount++;
-          if (frameCount >= RAF_FRAME_THRESHOLD && !gameReadySent) {
-            gameReadySent = true;
-            sendEvent('game_ready', {
-              frame_count: frameCount,
-              detected_at: Date.now()
-            });
-          }
-          callback(timestamp);
-        });
-      }
-      return originalRAF.call(window, callback);
-    };
-  }
-
-  // --- First User Interaction Detection ---
-
-  function setupFirstInteractionDetection() {
-    var events = ['touchstart', 'mousedown', 'keydown'];
-
-    function onFirstInteraction() {
-      if (firstInteractionSent) return;
-      firstInteractionSent = true;
-      sendEvent('user_interaction_start', null);
-
-      for (var i = 0; i < events.length; i++) {
-        document.removeEventListener(events[i], onFirstInteraction, true);
-      }
-    }
-
-    for (var i = 0; i < events.length; i++) {
-      document.addEventListener(events[i], onFirstInteraction, true);
-    }
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupFirstInteractionDetection);
-  } else {
-    setupFirstInteractionDetection();
-  }
-
-  // --- Auto Error Capture ---
-
-  window.addEventListener('error', function(event) {
-    if (errorSent) return;
-    errorSent = true;
-    sendEvent('error', {
-      message: event.message || 'Unknown error',
-      source: event.filename || '',
-      lineno: event.lineno || 0,
-      colno: event.colno || 0,
-      auto_captured: true
-    });
-  });
-
-  window.addEventListener('unhandledrejection', function(event) {
-    if (errorSent) return;
-    errorSent = true;
-    var reason = event.reason;
-    sendEvent('error', {
-      message: (reason instanceof Error) ? reason.message : String(reason),
-      type: 'unhandled_promise_rejection',
-      auto_captured: true
-    });
-  });
-
-  // --- Public API ---
-
-  window.playablesSDK = {
-    complete: function(score) {
-      sendEvent('game_ended', {
-        score: score,
-        completed: true
-      });
-    },
-
-    error: function(message) {
-      if (errorSent) return;
-      errorSent = true;
-      sendEvent('error', {
-        message: message || 'Unknown error',
-        auto_captured: false
-      });
-    },
-
-    sendEvent: function(eventName, payload) {
-      if (!eventName || typeof eventName !== 'string') return;
-      sendEvent(eventName, payload);
-    }
-  };
-
-  // Kick off rAF detection in case no game code calls rAF immediately
-  if (originalRAF) {
-    originalRAF.call(window, onFrame);
-  }
-})();</script>
-<script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
-<meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>現場カメラ</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>現場発注</title>
+<script src="https://cdn.jsdelivr.net/npm/tesseract.js@4/dist/tesseract.min.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;background:#0a0e14;color:#e2e8f0;line-height:1.5}
-button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
-input,select{font:inherit;color:inherit;background:#1a2332;border:1px solid #2d3748;border-radius:8px;padding:10px 12px;width:100%}
-input:focus,select:focus{outline:2px solid #3b82f6;outline-offset:-1px}
-header{position:sticky;top:0;z-index:100;background:rgba(10,14,20,.95);backdrop-filter:blur(12px);border-bottom:1px solid #1e293b}
-.top{padding:12px 16px;display:flex;align-items:center;gap:12px}
-h1{font-size:18px;font-weight:700}
-.badge{font-size:11px;background:#1e40af;padding:2px 6px;border-radius:4px;margin-left:6px}
-.spacer{flex:1}
-.btn{padding:8px 14px;border-radius:8px;font-weight:600;font-size:14px;white-space:nowrap;background:#1e293b;border:1px solid #334155}
-.btn:active{opacity:.8}
-.btn.primary{background:#2563eb;border-color:#3b82f6;color:white}
-.sitebar{padding:8px 16px 12px;display:flex;gap:8px;align-items:center;font-size:13px;border-top:1px solid #0f172a}
-.site-name{font-weight:700;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.site-addr{opacity:.6;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-main{padding:16px;max-width:800px;margin:0 auto;padding-bottom:100px}
-.section{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:14px;margin-bottom:16px}
-.section-title{font-size:13px;font-weight:700;opacity:.8;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em}
-.row{display:flex;gap:8px;margin-bottom:8px}
-.row:last-child{margin-bottom:0}
-.col{flex:1}
-.toggle{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#1a2332;border:1px solid #2d3748;border-radius:8px;font-size:14px;user-select:none}
-.toggle input{width:18px;height:18px;accent-color:#3b82f6}
-.tabs{display:flex;gap:6px;overflow-x:auto;padding:4px 0 12px;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tab{padding:7px 14px;background:#1a2332;border:1px solid #2d3748;border-radius:20px;font-size:13px;font-weight:600;white-space:nowrap;flex-shrink:0}
-.tab.active{background:#2563eb;border-color:#3b82f6;color:white}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-@media(min-width:600px){.grid{grid-template-columns:repeat(4,1fr)}}
-.card{position:relative;aspect-ratio:1;background:#0f172a;border:1px solid #1e293b;border-radius:10px;overflow:hidden}
-.card img{width:100%;height:100%;object-fit:cover;display:block}
-.card .sel{position:absolute;top:6px;left:6px;width:24px;height:24px;border-radius:6px;background:rgba(0,0,0,.7);border:2px solid rgba(255,255,255,.8);display:none;place-items:center;font-size:14px;font-weight:700}
-.selecting .card .sel{display:grid}
-.card.selected .sel{background:#2563eb;border-color:#2563eb}
-.card.selected{outline:2px solid #2563eb;outline-offset:-2px}
-.card .meta{position:absolute;bottom:0;left:0;right:0;padding:6px;background:linear-gradient(transparent,rgba(0,0,0,.85));font-size:11px;display:flex;justify-content:space-between}
-.empty{padding:60px 20px;text-align:center;opacity:.5}
-.empty .icon{font-size:48px;margin-bottom:12px}
-footer{position:fixed;bottom:0;left:0;right:0;z-index:90;background:rgba(10,14,20,.95);backdrop-filter:blur(12px);border-top:1px solid #1e293b;padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
-.actions{display:flex;gap:8px;max-width:800px;margin:0 auto}
-.actions .btn{flex:1;justify-content:center;padding:10px;font-size:13px}
-.actions .btn span{display:block;font-size:20px;margin-bottom:2px}
-.sheet{position:fixed;inset:0;z-index:200;display:none}
-.sheet.show{display:block}
-.sheet .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.7)}
-.sheet .panel{position:absolute;left:0;right:0;bottom:0;background:#0f172a;border-top:1px solid #1e293b;border-radius:16px 16px 0 0;max-height:85vh;display:flex;flex-direction:column}
-.sheet .handle{width:40px;height:4px;background:#334155;border-radius:2px;margin:10px auto}
-.sheet .head{padding:0 16px 12px;font-weight:700;font-size:16px}
-.sheet .body{padding:0 16px 16px;overflow:auto;flex:1}
-.sheet .foot{padding:12px 16px calc(12px + env(safe-area-inset-bottom));display:flex;gap:8px;border-top:1px solid #1e293b}
-.list-item{padding:12px;background:#1a2332;border:1px solid #2d3748;border-radius:10px;margin-bottom:8px;cursor:pointer}
-.list-item.active{border-color:#3b82f6;background:#1e3a8a}
-.list-item .title{font-weight:600;margin-bottom:4px}
-.list-item .sub{font-size:12px;opacity:.6}
-.toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%) translateY(20px);background:#1f2937;border:1px solid #374151;padding:10px 16px;border-radius:8px;font-weight:600;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:300;white-space:nowrap}
-.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-.hidden{display:none!important}
-label{display:block;font-size:12px;opacity:.7;margin-bottom:4px;font-weight:600}
-.field{margin-bottom:12px}
-.pos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
-.pos-btn{aspect-ratio:1;border:1px solid #2d3748;background:#1a2332;border-radius:8px;font-size:20px}
-.pos-btn.active{background:#2563eb;border-color:#3b82f6}
-.preview-box{aspect-ratio:4/3;background:#000;border-radius:8px;overflow:hidden;position:relative;margin:8px 0;border:1px solid #2d3748}
-.preview-box canvas{width:100%;height:100%;object-fit:contain}
+:root{--primary:#0d6efd;--bg:#f8f9fa;--border:#dee2e6;--muted:#6c757d}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;padding:0;background:var(--bg);color:#212529;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN","Noto Sans JP","Yu Gothic",Meiryo,sans-serif;font-size:16px;line-height:1.5}
+button,input,select,textarea{font:inherit;color:inherit}
+button{min-height:44px;min-width:44px;padding:0 14px;border:1px solid var(--border);border-radius:12px;background:#fff;cursor:pointer;touch-action:manipulation}
+button:active{transform:scale(.97)}button.primary{background:var(--primary);color:#fff;border-color:var(--primary);font-weight:600}
+header{position:sticky;top:0;z-index:100;background:rgba(248,249,250,.85);backdrop-filter:blur(10px);border-bottom:1px solid var(--border);padding:10px 12px}
+.header-top{display:flex;align-items:center;gap:8px}
+#genba{flex:1;margin:0;font-size:18px;font-weight:700;padding:8px 10px;border-radius:10px;outline:none;min-height:44px;display:flex;align-items:center}
+#genba:empty:before{content:"現場名をタップして入力";color:#adb5bd}
+#genba:focus{background:#fff;box-shadow:0 0 0 2px rgba(13,110,253,.2)}
+.status{font-size:12px;color:var(--muted);margin-top:4px;padding-left:4px;height:18px}
+main{padding-bottom:140px;max-width:720px;margin:0 auto}
+.card{background:#fff;margin:12px;border-radius:16px;padding:12px;box-shadow:0 2px 8px rgba(0,0,0,.04)}
+.row{display:flex;gap:8px;align-items:center}
+.row select{flex:1;min-height:44px;padding:0 12px;border:1px solid var(--border);border-radius:12px;background:#fff}
+.row.icon{width:44px;flex:0 0 44px;font-size:20px}
+#biko{width:100%;margin-top:10px;min-height:60px;padding:10px;border:1px solid var(--border);border-radius:12px;resize:vertical}
+.search-wrap{position:relative}
+#search{width:100%;height:48px;padding:0 14px 0 40px;border:1px solid var(--border);border-radius:12px;background:#fff url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='18' height='18' viewBox='0 0 24 24' fill='none' stroke='%23adb5bd' stroke-width='2'%3E%3Ccircle cx='11' cy='11' r='8'/%3E%3Cpath d='m21 21-4.3-4.3'/%3E%3C/svg%3E") no-repeat 12px center}
+.suggest{position:absolute;top:52px;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,.12);max-height:260px;overflow:auto;display:none;z-index:50}
+.s-item{padding:12px;border-bottom:1px solid #f1f3f5;cursor:pointer}
+.s-item b{color:var(--primary);margin-right:6px;font-family:ui-monospace,monospace}
+.quick-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:8px;margin-top:12px}
+@media(min-width:480px){.quick-grid{grid-template-columns:repeat(3,1fr)}}
+.chip{min-height:44px;display:flex;flex-direction:column;align-items:flex-start;justify-content:center;padding:8px 12px;border:1px solid #e9ecef;border-radius:12px;background:#fff;text-align:left;gap:2px}
+.chip.code{font-weight:700;font-size:14px;color:var(--primary);font-family:ui-monospace,monospace}
+.chip.name{font-size:12px;color:#495057;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;width:100%}
+.code-row{display:flex;gap:8px}
+#code{flex:1;height:48px;padding:0 12px;border:1px solid var(--border);border-radius:12px;text-transform:uppercase}
+#ocrBtn{width:48px;font-size:20px}
+.ocr-status{font-size:12px;color:var(--muted);margin-top:6px;min-height:18px;padding-left:4px}
+.table-card{padding:0;overflow:hidden}
+table{width:100%;border-collapse:separate;border-spacing:0}
+thead th{position:sticky;top:0;background:#f8f9fa;padding:12px 8px;font-size:13px;text-align:left;border-bottom:1px solid var(--border);z-index:1}
+tbody td{padding:10px 8px;border-bottom:1px solid #f1f3f5;font-size:15px;vertical-align:middle}
+td.no{width:36px;text-align:center;color:var(--muted)}
+td.code-cell{font-family:ui-monospace,monospace;font-weight:600;color:var(--primary);white-space:nowrap}
+td.name-cell{min-width:120px;max-width:180px;outline:none}
+.qty-cell{white-space:nowrap;display:flex;align-items:center;gap:6px}
+.qty-btn{width:36px;height:36px;padding:0;border-radius:10px;background:#f1f3f5;border-color:#e9ecef;font-size:20px;display:flex;align-items:center;justify-content:center}
+.qty{min-width:32px;text-align:center;display:inline-block;padding:4px 2px;outline:none;border-radius:6px}
+.qty:focus{background:#e7f1ff}
+.del{background:transparent;border:none;color:#dc3545;font-size:20px;width:44px}
+.footer{position:fixed;bottom:0;left:0;right:0;background:rgba(248,249,250,.9);backdrop-filter:blur(12px);border-top:1px solid var(--border);padding:10px 12px;z-index:90}
+.footer-inner{max-width:720px;margin:0 auto}
+.totals{display:flex;gap:20px;font-size:14px;margin-bottom:8px;padding:0 4px}
+.totals b{font-size:18px;margin-left:4px}
+.actions{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+@media(min-width:560px){.actions{grid-template-columns:repeat(7,1fr)}}
+.actions button{font-size:13px;height:40px;border-radius:10px}
+.modal{position:fixed;inset:0;background:rgba(0,0,0,.4);display:flex;align-items:center;justify-content:center;z-index:200;padding:16px}
+.modal[hidden]{display:none}
+.modal-content{background:#fff;width:100%;max-width:440px;border-radius:20px;padding:18px;max-height:80vh;display:flex;flex-direction:column}
+#saveList{overflow:auto;flex:1}
+.save-item{display:flex;gap:8px;margin-bottom:8px;align-items:center}
+.save-item>button:first-child{flex:1;text-align:left;padding:10px 12px;height:auto;min-height:52px}
 </style>
 </head>
 <body>
-
 <header>
-  <div class="top">
-    <h1>現場カメラ<span class="badge">v7</span></h1>
-    <div class="spacer"></div>
-    <button class="btn primary" id="btnGPS">📍 GPS</button>
-    <button class="btn" id="btnSites">📁 現場</button>
+  <div class="header-top">
+    <h2 id="genba" contenteditable="true"></h2>
+    <button id="addrBtn">📍取得</button>
   </div>
-  <div class="sitebar" id="sitebar" style="display:none">
-    <div class="site-name" id="siteName">未選択</div>
-    <div class="site-addr" id="siteAddr"></div>
-    <button class="btn" style="padding:4px 8px;font-size:12px" id="btnEditSite">編集</button>
-  </div>
+  <div id="status" class="status"></div>
 </header>
 
 <main>
-  <div class="tabs" id="floorTabs"></div>
-  
-  <div class="section">
-    <div class="section-title">撮影設定</div>
+  <div class="card">
     <div class="row">
-      <div class="col">
-        <label>工種</label>
-        <select id="selStatus"></select>
-      </div>
-      <div class="col">
-        <label>備考</label>
-        <select id="selNote"></select>
-      </div>
+      <select id="company"></select>
+      <button class="icon" onclick="addCompany()">＋</button>
+      <select id="person"></select>
+      <button class="icon" onclick="addPerson()">＋</button>
     </div>
-    <div class="row">
-      <label class="toggle" style="flex:1">
-        <input type="checkbox" id="chkBB" checked>
-        <span>黒板を合成</span>
-      </label>
-      <button class="btn" id="btnBBSet">設定</button>
-    </div>
+    <textarea id="biko" placeholder="備考（納期・搬入時間など）"></textarea>
   </div>
 
-  <div class="section">
-    <div class="row">
-      <button class="btn primary" style="flex:1;padding:14px;font-size:16px" id="btnCamera">📷 撮影</button>
-      <button class="btn" style="flex:1;padding:14px;font-size:16px" id="btnAlbum">🖼️ 選択</button>
+  <div class="card">
+    <div class="search-wrap">
+      <input id="search" placeholder="商品名または品番で検索">
+      <div id="suggest" class="suggest"></div>
     </div>
-    <input type="file" id="inCamera" accept="image/*" capture="environment" class="hidden">
-    <input type="file" id="inAlbum" accept="image/*" multiple class="hidden">
+    <div id="quick" class="quick-grid"></div>
   </div>
 
-  <div class="section">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
-      <div class="section-title" style="margin:0">写真 <span id="photoCount" style="opacity:.6;font-weight:400">(0枚)</span></div>
-      <button class="btn" style="padding:4px 10px;font-size:12px" id="btnSelect">選択</button>
+  <div class="card">
+    <div class="code-row">
+      <input id="code" placeholder="品番入力 → Enterで追加" autocomplete="off">
+      <button id="ocrBtn" onclick="ocrScan()">📷</button>
+      <input type="file" id="ocr" accept="image/*" capture="environment" hidden>
+      <button id="addBtn" class="primary" onclick="addItem()">追加</button>
     </div>
-    <div class="grid" id="grid"></div>
-    <div class="empty" id="empty">
-      <div class="icon">📷</div>
-      <div>現場を選択して撮影</div>
-    </div>
+    <div id="ocrStatus" class="ocr-status"></div>
+  </div>
+
+  <div class="card table-card">
+    <table>
+      <thead><tr><th>No</th><th>品番</th><th>商品名</th><th>数量</th><th></th></tr></thead>
+      <tbody id="list"></tbody>
+    </table>
+    <div id="empty" class="muted" style="display:none;padding:20px;text-align:center;color:#6c757d">まだ商品がありません</div>
   </div>
 </main>
 
-<footer>
-  <div class="actions">
-    <button class="btn" data-act="delete"><span>🗑️</span>削除</button>
-    <button class="btn" data-act="print"><span>🖨️</span>印刷</button>
-    <button class="btn" data-act="zip"><span>📦</span>ZIP</button>
-    <button class="btn" data-act="line"><span>💬</span>LINE</button>
-  </div>
-</footer>
-
-<!-- 現場選択 -->
-<div class="sheet" id="sheetSites">
-  <div class="backdrop"></div>
-  <div class="panel">
-    <div class="handle"></div>
-    <div class="head">現場を選択</div>
-    <div class="body">
-      <div id="siteList"></div>
-      <button class="btn primary" style="width:100%;margin-top:12px" id="btnNewSite">＋ 新規現場</button>
-    </div>
-    <div class="foot">
-      <button class="btn" style="flex:1" data-close>閉じる</button>
+<div class="footer">
+  <div class="footer-inner">
+    <div class="totals"><span>点数<b id="totalItems">0</b></span><span>数量<b id="totalQty">0</b></span></div>
+    <div class="actions">
+      <button onclick="copyText()">コピー</button>
+      <button onclick="sendLine()">LINE</button>
+      <button onclick="sendMail()">メール</button>
+      <button onclick="saveData()">保存</button>
+      <button onclick="showLoadModal()">読込</button>
+      <button onclick="printData()">印刷</button>
+      <button onclick="exportData()">出力</button>
     </div>
   </div>
 </div>
 
-<!-- 現場編集 -->
-<div class="sheet" id="sheetEdit">
-  <div class="backdrop"></div>
-  <div class="panel">
-    <div class="handle"></div>
-    <div class="head">現場情報</div>
-    <div class="body">
-      <div class="field">
-        <label>現場名 *</label>
-        <input id="edName" placeholder="例：田中邸">
-      </div>
-      <div class="field">
-        <label>住所</label>
-        <input id="edAddr" placeholder="GPSで自動入力">
-      </div>
-      <div class="row">
-        <div class="col">
-          <label>会社名</label>
-          <input id="edCompany" placeholder="○○建設">
-        </div>
-        <div class="col">
-          <label>担当</label>
-          <input id="edPerson" placeholder="氏名">
-        </div>
-      </div>
-      <div class="field">
-        <label>階層（カンマ区切り）</label>
-        <input id="edFloors" placeholder="1階,2階,3階,屋上">
-      </div>
-    </div>
-    <div class="foot">
-      <button class="btn" style="flex:1;background:#dc2626;border-color:#ef4444;color:white" id="btnDelSite">削除</button>
-      <button class="btn primary" style="flex:2" id="btnSaveSite">保存</button>
+<div id="loadModal" class="modal" hidden>
+  <div class="modal-content">
+    <h3>保存データ読込</h3>
+    <div id="saveList"></div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:12px;border-top:1px solid #f1f3f5;padding-top:12px">
+      <button onclick="importData()">インポート</button>
+      <button class="primary" onclick="document.getElementById('loadModal').hidden=true">閉じる</button>
     </div>
   </div>
 </div>
-
-<!-- 黒板設定 -->
-<div class="sheet" id="sheetBB">
-  <div class="backdrop"></div>
-  <div class="panel">
-    <div class="handle"></div>
-    <div class="head">黒板設定</div>
-    <div class="body">
-      <div class="preview-box">
-        <canvas id="bbPreview"></canvas>
-      </div>
-      <div class="field">
-        <label>サイズ</label>
-        <div class="row" style="margin-top:6px">
-          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbsize" value="small"> 小</label>
-          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbsize" value="medium" checked> 中</label>
-          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbsize" value="large"> 大</label>
-        </div>
-      </div>
-      <div class="field">
-        <label>濃さ</label>
-        <div class="row" style="margin-top:6px">
-          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbopac" value="100" checked> 100%</label>
-          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbopac" value="70"> 70%</label>
-          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbopac" value="50"> 50%</label>
-          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbopac" value="30"> 30%</label>
-        </div>
-      </div>
-      <div class="field">
-        <label>位置</label>
-        <div class="pos-grid">
-          <button class="pos-btn" data-pos="tl">↖</button>
-          <button class="pos-btn" data-pos="tc">↑</button>
-          <button class="pos-btn" data-pos="tr">↗</button>
-          <button class="pos-btn" data-pos="ml">←</button>
-          <button class="pos-btn" data-pos="mc">●</button>
-          <button class="pos-btn" data-pos="mr">→</button>
-          <button class="pos-btn" data-pos="bl">↙</button>
-          <button class="pos-btn" data-pos="bc">↓</button>
-          <button class="pos-btn active" data-pos="br">↘</button>
-        </div>
-      </div>
-    </div>
-    <div class="foot">
-      <button class="btn primary" style="flex:1" data-close>完了</button>
-    </div>
-  </div>
-</div>
-
-<div class="toast" id="toast"></div>
 
 <script>
-// ===== 簡易JSZip（最小実装） =====
-const JSZip=function(){this.files={};this.folder=n=>({file:(f,d)=>{this.files[n+'/'+f]=d}});this.generateAsync=async()=>{let out='';for(const[k,v]of Object.entries(this.files)){out+=k+':'+v.length+','}return new Blob([out],{type:'application/zip'})}};
-
-// ===== ユーティリティ =====
 const $=s=>document.querySelector(s);
-const $$=s=>[...document.querySelectorAll(s)];
-const toast=(m)=>{const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)};
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
+let master={},count={},companies={},autosaveTimer;
 
-// ===== DB =====
-let db;
-async function openDB(){
-  return new Promise((res,rej)=>{
-    const r=indexedDB.open('genba7',1);
-    r.onupgradeneeded=e=>{
-      const d=e.target.result;
-      if(!d.objectStoreNames.contains('sites')) d.createObjectStore('sites',{keyPath:'id'});
-      if(!d.objectStoreNames.contains('photos')){const p=d.createObjectStore('photos',{keyPath:'id'});p.createIndex('site','siteId')}
-    };
-    r.onsuccess=()=>res(r.result);
-    r.onerror=()=>rej(r.error);
-  });
-}
-async function dbGet(store,id){const s=db.transaction(store).objectStore(store);return new Promise(r=>{const q=s.get(id);q.onsuccess=()=>r(q.result)})}
-async function dbPut(store,obj){const s=db.transaction(store,'readwrite').objectStore(store);return new Promise(r=>{const q=s.put(obj);q.onsuccess=()=>r()})}
-async function dbAll(store){const s=db.transaction(store).objectStore(store);return new Promise(r=>{const q=s.getAll();q.onsuccess=()=>r(q.result||[])})}
-async function dbDel(store,id){const s=db.transaction(store,'readwrite').objectStore(store);return new Promise(r=>{const q=s.delete(id);q.onsuccess=()=>r()})}
-async function dbBySite(siteId){const s=db.transaction('photos').objectStore('photos').index('site');return new Promise(r=>{const q=s.getAll(siteId);q.onsuccess=()=>r(q.result||[])})}
+function safeParse(k,d){try{return JSON.parse(localStorage.getItem(k)||d)}catch{return JSON.parse(d)}}
+try{master=safeParse('master','{}');count=safeParse('count','{}');companies=safeParse('companies','{}')}catch{}
 
-// ===== 状態 =====
-let sites=[], currentSite=null, photos=[], selected=new Set(), selectMode=false, currentFloor='1階';
-let bbSettings=JSON.parse(localStorage.bb||'{"size":"medium","opac":"100","pos":"br"}');
+function setStatus(t){$('#status').textContent=t;setTimeout(()=>$('#status').textContent='',3000)}
+function toHalf(s){return s.replace(/[Ａ-Ｚａ-ｚ０-９]/g,c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)).replace(/ー/g,'-')}
 
-// ===== 初期化 =====
-async function init(){
-  db=await openDB();
-  sites=await dbAll('sites');
-  const lastId=localStorage.lastSite;
-  currentSite=sites.find(s=>s.id===lastId)||sites[0]||null;
-  if(currentSite) await loadSite();
-  bindEvents();
-  updateBBPreview();
-}
-function bindEvents(){
-  $('#btnGPS').onclick=createFromGPS;
-  $('#btnSites').onclick=()=>openSheet('sheetSites');
-  $('#btnNewSite').onclick=()=>{closeSheet('sheetSites');editSite(null)};
-  $('#btnEditSite').onclick=()=>editSite(currentSite);
-  $('#btnSaveSite').onclick=saveSite;
-  $('#btnDelSite').onclick=deleteSite;
-  $('#btnCamera').onclick=()=>$('#inCamera').click();
-  $('#btnAlbum').onclick=()=>$('#inAlbum').click();
-  $('#inCamera').onchange=e=>handleFiles(e.target.files);
-  $('#inAlbum').onchange=e=>handleFiles(e.target.files);
-  $('#btnSelect').onclick=toggleSelect;
-  $('#btnBBSet').onclick=()=>openSheet('sheetBB');
-  $$('[data-close]').forEach(b=>b.onclick=()=>b.closest('.sheet').classList.remove('show'));
-  $$('.backdrop').forEach(b=>b.onclick=()=>b.closest('.sheet').classList.remove('show'));
-  $$('[data-act]').forEach(b=>b.onclick=()=>doAction(b.dataset.act));
-  $$('input[name="bbsize"]').forEach(r=>r.onchange=saveBB);
-  $$('input[name="bbopac"]').forEach(r=>r.onchange=saveBB);
-  $$('.pos-btn').forEach(b=>b.onclick=()=>{$$('.pos-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');bbSettings.pos=b.dataset.pos;saveBB()});
-  $('#selStatus').onchange=()=>{if(currentSite){currentSite.lastStatus=$('#selStatus').value;dbPut('sites',currentSite)}};
-  $('#selNote').onchange=()=>{if(currentSite){currentSite.lastNote=$('#selNote').value;dbPut('sites',currentSite)}};
+// 住所取得
+async function getAddress(){
+  if(!navigator.geolocation){setStatus('位置情報不可');return}
+  setStatus('取得中...');
+  navigator.geolocation.getCurrentPosition(async p=>{
+    try{const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${p.coords.latitude}&lon=${p.coords.longitude}`);const d=await r.json();$('#genba').textContent=d.display_name||'取得失敗';setStatus('住所セット')}catch{setStatus('取得失敗')}
+  },()=>setStatus('位置情報拒否'));
 }
 
-// ===== サイト管理 =====
-async function loadSite(){
-  if(!currentSite) return;
-  localStorage.lastSite=currentSite.id;
-  $('#sitebar').style.display='flex';
-  $('#siteName').textContent=currentSite.name;
-  $('#siteAddr').textContent=currentSite.address||'';
-  currentFloor=currentSite.floors?.[0]||'1階';
-  renderFloors();
-  renderStatusNote();
-  photos=await dbBySite(currentSite.id);
-  renderPhotos();
-}
-function renderFloors(){
-  const box=$('#floorTabs');box.innerHTML='';
-  const floors=currentSite?.floors||['1階','2階','3階','屋上'];
-  floors.forEach(f=>{
-    const b=document.createElement('button');
-    b.className='tab'+(f===currentFloor?' active':'');
-    b.textContent=f;
-    b.onclick=()=>{currentFloor=f;renderFloors();renderPhotos()};
-    box.appendChild(b);
-  });
-}
-function renderStatusNote(){
-  const st=$('#selStatus');st.innerHTML='';
-  (currentSite?.statuses||['施工前','施工中','施工後','配筋','型枠']).forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;st.appendChild(o)});
-  if(currentSite?.lastStatus) st.value=currentSite.lastStatus;
-  
-  const nt=$('#selNote');nt.innerHTML='';
-  (currentSite?.notes||['','検査','是正']).forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v||'(なし)';nt.appendChild(o)});
-  if(currentSite?.lastNote) nt.value=currentSite.lastNote;
-}
-async function createFromGPS(){
-  try{
-    toast('GPS取得中...');
-    const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true,timeout:10000}));
-    const {latitude,longitude}=pos.coords;
-    let addr='',name='新規現場';
-    try{
-      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=ja`);
-      const j=await r.json();
-      if(j.address){
-        const a=j.address;
-        addr=[a.state,a.city||a.town,a.suburb||a.neighbourhood,a.road,a.house_number].filter(Boolean).join('');
-        name=[a.suburb||a.neighbourhood||'',a.road||''].filter(Boolean).join('')||name;
-      }
-    }catch{}
-    const site={id:uid(),name,address:addr,lat:latitude,lon:longitude,company:'',person:'',floors:['1階','2階','3階','屋上'],statuses:['施工前','施工中','施工後'],notes:['','検査'],created:Date.now()};
-    await dbPut('sites',site);
-    sites.push(site);
-    currentSite=site;
-    await loadSite();
-    editSite(site);
-    toast('現場を作成しました');
-  }catch(e){toast('GPS失敗');editSite(null)}
-}
-function editSite(site){
-  const s=site||{id:uid(),name:'',address:'',company:'',person:'',floors:['1階','2階','3階','屋上']};
-  $('#edName').value=s.name;
-  $('#edAddr').value=s.address;
-  $('#edCompany').value=s.company||'';
-  $('#edPerson').value=s.person||'';
-  $('#edFloors').value=(s.floors||[]).join(',');
-  $('#sheetEdit').dataset.id=s.id;
-  openSheet('sheetEdit');
-}
-async function saveSite(){
-  const id=$('#sheetEdit').dataset.id;
-  let site=sites.find(s=>s.id===id)||{id,created:Date.now()};
-  site.name=$('#edName').value||'名称未設定';
-  site.address=$('#edAddr').value;
-  site.company=$('#edCompany').value;
-  site.person=$('#edPerson').value;
-  site.floors=$('#edFloors').value.split(',').map(s=>s.trim()).filter(Boolean);
-  if(!site.statuses) site.statuses=['施工前','施工中','施工後'];
-  if(!site.notes) site.notes=['','検査'];
-  await dbPut('sites',site);
-  if(!sites.find(s=>s.id===id)) sites.push(site);
-  currentSite=site;
-  closeSheet('sheetEdit');
-  await loadSite();
-  toast('保存しました');
-}
-async function deleteSite(){
-  if(!confirm('現場と写真を全て削除しますか？')) return;
-  const id=$('#sheetEdit').dataset.id;
-  await dbDel('sites',id);
-  const ps=await dbBySite(id);
-  for(const p of ps) await dbDel('photos',p.id);
-  sites=sites.filter(s=>s.id!==id);
-  currentSite=sites[0]||null;
-  closeSheet('sheetEdit');
-  if(currentSite) await loadSite(); else location.reload();
-  toast('削除しました');
-}
-function openSheet(id){$('#'+id).classList.add('show');if(id==='sheetSites') renderSiteList()}
-function closeSheet(id){$('#'+id).classList.remove('show')}
-function renderSiteList(){
-  const box=$('#siteList');box.innerHTML='';
-  sites.forEach(s=>{
-    const div=document.createElement('div');
-    div.className='list-item'+(s.id===currentSite?.id?' active':'');
-    div.innerHTML=`<div class="title">${s.name}</div><div class="sub">${s.address||''}</div>`;
-    div.onclick=async()=>{currentSite=s;closeSheet('sheetSites');await loadSite()};
-    box.appendChild(div);
-  });
-}
+// 会社
+function loadCompanies(){$('#company').innerHTML='';Object.keys(companies).forEach(c=>{let o=document.createElement('option');o.textContent=c;$('#company').appendChild(o)});changeCompany()}
+function addCompany(){const n=prompt('会社名');if(!n)return;companies[n]=companies[n]||[];localStorage.setItem('companies',JSON.stringify(companies));loadCompanies();$('#company').value=n}
+function changeCompany(){const c=$('#company').value;$('#person').innerHTML='';(companies[c]||[]).forEach(p=>{let o=document.createElement('option');o.textContent=p;$('#person').appendChild(o)})}
+function addPerson(){const c=$('#company').value;if(!c)return alert('会社を選択');const n=prompt('担当者');if(!n)return;companies[c].push(n);localStorage.setItem('companies',JSON.stringify(companies));changeCompany();$('#person').value=n}
 
-// ===== 写真 =====
-async function handleFiles(files){
-  if(!currentSite){toast('現場を選択してください');openSheet('sheetSites');return}
-  for(const file of files){
-    const img=await loadImage(file);
-    const useBB=$('#chkBB').checked;
-    const dataUrl=useBB?await makeWithBB(img):await compress(img,0.85);
-    const photo={id:uid(),siteId:currentSite.id,floor:currentFloor,status:$('#selStatus').value,note:$('#selNote').value,ts:Date.now(),lat:currentSite.lat,lon:currentSite.lon,dataUrl};
-    await dbPut('photos',photo);
-    photos.unshift(photo);
-  }
-  renderPhotos();
-  toast(`${files.length}枚保存`);
-}
-function loadImage(file){return new Promise((res,rej)=>{const u=URL.createObjectURL(file);const i=new Image();i.onload=()=>{URL.revokeObjectURL(u);res(i)};i.onerror=rej;i.src=u})}
-async function compress(img,q){const c=document.createElement('canvas');const max=2000;let w=img.width,h=img.height;const s=Math.min(1,max/Math.max(w,h));w*=s;h*=s;c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);return c.toDataURL('image/jpeg',q)}
-async function makeWithBB(img){
-  const c=document.createElement('canvas');const max=2000;
-  let w=img.width,h=img.height;const s=Math.min(1,max/Math.max(w,h));w*=s;h*=s;c.width=w;c.height=h;
-  const ctx=c.getContext('2d');ctx.drawImage(img,0,0,w,h);
-  
-  const size={small:.22,medium:.34,large:.46}[bbSettings.size];
-  const bw=Math.round(w*size),bh=Math.round(bw*.72),m=Math.round(w*.025);
-  const pos={tl:[m,m],tc:[(w-bw)/2,m],tr:[w-bw-m,m],ml:[m,(h-bh)/2],mc:[(w-bw)/2,(h-bh)/2],mr:[w-bw-m,(h-bh)/2],bl:[m,h-bh-m],bc:[(w-bw)/2,h-bh-m],br:[w-bw-m,h-bh-m]}[bbSettings.pos];
-  const [x,y]=pos;
-  
-  ctx.globalAlpha=bbSettings.opac/100;
-  ctx.fillStyle='#000';ctx.fillRect(x,y,bw,bh);
-  ctx.globalAlpha=1;
-  ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(2,bw*.01);ctx.strokeRect(x,y,bw,bh);
-  
-  ctx.fillStyle='#fff';ctx.font=`bold ${Math.round(bw*.085)}px sans-serif`;ctx.textBaseline='middle';
-  const rows=[['工事',currentSite.name],['工種',$('#selStatus').value],['場所',currentFloor],['日時',new Date().toLocaleDateString('ja-JP')]];
-  rows.forEach(([k,v],i)=>{const yy=y+bh*(.18+i*.22);ctx.fillText(k,x+bw*.05,yy);ctx.fillText(String(v).slice(0,12),x+bw*.32,yy)});
-  
-  return c.toDataURL('image/jpeg',0.9);
-}
-function renderPhotos(){
-  const grid=$('#grid');grid.innerHTML='';
-  const list=photos.filter(p=>p.floor===currentFloor);
-  $('#photoCount').textContent=`(${list.length}枚)`;
-  $('#empty').style.display=list.length||!currentSite?'none':'block';
-  grid.className='grid'+(selectMode?' selecting':'');
-  list.forEach(p=>{
-    const d=document.createElement('div');
-    d.className='card'+(selected.has(p.id)?' selected':'');
-    d.innerHTML=`<img src="${p.dataUrl}"><div class="sel">✓</div><div class="meta"><span>${p.status}</span><span>${new Date(p.ts).toLocaleDateString('ja-JP').slice(5)}</span></div>`;
-    d.onclick=()=>{if(selectMode){selected.has(p.id)?selected.delete(p.id):selected.add(p.id);renderPhotos()}else{window.open(p.dataUrl,'_blank')}};
-    grid.appendChild(d);
-  });
-}
-function toggleSelect(){selectMode=!selectMode;selected.clear();$('#btnSelect').textContent=selectMode?'解除':'選択';renderPhotos()}
+// 検索
+let searchTimer;
+$('#search').oninput=e=>{clearTimeout(searchTimer);searchTimer=setTimeout(()=>doSearch(e.target.value),200)};
+function doSearch(v){const s=$('#suggest');s.innerHTML='';if(!v){s.style.display='none';return};const q=v.toLowerCase();const arr=Object.entries(master).filter(([c,n])=>c.toLowerCase().includes(q)||n.toLowerCase().includes(q)).sort((a,b)=>(count[b[0]]||0)-(count[a[0]]||0)).slice(0,10);if(!arr.length){s.style.display='none';return};arr.forEach(([c,n])=>{const d=document.createElement('div');d.className='s-item';d.innerHTML=`<b>${c}</b>${n}`;d.onclick=()=>{addOrUpdate(c,n,1);s.style.display='none';$('#search').value=''};s.appendChild(d)});s.style.display='block'}
+document.addEventListener('click',e=>{if(!e.target.closest('.search-wrap'))$('#suggest').style.display='none'});
 
-// ===== 黒板設定 =====
-function saveBB(){
-  bbSettings.size=document.querySelector('input[name="bbsize"]:checked').value;
-  bbSettings.opac=document.querySelector('input[name="bbopac"]:checked').value;
-  localStorage.bb=JSON.stringify(bbSettings);
-  updateBBPreview();
-}
-function updateBBPreview(){
-  const c=$('#bbPreview'),ctx=c.getContext('2d');c.width=400;c.height=300;
-  ctx.fillStyle='#222';ctx.fillRect(0,0,400,300);
-  ctx.fillStyle='#444';ctx.fillRect(50,30,300,180);ctx.fillStyle='#888';ctx.font='14px sans-serif';ctx.fillText('写真',180,120);
-  const size={small:.22,medium:.34,large:.46}[bbSettings.size];
-  const bw=400*size,bh=bw*.72,m=10;
-  const pos={tl:[m,m],tc:[(400-bw)/2,m],tr:[400-bw-m,m],ml:[m,(300-bh)/2],mc:[(400-bw)/2,(300-bh)/2],mr:[400-bw-m,(300-bh)/2],bl:[m,300-bh-m],bc:[(400-bw)/2,300-bh-m],br:[400-bw-m,300-bh-m]}[bbSettings.pos];
-  ctx.globalAlpha=bbSettings.opac/100;ctx.fillStyle='#000';ctx.fillRect(...pos,bw,bh);ctx.globalAlpha=1;
-  ctx.strokeStyle='#fff';ctx.strokeRect(...pos,bw,bh);
-}
+// クイック
+function renderQuick(){$('#quick').innerHTML='';Object.entries(count).sort((a,b)=>b[1]-a[1]).slice(0,12).forEach(([c])=>{const b=document.createElement('button');b.className='chip';b.innerHTML=`<span class="code">${c}</span><span class="name">${master[c]||''}</span>`;b.onclick=()=>addOrUpdate(c,master[c]||'',1);$('#quick').appendChild(b)})}
 
-// ===== アクション =====
-async function doAction(act){
-  const list=selected.size?photos.filter(p=>selected.has(p.id)):photos.filter(p=>p.floor===currentFloor);
-  if(!list.length&&act!=='delete'){toast('写真がありません');return}
-  
-  if(act==='delete'){
-    if(!selected.size){toast('選択してください');return}
-    if(!confirm(`${selected.size}枚削除しますか？`))return;
-    for(const id of selected) await dbDel('photos',id);
-    photos=photos.filter(p=>!selected.has(p.id));selected.clear();selectMode=false;renderPhotos();toast('削除しました');
-  }
-  else if(act==='print'){
-    const w=window.open('','print');
-    let html=`<!DOCTYPE html><html><head><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script><meta charset="utf-8"><title>印刷</title><style>@page{size:A4;margin:15mm}body{font-family:sans-serif}h1{border-bottom:2px solid #000;padding-bottom:5px}img{width:100%;max-height:220mm;object-fit:contain;border:1px solid #ccc;margin:10px 0}.info{font-size:12px;margin:5px 0}.page{page-break-after:always}</style></head><body>`;
-    html+=`<h1>${currentSite.name}</h1><p>住所: ${currentSite.address||''}</p>`;
-    list.forEach(p=>{html+=`<div class="page"><img src="${p.dataUrl}"><div class="info">日時: ${new Date(p.ts).toLocaleString('ja-JP')} / 場所: ${p.floor} / 工種: ${p.status}${p.note?' / 備考: '+p.note:''}</div></div>`});
-    html+='</body></html>';
-    w.document.write(html);w.document.close();setTimeout(()=>w.print(),300);
-  }
-  else if(act==='zip'){
-    toast('ZIP作成中...');
-    const zip=new JSZip();
-    list.forEach((p,i)=>{const b=p.dataUrl.split(',')[1];zip.folder(currentSite.name).file(`${currentSite.name}_${i+1}.jpg`,b,{base64:true})});
-    const blob=await zip.generateAsync({type:'blob'});
-    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${currentSite.name}.zip`;a.click();
-    toast('ZIP完了');
-  }
-  else if(act==='line'){
-    try{
-      const files=await Promise.all(list.slice(0,3).map(async p=>{const r=await fetch(p.dataUrl);const b=await r.blob();return new File([b],`photo.jpg`,{type:'image/jpeg'})}));
-      if(navigator.canShare&&navigator.canShare({files})){await navigator.share({title:currentSite.name,text:currentSite.address,files});return}
-    }catch{}
-    window.open(`https://line.me/R/msg/text/?${encodeURIComponent(currentSite.name+'
-'+(currentSite.address||''))}`,'_blank');
-    toast('LINEを開きました');
-  }
-}
+// OCR
+function ocrScan(){$('#ocr').click()}
+$('#ocr').onchange=async e=>{const f=e.target.files[0];if(!f)return;$('#ocrStatus').textContent='読取中...';try{const {data:{text}}=await Tesseract.recognize(f,'jpn+eng',{logger:m=>{if(m.status==='recognizing text')$('#ocrStatus').textContent=`読取中 ${Math.round(m.progress*100)}%`}});processText(text);$('#ocrStatus').textContent='完了'}catch{$('#ocrStatus').textContent='失敗'};e.target.value=''};
+function processText(t){if(!t)return;t.split(/\n/).forEach(line=>{let s=toHalf(line.trim().toUpperCase());s=s.replace(/[^A-Z0-9\/_\-]/g,'');if(s.length>=4)addOrUpdate(s,master[s]||'',1)})}
 
-// 起動
-init();
+// 追加・更新
+function addItem(){const v=toHalf($('#code').value.trim().toUpperCase());if(!v)return;addOrUpdate(v,master[v]||'',1);$('#code').value=''}
+function addOrUpdate(code,name,qty){const list=$('#list');let found=null;list.querySelectorAll('tr').forEach(tr=>{if(tr.dataset.code===code)found=tr});if(found){changeQty(found,qty);count[code]=(count[code]||0)+qty}else{const tr=document.createElement('tr');tr.dataset.code=code;tr.innerHTML=`<td class="no"></td><td class="code-cell">${code}</td><td class="name-cell" contenteditable="true">${name||'未入力'}</td><td class="qty-cell"><button class="qty-btn" onclick="changeQty(this.closest('tr'),-1)">−</button><span class="qty" contenteditable="true" onblur="fixQty(this)">${qty}</span><button class="qty-btn" onclick="changeQty(this.closest('tr'),1)">＋</button></td><td><button class="del" onclick="deleteRow(this)">🗑</button></td>`;tr.querySelector('.name-cell').addEventListener('blur',e=>saveName(e.target));tr.addEventListener('click',e=>{if(e.target.closest('button')||e.target.isContentEditable)return;changeQty(tr,1)});list.appendChild(tr);count[code]=(count[code]||0)+qty}localStorage.setItem('count',JSON.stringify(count));renderQuick();renum();updateTotals();saveAuto()}
+function saveName(td){const code=td.parentElement.dataset.code;const n=td.textContent.trim();if(n){master[code]=n;localStorage.setItem('master',JSON.stringify(master))}}
+function changeQty(tr,d){const q=tr.querySelector('.qty');let n=parseInt(q.textContent)||0;n+=d;if(n<1)n=1;q.textContent=n;updateTotals();saveAuto()}
+function fixQty(el){let n=parseInt(el.textContent);if(isNaN(n)||n<1)n=1;el.textContent=n;updateTotals()}
+function deleteRow(btn){if(!confirm('削除しますか？'))return;btn.closest('tr').remove();renum();updateTotals();saveAuto()}
+function renum(){$('#list').querySelectorAll('tr').forEach((tr,i)=>tr.querySelector('.no').textContent=i+1);$('#empty').style.display=$('#list').children.length?'none':'block'}
+function updateTotals(){let items=0,qty=0;$('#list').querySelectorAll('tr').forEach(tr=>{items++;qty+=parseInt(tr.querySelector('.qty').textContent)||0});$('#totalItems').textContent=items;$('#totalQty').textContent=qty}
+
+// 保存
+function getCurrentOrder(){return{genba:$('#genba').textContent.trim(),company:$('#company').value,person:$('#person').value,biko:$('#biko').value,items:[...$('#list').querySelectorAll('tr')].map(tr=>({code:tr.dataset.code,name:tr.querySelector('.name-cell').textContent,qty:parseInt(tr.querySelector('.qty').textContent)}))}}
+function saveAuto(){localStorage.setItem('autosave',JSON.stringify(getCurrentOrder()))}
+function saveData(){const d=getCurrentOrder();if(!d.genba)return alert('現場名入力');if(!confirm('保存しますか？'))return;const name=prompt('保存名',d.genba)||d.genba;const data={...d,ts:Date.now()};localStorage.setItem('save_'+name,JSON.stringify(data));let saves=safeParse('saves','[]');if(!saves.includes(name))saves.push(name);localStorage.setItem('saves',JSON.stringify(saves));setStatus('保存完了')}
+function showLoadModal(){const m=$('#loadModal');const l=$('#saveList');l.innerHTML='';const saves=safeParse('saves','[]').map(n=>{try{return{n,ts:JSON.parse(localStorage.getItem('save_'+n)).ts}}catch{return{n,ts:0}}}).sort((a,b)=>b.ts-a.ts);if(!saves.length)l.innerHTML='<div style="text-align:center;color:#6c757d;padding:20px">データなし</div>';saves.forEach(({n,ts})=>{const div=document.createElement('div');div.className='save-item';div.innerHTML=`<button onclick="loadData('${n.replace(/'/g,"\\'")}')">${n}<br><small>${ts?new Date(ts).toLocaleString('ja-JP'):''}</small></button><button class="del" onclick="deleteSave('${n.replace(/'/g,"\\'")}')">削除</button>`;l.appendChild(div)});m.hidden=false}
+function loadData(name){const d=JSON.parse(localStorage.getItem('save_'+name));if(!d)return;$('#list').innerHTML='';$('#genba').textContent=d.genba;$('#biko').value=d.biko||'';if(d.company){$('#company').value=d.company;changeCompany()}if(d.person)$('#person').value=d.person;d.items.forEach(it=>addOrUpdate(it.code,it.name,it.qty));$('#loadModal').hidden=true;setStatus('読込完了')}
+function deleteSave(n){if(!confirm(n+'を削除？'))return;localStorage.removeItem('save_'+n);localStorage.setItem('saves',JSON.stringify(safeParse('saves','[]').filter(x=>x!==n)));showLoadModal()}
+
+// 出力
+function makeText(){const d=getCurrentOrder();const date=new Date().toLocaleDateString('ja-JP');let t=`【現場】${d.genba}\n【会社】${d.company} ${d.person}\n【日付】${date}\n\n■発注\n`;d.items.forEach((it,i)=>t+=`${i+1}. ${it.code} ${it.name} ×${it.qty}\n`);if(d.biko)t+=`\n【備考】\n${d.biko}\n`;t+=`\n合計 ${d.items.length}点 / ${d.items.reduce((a,b)=>a+b.qty,0)}個`;return t}
+function copyText(){navigator.clipboard.writeText(makeText()).then(()=>setStatus('コピーしました'))}
+function sendLine(){window.open('https://line.me/R/msg/text/?'+encodeURIComponent(makeText()))}
+function sendMail(){location.href='mailto:?subject='+encodeURIComponent('発注 '+$('#genba').textContent)+'&body='+encodeURIComponent(makeText())}
+function printData(){const d=getCurrentOrder();const w=window.open('');w.document.write(`<h1>発注書</h1><p>${d.genba} / ${d.company} ${d.person}</p><table border=1 cellpadding=6><tr><th>No</th><th>品番</th><th>商品名</th><th>数量</th></tr>${d.items.map((it,i)=>`<tr><td>${i+1}</td><td>${it.code}</td><td>${it.name}</td><td>${it.qty}</td></tr>`).join('')}</table>`);w.print()}
+function exportData(){const data={master,count,companies,saves:{}};safeParse('saves','[]').forEach(n=>data.saves[n]=JSON.parse(localStorage.getItem('save_'+n)));const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='genba_backup.json';a.click()}
+function importData(){const i=document.createElement('input');i.type='file';i.accept='.json';i.onchange=e=>{const f=e.target.files[0];const r=new FileReader();r.onload=()=>{const d=JSON.parse(r.result);if(d.master)localStorage.setItem('master',JSON.stringify(d.master));if(d.count)localStorage.setItem('count',JSON.stringify(d.count));if(d.companies)localStorage.setItem('companies',JSON.stringify(d.companies));if(d.saves){Object.entries(d.saves).forEach(([k,v])=>localStorage.setItem('save_'+k,JSON.stringify(v)));localStorage.setItem('saves',JSON.stringify(Object.keys(d.saves)))}location.reload()};r.readAsText(f)};i.click()}
+
+// 初期化
+$('#addrBtn').onclick=getAddress;
+$('#code').addEventListener('keydown',e=>{if(e.key==='Enter'){e.preventDefault();addItem()}});
+document.addEventListener('DOMContentLoaded',()=>{loadCompanies();renderQuick();renum();updateTotals();autosaveTimer=setInterval(saveAuto,20000);const auto=safeParse('autosave','null');if(auto&&auto.items&&confirm('前回のデータを復元しますか？')){loadData('_autosave_temp');localStorage.setItem('save__autosave_temp',JSON.stringify(auto));loadData('_autosave_temp')}});
 </script>
 </body>
 </html>
