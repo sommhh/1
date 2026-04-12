@@ -1,303 +1,546 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1">
-<title>現場写真PRO 最終完成</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- Playables SDK -->
+<script>// Playables SDK v1.0.0
+// Game lifecycle bridge: rAF-based game-ready detection + event communication
+(function() {
+  'use strict';
 
-<style>
-body{margin:0;background:#111;color:#fff;font-family:sans-serif}
-header{position:sticky;top:0;background:#000;padding:10px;z-index:10}
+  // Idempotency: skip if already initialized (e.g., server-side injection
+  // followed by client-side inject-javascript via the Bloks webview component).
+  if (window.playablesSDK) return;
 
-input{width:100%;box-sizing:border-box;margin:4px 0;padding:10px;font-size:15px;border-radius:6px;border:none}
-select,button{margin:4px;padding:10px;font-size:14px;border-radius:6px;border:none}
+  var HANDLER_NAME = 'playablesGameEventHandler';
+  var ANDROID_BRIDGE_NAME = '_MetaPlayablesBridge';
+  var RAF_FRAME_THRESHOLD = 3;
 
-#tabs{display:flex;overflow:auto;margin-top:6px}
-.tab{padding:8px 12px;background:#333;margin-right:6px;border-radius:8px}
-.active{background:#0a84ff}
+  var gameReadySent = false;
+  var firstInteractionSent = false;
+  var errorSent = false;
+  var frameCount = 0;
+  var originalRAF = window.requestAnimationFrame;
 
-.groupTitle{font-size:14px;padding:6px;margin-top:10px;background:#222;border-radius:6px}
+  // --- Transport Layer ---
 
-#photos{padding:6px}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-
-.card{background:#222;border-radius:8px;padding:4px}
-img{width:100%;border-radius:6px}
-.sel{outline:3px solid #ff3b30}
-</style>
-</head>
-
-<body>
-
-<header>
-
-<input type="file" id="cam" accept="image/*" capture="environment" multiple>
-
-<input id="siteName" placeholder="現場名">
-<input id="addr" placeholder="住所">
-
-<select id="floor"></select>
-<select id="status"></select>
-
-<button onclick="editList('floor')">階層</button>
-<button onclick="editList('status')">定型</button>
-
-<br>
-<button onclick="getAddress()">住所取得</button>
-<button onclick="deleteSelected()">削除</button>
-<button onclick="printSelected()">選択印刷</button>
-<button onclick="downloadZip()">ZIP</button>
-<button onclick="shareLine()">LINE</button>
-
-<div id="tabs"></div>
-
-</header>
-
-<div id="photos"></div>
-
-<script>
-
-let db;
-let currentSite=null;
-let selectedIds=[];
-
-// ===== DB =====
-function initDB(){
- let r=indexedDB.open("genbaDB",1);
- r.onupgradeneeded=e=>{
-  db=e.target.result;
-  db.createObjectStore("photos",{keyPath:"id",autoIncrement:true});
- };
- r.onsuccess=e=>{
-  db=e.target.result;
-  load();
- };
-}
-
-// ===== 住所取得（完全版） =====
-function getAddress(){
- navigator.geolocation.getCurrentPosition(pos=>{
-  let lat=pos.coords.latitude;
-  let lon=pos.coords.longitude;
-
-  fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lon}&format=json`)
-  .then(r=>r.json())
-  .then(d=>{
-   let a=d.address||{};
-
-   let result=[
-     a.city||a.town||a.village||"",
-     a.suburb||a.neighbourhood||"",
-     a.road||"",
-     a.block||"",
-     a.house_number||""
-   ].join("");
-
-   result=result.replace(/丁目/g,"-")
-                .replace(/日本/g,"")
-                .replace(/〒\d{3}-?\d{4}/g,"")
-                .replace(/東京都|北海道|大阪府|京都府|.+県/g,"")
-                .replace(/\s+/g,"")
-                .trim();
-
-   addr.value=result||"住所取得失敗";
-  });
-
- },()=>alert("GPS失敗"),{enableHighAccuracy:true,timeout:2000});
-}
-
-// ===== 保存 =====
-cam.onchange=e=>{
- for(let f of e.target.files){
-  let r=new FileReader();
-  r.onload=ev=>{
-   let site=(siteName.value||"未設定")+"_"+(addr.value||"住所なし");
-
-   let tx=db.transaction("photos","readwrite");
-   tx.objectStore("photos").add({
-    img:ev.target.result,
-    site:site,
-    floor:floor.value,
-    status:status.value
-   });
-
-   tx.oncomplete=load;
-  };
-  r.readAsDataURL(f);
- }
-};
-
-// ===== 読込 =====
-function load(){
- let tx=db.transaction("photos","readonly");
- let r=tx.objectStore("photos").getAll();
- r.onsuccess=()=>render(r.result);
-}
-
-// ===== 描画 =====
-function render(list){
-
- let tabs=document.getElementById("tabs");
- let photos=document.getElementById("photos");
-
- tabs.innerHTML="";
- photos.innerHTML="";
-
- let grouped={};
-
- list.forEach(p=>{
-  if(!grouped[p.site])grouped[p.site]=[];
-  grouped[p.site].push(p);
- });
-
- let keys=Object.keys(grouped);
- if(!currentSite) currentSite=keys[0];
-
- keys.forEach(k=>{
-  let t=document.createElement("div");
-  t.className="tab"+(k==currentSite?" active":"");
-  t.textContent=k;
-  t.onclick=()=>{currentSite=k;render(list);};
-  tabs.appendChild(t);
- });
-
- let floors={};
-
- (grouped[currentSite]||[]).forEach(p=>{
-  if(!floors[p.floor])floors[p.floor]=[];
-  floors[p.floor].push(p);
- });
-
- Object.keys(floors).forEach(f=>{
-
-  let title=document.createElement("div");
-  title.className="groupTitle";
-  title.textContent="🏢 "+f;
-  photos.appendChild(title);
-
-  let grid=document.createElement("div");
-  grid.className="grid";
-
-  floors[f].forEach(p=>{
-   let d=document.createElement("div");
-   d.className="card";
-
-   let img=document.createElement("img");
-   img.src=p.img;
-
-   if(selectedIds.includes(p.id)) img.classList.add("sel");
-
-   img.onclick=()=>{
-    if(selectedIds.includes(p.id)){
-     selectedIds=selectedIds.filter(x=>x!==p.id);
-     img.classList.remove("sel");
-    }else{
-     selectedIds.push(p.id);
-     img.classList.add("sel");
-    }
-   };
-
-   d.appendChild(img);
-   grid.appendChild(d);
-  });
-
-  photos.appendChild(grid);
- });
-}
-
-// ===== 削除 =====
-function deleteSelected(){
- if(selectedIds.length===0){alert("選択なし");return;}
- let tx=db.transaction("photos","readwrite");
- let store=tx.objectStore("photos");
- selectedIds.forEach(id=>store.delete(id));
- tx.oncomplete=()=>{selectedIds=[];load();}
-}
-
-// ===== 選択印刷 =====
-function printSelected(){
- if(selectedIds.length===0){alert("選択して");return;}
-
- let tx=db.transaction("photos","readonly");
- let r=tx.objectStore("photos").getAll();
-
- r.onsuccess=()=>{
-  let list=r.result.filter(p=>selectedIds.includes(p.id));
-
-  let w=window.open("");
-  let html="<html><body>";
-
-  list.forEach(p=>{
-   html+=`<img src="${p.img}" style="width:100%;page-break-after:always">`;
-  });
-
-  html+="</body></html>";
-
-  w.document.write(html);
-  w.document.close();
-  w.print();
- };
-}
-
-// ===== ZIP =====
-function downloadZip(){
- let zip=new JSZip();
-
- let tx=db.transaction("photos","readonly");
- let r=tx.objectStore("photos").getAll();
-
- r.onsuccess=()=>{
-  r.result.forEach((p,i)=>{
-   zip.file("p"+i+".jpg",p.img.split(",")[1],{base64:true});
-  });
-
-  zip.generateAsync({type:"blob"}).then(b=>{
-   let a=document.createElement("a");
-   a.href=URL.createObjectURL(b);
-   a.download="photos.zip";
-   a.click();
-  });
- };
-}
-
-// ===== LINE =====
-function shareLine(){
- window.open("https://line.me/R/msg/text/?写真送信");
-}
-
-// ===== 編集 =====
-function editList(type){
- let d=JSON.parse(localStorage[type]||"[]");
- let t=prompt("カンマ区切り",d.join(","));
- if(!t)return;
- localStorage[type]=JSON.stringify(t.split(","));
- loadSelect();
-}
-
-// ===== 初期 =====
-function loadSelect(){
- ["floor","status"].forEach(t=>{
-  let s=document.getElementById(t);
-  s.innerHTML="";
-  let d=JSON.parse(localStorage[t]||"[]");
-
-  if(d.length===0){
-   d=(t==="floor")?["1階","2階","屋上"]:["施工前","施工中","施工後"];
+  function hasIOSBridge() {
+    return !!(window.webkit &&
+              window.webkit.messageHandlers &&
+              window.webkit.messageHandlers[HANDLER_NAME]);
   }
 
-  d.forEach(v=>{
-   let o=document.createElement("option");
-   o.text=v;
-   s.add(o);
+  function hasAndroidBridge() {
+    return !!(window[ANDROID_BRIDGE_NAME] &&
+              typeof window[ANDROID_BRIDGE_NAME].postEvent === 'function');
+  }
+
+  function isInIframe() {
+    return !!(window.parent && window.parent !== window);
+  }
+
+  function sendEvent(eventName, payload) {
+    var message = {
+      type: eventName,
+      payload: payload || {},
+      timestamp: Date.now()
+    };
+
+    if (hasIOSBridge()) {
+      try {
+        window.webkit.messageHandlers[HANDLER_NAME].postMessage(message);
+      } catch (e) { /* ignore */ }
+      return;
+    }
+
+    if (hasAndroidBridge()) {
+    try {
+      var p = payload || {};
+      p.__secureToken = window.__fbAndroidBridgeAuthToken || '';
+      window[ANDROID_BRIDGE_NAME].postEvent(
+        eventName,
+        JSON.stringify(p)
+      );
+    } catch (e) { /* ignore */ }
+    return;
+  }
+
+    if (isInIframe()) {
+      try {
+        window.parent.postMessage(message, '*');
+      } catch (e) { /* ignore */ }
+      return;
+    }
+  }
+
+  // --- rAF Game-Ready Detection ---
+
+  function onFrame() {
+    if (gameReadySent) return;
+
+    frameCount++;
+    if (frameCount >= RAF_FRAME_THRESHOLD) {
+      gameReadySent = true;
+      sendEvent('game_ready', {
+        frame_count: frameCount,
+        detected_at: Date.now()
+      });
+      return;
+    }
+
+    originalRAF.call(window, onFrame);
+  }
+
+  if (originalRAF) {
+    window.requestAnimationFrame = function(callback) {
+      if (!gameReadySent) {
+        return originalRAF.call(window, function(timestamp) {
+          frameCount++;
+          if (frameCount >= RAF_FRAME_THRESHOLD && !gameReadySent) {
+            gameReadySent = true;
+            sendEvent('game_ready', {
+              frame_count: frameCount,
+              detected_at: Date.now()
+            });
+          }
+          callback(timestamp);
+        });
+      }
+      return originalRAF.call(window, callback);
+    };
+  }
+
+  // --- First User Interaction Detection ---
+
+  function setupFirstInteractionDetection() {
+    var events = ['touchstart', 'mousedown', 'keydown'];
+
+    function onFirstInteraction() {
+      if (firstInteractionSent) return;
+      firstInteractionSent = true;
+      sendEvent('user_interaction_start', null);
+
+      for (var i = 0; i < events.length; i++) {
+        document.removeEventListener(events[i], onFirstInteraction, true);
+      }
+    }
+
+    for (var i = 0; i < events.length; i++) {
+      document.addEventListener(events[i], onFirstInteraction, true);
+    }
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', setupFirstInteractionDetection);
+  } else {
+    setupFirstInteractionDetection();
+  }
+
+  // --- Auto Error Capture ---
+
+  window.addEventListener('error', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    sendEvent('error', {
+      message: event.message || 'Unknown error',
+      source: event.filename || '',
+      lineno: event.lineno || 0,
+      colno: event.colno || 0,
+      auto_captured: true
+    });
   });
- });
+
+  window.addEventListener('unhandledrejection', function(event) {
+    if (errorSent) return;
+    errorSent = true;
+    var reason = event.reason;
+    sendEvent('error', {
+      message: (reason instanceof Error) ? reason.message : String(reason),
+      type: 'unhandled_promise_rejection',
+      auto_captured: true
+    });
+  });
+
+  // --- Public API ---
+
+  window.playablesSDK = {
+    complete: function(score) {
+      sendEvent('game_ended', {
+        score: score,
+        completed: true
+      });
+    },
+
+    error: function(message) {
+      if (errorSent) return;
+      errorSent = true;
+      sendEvent('error', {
+        message: message || 'Unknown error',
+        auto_captured: false
+      });
+    },
+
+    sendEvent: function(eventName, payload) {
+      if (!eventName || typeof eventName !== 'string') return;
+      sendEvent(eventName, payload);
+    }
+  };
+
+  // Kick off rAF detection in case no game code calls rAF immediately
+  if (originalRAF) {
+    originalRAF.call(window, onFrame);
+  }
+})();</script>
+<script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>現場カメラ v5</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<style>
+html{font-family:"Noto Sans JP",system-ui,-apple-system,BlinkMacSystemFont,sans-serif}
+*{-webkit-tap-highlight-color:transparent}
+input,textarea{outline:none}
+.pos-grid button.active{box-shadow:inset 0 0 0 2px #2563eb}
+</style>
+</head>
+<body class="bg-[#f6f7fb] text-slate-800 min-h-screen">
+<div class="max-w-[1200px] mx-auto p-3 md:p-6">
+  <header class="flex items-center justify-between mb-5">
+    <h1 class="text-[26px] md:text-3xl font-bold tracking-tight flex items-center gap-2.5">
+      <span class="w-10 h-10 rounded-2xl bg-blue-600 text-white grid place-items-center shadow-lg shadow-blue-600/25">現</span>
+      現場カメラ <span class="text-slate-400 font-medium text-base">v5</span>
+    </h1>
+    <div class="flex gap-2">
+      <button id="btnGallery" class="h-10 px-4 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-sm font-medium shadow-sm">ギャラリー</button>
+      <button id="btnSettings" class="h-10 px-4 rounded-xl bg-slate-900 text-white hover:bg-black text-sm font-semibold shadow-sm">黒板設定</button>
+    </div>
+  </header>
+
+  <div id="cameraView">
+    <section class="bg-white/90 backdrop-blur-xl rounded-3xl border border-slate-200 shadow-sm p-4 mb-4">
+      <div class="grid md:grid-cols-3 gap-3">
+        <div>
+          <label class="text-[11px] text-slate-500 font-medium">工事名</label>
+          <input id="inpProject" placeholder="例）〇〇ビル新築工事" class="mt-1 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white">
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-500 font-medium">工種</label>
+          <input id="inpWork" placeholder="例）配筋検査" class="mt-1 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white">
+        </div>
+        <div>
+          <label class="text-[11px] text-slate-500 font-medium">備考・測点</label>
+          <input id="inpNote" placeholder="例）3F スラブ中央" class="mt-1 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 bg-white">
+        </div>
+      </div>
+    </section>
+
+    <div class="grid lg:grid-cols-3 gap-4">
+      <div class="lg:col-span-2">
+        <div class="relative bg-black rounded-3xl overflow-hidden shadow-xl aspect-[4/3]">
+          <video id="video" autoplay playsinline muted class="absolute inset-0 w-full h-full object-cover"></video>
+          <img id="previewImg" class="absolute inset-0 w-full h-full object-contain hidden bg-black" alt="">
+          <div id="noCamera" class="absolute inset-0 hidden place-items-center text-white/80 text-center p-8">
+            <div>
+              <div class="text-5xl mb-3">📷</div>
+              <p class="leading-relaxed">カメラが利用できません<br>「画像を選択」からアップロードできます</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="space-y-3">
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-5">
+          <div class="flex items-center justify-between mb-3">
+            <h2 class="font-bold">撮影</h2>
+            <span id="settingsSummary" class="text-[11px] px-2.5 py-1 rounded-lg bg-slate-100 text-slate-600 font-medium">右下・中・100%</span>
+          </div>
+          <button id="btnCapture" class="w-full h-[56px] rounded-2xl bg-blue-600 hover:bg-blue-700 active:scale-[0.99] text-white font-bold shadow-lg shadow-blue-600/20 flex items-center justify-center gap-2 transition">
+            <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 8V6a2 2 0 0 1 2-2h2M8 4h8M16 4h2a2 2 0 0 1 2 2v2M20 12a8 8 0 1 1-16 0 8 8 0 0 1 16 0Z"/><circle cx="12" cy="12" r="3" fill="currentColor" stroke="none"/></svg>
+            撮影する
+          </button>
+          <div id="afterCapture" class="hidden grid grid-cols-2 gap-2 mt-2.5">
+            <button id="btnRetake" class="h-12 rounded-xl bg-slate-100 hover:bg-slate-200 font-semibold">再撮影</button>
+            <button id="btnSave" class="h-12 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold">保存</button>
+          </div>
+          <div class="grid grid-cols-2 gap-2 mt-3">
+            <button id="btnSwitch" class="h-11 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-medium">カメラ切替</button>
+            <label class="h-11 rounded-xl border border-slate-200 hover:bg-slate-50 text-sm font-medium grid place-items-center cursor-pointer">
+              画像を選択
+              <input id="fileInput" type="file" accept="image/*" class="hidden">
+            </label>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-3">黒板は撮影時に自動合成。位置とサイズは黒板設定で変更。</p>
+        </div>
+        <div class="bg-white rounded-3xl border border-slate-200 shadow-sm p-4">
+          <h3 class="font-semibold text-sm mb-2">クイックガイド</h3>
+          <ol class="text-xs text-slate-600 space-y-1.5 list-decimal list-inside">
+            <li>工事名・工種を入力</li>
+            <li>黒板設定で会社・担当・位置を設定</li>
+            <li>撮影 → プレビュー → 保存</li>
+            <li>ギャラリーでZIP一括出力</li>
+          </ol>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="galleryView" class="hidden">
+    <div class="flex items-center justify-between mb-4">
+      <div class="flex items-center gap-3">
+        <button id="btnBackCamera" class="w-9 h-9 grid place-items-center rounded-xl bg-white border border-slate-200 hover:bg-slate-50">←</button>
+        <h2 class="text-xl font-bold">ギャラリー <span id="photoCount" class="ml-1 text-base font-medium text-slate-400">0枚</span></h2>
+      </div>
+      <div class="flex gap-2">
+        <button id="btnDownloadAll" class="h-10 px-4 rounded-xl bg-slate-900 text-white text-sm font-semibold hover:bg-black">ZIPダウンロード</button>
+        <button id="btnClearAll" class="h-10 px-3 rounded-xl bg-white border border-slate-200 text-sm hover:bg-red-50 hover:text-red-600 hover:border-red-200">全削除</button>
+      </div>
+    </div>
+    <div id="galleryGrid" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3"></div>
+    <div id="emptyGallery" class="hidden text-center py-24 text-slate-500">
+      <div class="text-6xl mb-4">🖼️</div>
+      <p>まだ写真がありません</p>
+    </div>
+  </div>
+</div>
+
+<!-- Settings -->
+<div id="settingsModal" class="fixed inset-0 z-[100] hidden">
+  <div id="settingsBackdrop" class="absolute inset-0 bg-slate-900/60 backdrop-blur-xl"></div>
+  <div class="relative w-full max-w-xl mx-auto mt-4 md:mt-10 p-3">
+    <div class="bg-white rounded-[28px] shadow-2xl max-h-[92vh] flex flex-col overflow-hidden">
+      <div class="px-6 pt-5 pb-4 border-b border-slate-100 flex items-center justify-between">
+        <h3 class="text-[20px] font-bold">黒板設定</h3>
+        <button id="btnCloseSettings" class="w-8 h-8 grid place-items-center rounded-full hover:bg-slate-100 text-slate-500">✕</button>
+      </div>
+      <div class="p-6 overflow-y-auto space-y-6">
+        <div class="grid sm:grid-cols-2 gap-4">
+          <div>
+            <label class="text-xs text-slate-500">会社名</label>
+            <input id="setCompany" placeholder="〇〇建設株式会社" class="mt-1 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">
+          </div>
+          <div>
+            <label class="text-xs text-slate-500">担当者</label>
+            <input id="setPerson" placeholder="山田 太郎" class="mt-1 w-full px-3.5 py-2.5 rounded-xl border border-slate-300 focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20">
+          </div>
+        </div>
+
+        <div class="grid sm:grid-cols-2 gap-6">
+          <fieldset>
+            <legend class="text-xs text-slate-500 mb-2">サイズ</legend>
+            <div class="grid grid-cols-3 gap-2">
+              <label><input type="radio" name="size" value="small" class="sr-only peer"><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 font-semibold cursor-pointer">小</div></label>
+              <label><input type="radio" name="size" value="medium" class="sr-only peer" checked><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 font-semibold cursor-pointer">中</div></label>
+              <label><input type="radio" name="size" value="large" class="sr-only peer"><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 font-semibold cursor-pointer">大</div></label>
+            </div>
+          </fieldset>
+          <fieldset>
+            <legend class="text-xs text-slate-500 mb-2">不透明度</legend>
+            <div class="grid grid-cols-4 gap-2">
+              <label><input type="radio" name="opacity" value="100" class="sr-only peer" checked><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-sm font-medium cursor-pointer">100</div></label>
+              <label><input type="radio" name="opacity" value="70" class="sr-only peer"><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-sm font-medium cursor-pointer">70</div></label>
+              <label><input type="radio" name="opacity" value="50" class="sr-only peer"><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-sm font-medium cursor-pointer">50</div></label>
+              <label><input type="radio" name="opacity" value="30" class="sr-only peer"><div class="peer-checked:bg-blue-600 peer-checked:text-white peer-checked:border-blue-600 text-center py-2.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-sm font-medium cursor-pointer">30</div></label>
+            </div>
+          </fieldset>
+        </div>
+
+        <fieldset>
+          <legend class="text-xs text-slate-500 mb-2">位置</legend>
+          <div class="pos-grid grid grid-cols-3 gap-2 w-[216px]">
+            <button type="button" data-pos="top-left" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">↖</button>
+            <button type="button" data-pos="top" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">↑</button>
+            <button type="button" data-pos="top-right" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">↗</button>
+            <button type="button" data-pos="left" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">←</button>
+            <button type="button" data-pos="center" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">●</button>
+            <button type="button" data-pos="right" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">→</button>
+            <button type="button" data-pos="bottom-left" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">↙</button>
+            <button type="button" data-pos="bottom" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">↓</button>
+            <button type="button" data-pos="bottom-right" class="pos-btn aspect-square rounded-2xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-xl">↘</button>
+          </div>
+          <p class="text-[11px] text-slate-500 mt-2">9点から選択。既定は右下。</p>
+        </fieldset>
+
+        <div>
+          <label class="text-xs text-slate-500 mb-2 block">インタラクティブプレビュー</label>
+          <div class="bg-slate-950 rounded-2xl p-2.5">
+            <canvas id="previewCanvas" width="800" height="600" class="w-full h-auto rounded-xl"></canvas>
+          </div>
+        </div>
+      </div>
+      <div class="px-6 py-4 bg-slate-50 border-t border-slate-200 flex justify-end gap-2">
+        <button id="btnCancelSettings" class="px-5 h-11 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 font-medium">キャンセル</button>
+        <button id="btnSaveSettings" class="px-6 h-11 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow">保存</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const video = $('#video'), previewImg = $('#previewImg'), noCamera = $('#noCamera');
+let stream = null, currentFacing = 'environment', db = null, currentBlob = null, tempMeta = null;
+const DB_NAME='genba-v5', STORE='photos';
+const posBtns = document.querySelectorAll('.pos-grid button');
+
+function getBBSettings(){
+  try{
+    const v = JSON.parse(localStorage.getItem('bbSettings')||'{}');
+    return {company:v.company||'', person:v.person||'', size:v.size||'medium', opacity:v.opacity||'100', position:v.position||'bottom-right'};
+  }catch{ return {company:'',person:'',size:'medium',opacity:'100',position:'bottom-right'} }
+}
+function saveBB(s){ localStorage.setItem('bbSettings', JSON.stringify(s)); }
+
+function toast(msg){
+  const t=document.createElement('div');
+  t.className='fixed bottom-6 left-1/2 -translate-x-1/2 bg-slate-900 text-white px-4 py-2.5 rounded-2xl shadow-xl z-[200] text-sm font-medium';
+  t.textContent=msg; document.body.appendChild(t);
+  setTimeout(()=>{t.style.transition='opacity .3s'; t.style.opacity='0'; setTimeout(()=>t.remove(),300)},2000);
 }
 
-initDB();
-loadSelect();
+function roundRect(ctx,x,y,w,h,r){ctx.beginPath();ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();}
+function drawBlackboard(ctx,x,y,w,h,data,settings){
+  ctx.save();
+  const opacity = parseInt(settings.opacity||'100')/100;
+  ctx.globalAlpha = opacity;
+  ctx.fillStyle='#0c2516';
+  const r=Math.max(10, w*0.02); roundRect(ctx,x,y,w,h,r); ctx.fill();
+  ctx.globalAlpha=Math.min(1,opacity+0.1);
+  ctx.strokeStyle='#fff'; ctx.lineWidth=Math.max(3,w*0.012); roundRect(ctx,x,y,w,h,r); ctx.stroke();
+  ctx.lineWidth=Math.max(1.5,w*0.004); ctx.beginPath();
+  const rowH=h/4;
+  for(let i=1;i<4;i++){ctx.moveTo(x,y+i*rowH);ctx.lineTo(x+w,y+i*rowH);}
+  const colX=x+w*0.26; ctx.moveTo(colX,y);ctx.lineTo(colX,y+h);
+  ctx.moveTo(x+w*0.5,y+rowH*3);ctx.lineTo(x+w*0.5,y+h); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.textBaseline='middle'; ctx.shadowColor='rgba(0,0,0,.35)'; ctx.shadowBlur=w*0.01;
+  const pad=w*0.022, fs=w*0.058;
+  const labels=['工事名','工種','備考'], values=[data.project||'',data.work||'',data.note||''];
+  for(let i=0;i<3;i++){const cy=y+rowH*(i+0.5); ctx.font=`600 ${fs*0.88}px "Noto Sans JP",system-ui`; ctx.fillText(labels[i],x+pad,cy); ctx.font=`500 ${fs}px "Noto Sans JP",system-ui`; ctx.fillText(values[i],colX+pad,cy,w-colX-pad*2);}
+  const by=y+rowH*3+rowH/2; ctx.font=`${fs*0.84}px "Noto Sans JP"`; ctx.fillText(data.date||'',x+pad,by);
+  ctx.fillText(data.company||'',x+w*0.5+pad,by-rowH*0.22,w*0.48); ctx.font=`${fs*0.76}px "Noto Sans JP"`; ctx.globalAlpha=opacity*0.9; ctx.fillText(data.person||'',x+w*0.5+pad,by+rowH*0.22,w*0.48);
+  ctx.restore();
+}
+function blobToImage(blob){return new Promise(res=>{const i=new Image();i.onload=()=>res(i);i.src=URL.createObjectURL(blob);});}
 
+async function compositeBlackboard(imgBlob, data){
+  const img = await blobToImage(imgBlob);
+  const canvas=document.createElement('canvas'); canvas.width=img.naturalWidth; canvas.height=img.naturalHeight;
+  const ctx=canvas.getContext('2d'); ctx.drawImage(img,0,0);
+  const settings=getBBSettings();
+  const scale={small:0.35,medium:0.45,large:0.55}[settings.size]||0.45;
+  const boardW=canvas.width*scale, boardH=boardW*0.65, margin=canvas.width*0.02;
+  const positions = {
+    'top-left': {x: margin, y: margin},
+    'top': {x: (canvas.width - boardW)/2, y: margin},
+    'top-right': {x: canvas.width - boardW - margin, y: margin},
+    'left': {x: margin, y: (canvas.height - boardH)/2},
+    'center': {x: (canvas.width - boardW)/2, y: (canvas.height - boardH)/2},
+    'right': {x: canvas.width - boardW - margin, y: (canvas.height - boardH)/2},
+    'bottom-left': {x: margin, y: canvas.height - boardH - margin},
+    'bottom': {x: (canvas.width - boardW)/2, y: canvas.height - boardH - margin},
+    'bottom-right': {x: canvas.width - boardW - margin, y: canvas.height - boardH - margin}
+  };
+  const pos = positions[settings.position || 'bottom-right'];
+  const x=pos.x; const y=pos.y;
+  drawBlackboard(ctx,x,y,boardW,boardH,data,settings);
+  return new Promise(r=>canvas.toBlob(r,'image/jpeg',0.88));
+}
+
+function initDB(){return new Promise((res,rej)=>{const r=indexedDB.open(DB_NAME,1);r.onupgradeneeded=e=>{const d=e.target.result;if(!d.objectStoreNames.contains(STORE)){d.createObjectStore(STORE,{keyPath:'id',autoIncrement:true})}};r.onsuccess=e=>{db=e.target.result;res()};r.onerror=rej;});}
+function addPhoto(blob,thumb,meta){return new Promise((res,rej)=>{const tx=db.transaction(STORE,'readwrite');const q=tx.objectStore(STORE).add({blob,thumb,...meta});q.onsuccess=()=>res(q.result);q.onerror=rej;});}
+function getAllPhotos(){return new Promise(res=>{const tx=db.transaction(STORE,'readonly');const q=tx.objectStore(STORE).getAll();q.onsuccess=()=>res(q.result||[]);});}
+function deletePhoto(id){return new Promise(res=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).delete(id).onsuccess=()=>res();});}
+function clearAll(){return new Promise(res=>{const tx=db.transaction(STORE,'readwrite');tx.objectStore(STORE).clear().onsuccess=()=>res();});}
+
+async function startCamera(){stopCamera();try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:currentFacing},width:{ideal:1920},height:{ideal:1440}},audio:false});video.srcObject=stream;await video.play();noCamera.classList.add('hidden');noCamera.classList.remove('grid');}catch(e){noCamera.classList.remove('hidden');noCamera.classList.add('grid');}}
+function stopCamera(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null;}}
+
+function showLive(){previewImg.classList.add('hidden');video.classList.remove('hidden');$('#btnCapture').classList.remove('hidden');$('#afterCapture').classList.add('hidden');if(previewImg.src)URL.revokeObjectURL(previewImg.src);currentBlob=null;}
+function showPreview(blob){previewImg.src=URL.createObjectURL(blob);previewImg.classList.remove('hidden');video.classList.add('hidden');$('#btnCapture').classList.add('hidden');$('#afterCapture').classList.remove('hidden');}
+
+async function handleCapture(){
+  if(!video.videoWidth){toast('カメラ準備中');return;}
+  const c=document.createElement('canvas');c.width=video.videoWidth;c.height=video.videoHeight;c.getContext('2d').drawImage(video,0,0);
+  const raw=await new Promise(r=>c.toBlob(r,'image/jpeg',0.92));
+  const s=getBBSettings(); const data={project:$('#inpProject').value.trim(),work:$('#inpWork').value.trim(),note:$('#inpNote').value.trim(),date:new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit'}),company:s.company,person:s.person};
+  const finalBlob=await compositeBlackboard(raw,data); currentBlob=finalBlob; tempMeta={...data,createdAt:Date.now()}; showPreview(finalBlob);
+}
+async function saveCurrent(){
+  if(!currentBlob)return;
+  const img=await blobToImage(currentBlob); const tw=900, th=Math.round(img.height*tw/img.width);
+  const c=document.createElement('canvas');c.width=tw;c.height=th;c.getContext('2d').drawImage(img,0,0,tw,th);
+  const thumb=await new Promise(r=>c.toBlob(r,'image/jpeg',0.78));
+  await addPhoto(currentBlob,thumb,tempMeta); toast('保存しました'); showLive();
+}
+
+function saveForm(){localStorage.setItem('genbaForm',JSON.stringify({project:$('#inpProject').value,work:$('#inpWork').value,note:$('#inpNote').value}));}
+function loadForm(){try{const f=JSON.parse(localStorage.getItem('genbaForm')||'{}');$('#inpProject').value=f.project||'';$('#inpWork').value=f.work||'';$('#inpNote').value=f.note||'';}catch{}}
+
+function updateSettingsSummary(){const s=getBBSettings();const p={ 'top-left':'左上',top:'上','top-right':'右上',left:'左',center:'中央',right:'右','bottom-left':'左下',bottom:'下','bottom-right':'右下'};const z={small:'小',medium:'中',large:'大'};$('#settingsSummary').textContent=`${p[s.position]}・${z[s.size]}・${s.opacity}%`;}
+
+function updatePreview(){
+  const cv=$('#previewCanvas'),ctx=cv.getContext('2d'),w=cv.width,h=cv.height;
+  const grad=ctx.createLinearGradient(0,0,0,h);grad.addColorStop(0,'#334155');grad.addColorStop(1,'#0f172a');ctx.fillStyle=grad;ctx.fillRect(0,0,w,h);
+  ctx.fillStyle='#1e293b';ctx.fillRect(0,h*0.55,w,h*0.45);
+  ctx.fillStyle='#475569';for(let i=0;i<5;i++)ctx.fillRect(w*0.12+i*w*0.16,h*0.32,w*0.1,h*0.22);
+  const size=document.querySelector('input[name="size"]:checked').value; const opacity=document.querySelector('input[name="opacity"]:checked').value;
+  const company=$('#setCompany').value, person=$('#setPerson').value;
+  const pos=document.querySelector('.pos-grid button.active')?.dataset.pos||'bottom-right';
+  const settings={size,opacity,position:pos};
+  const data={project:'〇〇ビル新築工事',work:'配筋検査',note:'3FL スラブ',date:new Date().toLocaleDateString('ja-JP'),company:company||'山田建設',person:person||'田中'};
+  const scale={small:0.35,medium:0.45,large:0.55}[size]; const bw=w*scale, bh=bw*0.65, m=w*0.02;
+  const positions={'top-left':{x:m,y:m},top:{x:(w-bw)/2,y:m},'top-right':{x:w-bw-m,y:m},left:{x:m,y:(h-bh)/2},center:{x:(w-bw)/2,y:(h-bh)/2},right:{x:w-bw-m,y:(h-bh)/2},'bottom-left':{x:m,y:h-bh-m},bottom:{x:(w-bw)/2,y:h-bh-m},'bottom-right':{x:w-bw-m,y:h-bh-m}};
+  const p=positions[pos]; drawBlackboard(ctx,p.x,p.y,bw,bh,data,settings);
+}
+
+function openSettings(){
+  const s=getBBSettings(); $('#setCompany').value=s.company; $('#setPerson').value=s.person;
+  document.querySelector(`input[name="size"][value="${s.size}"]`).checked=true;
+  document.querySelector(`input[name="opacity"][value="${s.opacity}"]`).checked=true;
+  posBtns.forEach(b=>{const on=b.dataset.pos===s.position; b.classList.toggle('active',on); b.classList.toggle('bg-blue-600',on); b.classList.toggle('text-white',on); b.classList.toggle('border-blue-600',on);});
+  $('#settingsModal').classList.remove('hidden'); updatePreview();
+}
+function closeSettings(){$('#settingsModal').classList.add('hidden');}
+
+async function renderGallery(){
+  const photos=await getAllPhotos(); const grid=$('#galleryGrid'); grid.innerHTML=''; $('#photoCount').textContent=`${photos.length}枚`;
+  $('#emptyGallery').classList.toggle('hidden',photos.length>0);
+  photos.sort((a,b)=>b.createdAt-a.createdAt);
+  for(const p of photos){
+    const url=URL.createObjectURL(p.thumb||p.blob);
+    const d=new Date(p.createdAt);
+    const el=document.createElement('div'); el.className='group relative bg-white rounded-2xl overflow-hidden border border-slate-200 shadow-sm';
+    el.innerHTML=`<img src="${url}" class="w-full aspect-[4/3] object-cover"><div class="p-3"><div class="text-[13px] font-semibold truncate">${p.project||'無題'}</div><div class="text-[11px] text-slate-500 mt-0.5">${d.toLocaleDateString('ja-JP')} ${p.work||''}</div></div><div class="absolute top-2 right-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition"><button data-dl="${p.id}" class="w-8 h-8 grid place-items-center rounded-lg bg-black/70 text-white hover:bg-black">↓</button><button data-del="${p.id}" class="w-8 h-8 grid place-items-center rounded-lg bg-red-600/90 text-white hover:bg-red-600">×</button></div>`;
+    grid.appendChild(el);
+  }
+  grid.querySelectorAll('[data-dl]').forEach(b=>b.onclick=async()=>{const id=+b.dataset.dl;const ph=(await getAllPhotos()).find(x=>x.id===id);const a=document.createElement('a');a.href=URL.createObjectURL(ph.blob);a.download=`genba_${id}.jpg`;a.click();});
+  grid.querySelectorAll('[data-del]').forEach(b=>b.onclick=async()=>{if(confirm('削除しますか？')){await deletePhoto(+b.dataset.del);renderGallery();}});
+}
+async function downloadAll(){
+  const photos=await getAllPhotos(); if(!photos.length){toast('写真がありません');return;}
+  const zip=new JSZip(); const folder=zip.folder('現場写真');
+  photos.sort((a,b)=>a.createdAt-b.createdAt);
+  for(let i=0;i<photos.length;i++){const p=photos[i]; const d=new Date(p.createdAt); const name=`${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}_${String(d.getHours()).padStart(2,'0')}${String(d.getMinutes()).padStart(2,'0')}_${(p.project||'').replace(/[\\/:*?"<>|]/g,'')||'photo'}.jpg`; folder.file(name,p.blob);}
+  toast('ZIPを作成中...'); const blob=await zip.generateAsync({type:'blob'}); const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`現場写真_${new Date().toISOString().slice(0,10)}.zip`;a.click();
+}
+
+document.addEventListener('DOMContentLoaded', async ()=>{
+  await initDB(); await startCamera(); loadForm(); updateSettingsSummary();
+  ['inpProject','inpWork','inpNote'].forEach(id=>$('#'+id).addEventListener('input',saveForm));
+  $('#btnCapture').onclick=handleCapture; $('#btnRetake').onclick=showLive; $('#btnSave').onclick=saveCurrent;
+  $('#btnSwitch').onclick=async()=>{currentFacing=currentFacing==='environment'?'user':'environment'; await startCamera();};
+  $('#fileInput').onchange=async e=>{const f=e.target.files[0]; if(!f)return; const s=getBBSettings(); const data={project:$('#inpProject').value.trim(),work:$('#inpWork').value.trim(),note:$('#inpNote').value.trim(),date:new Date().toLocaleDateString('ja-JP'),company:s.company,person:s.person}; const out=await compositeBlackboard(f,data); currentBlob=out; tempMeta={...data,createdAt:Date.now()}; showPreview(out); e.target.value='';};
+  $('#btnSettings').onclick=openSettings; $('#btnCloseSettings').onclick=closeSettings; $('#settingsBackdrop').onclick=closeSettings; $('#btnCancelSettings').onclick=closeSettings;
+  $('#btnSaveSettings').onclick=()=>{const s={company:$('#setCompany').value.trim(),person:$('#setPerson').value.trim(),size:document.querySelector('input[name="size"]:checked').value,opacity:document.querySelector('input[name="opacity"]:checked').value,position:document.querySelector('.pos-grid button.active').dataset.pos}; saveBB(s); updateSettingsSummary(); closeSettings(); toast('黒板設定を保存');};
+  posBtns.forEach(b=>b.onclick=()=>{posBtns.forEach(x=>{x.classList.remove('active','bg-blue-600','text-white','border-blue-600');}); b.classList.add('active','bg-blue-600','text-white','border-blue-600'); updatePreview();});
+  ['setCompany','setPerson'].forEach(id=>$('#'+id).addEventListener('input',updatePreview));
+  document.querySelectorAll('input[name="size"],input[name="opacity"]').forEach(r=>r.addEventListener('change',updatePreview));
+  $('#btnGallery').onclick=async()=>{stopCamera();$('#cameraView').classList.add('hidden');$('#galleryView').classList.remove('hidden');await renderGallery();};
+  $('#btnBackCamera').onclick=()=>{$('#galleryView').classList.add('hidden');$('#cameraView').classList.remove('hidden');startCamera();};
+  $('#btnDownloadAll').onclick=downloadAll;
+  $('#btnClearAll').onclick=async()=>{if(confirm('全ての写真を削除しますか？')){await clearAll();await renderGallery();toast('削除しました');}};
+});
 </script>
-
 </body>
 </html>
