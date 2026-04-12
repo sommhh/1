@@ -1,14 +1,13 @@
 <script>
 'use strict';
 
-/* =========================
-   基本
-========================= */
+/* ========= 基本 ========= */
 var $=s=>document.querySelector(s);
 var $$=s=>[...document.querySelectorAll(s)];
 
 function toast(m){
   let t=$('#toast');
+  if(!t) return;
   t.textContent=m;
   t.classList.add('show');
   setTimeout(()=>t.classList.remove('show'),1500);
@@ -18,14 +17,12 @@ function uid(){
   return Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 }
 
-/* =========================
-   DB
-========================= */
+/* ========= DB ========= */
 var db,sites=[],cur=null,photos=[],sel=new Set(),floor='1階';
 
 function openDB(){
   return new Promise(res=>{
-    let r=indexedDB.open('genba_v20',2);
+    let r=indexedDB.open('genba_v21',3);
 
     r.onupgradeneeded=e=>{
       let d=e.target.result;
@@ -63,18 +60,17 @@ function del(n,id){
 
 function bySite(id){
   return new Promise(r=>{
-    tx('photos').index('siteId').getAll(id).onsuccess=e=>r(e.target.result||[]);
+    tx('photos').index('siteId').getAll(id)
+      .onsuccess=e=>r(e.target.result||[]);
   });
 }
 
-/* =========================
-   AI分類（安全）
-========================= */
+/* ========= AI分類 ========= */
 function aiDetectFloor(c){
   let d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
   let bright=0;
 
-  for(let i=0;i<d.length;i+=40){
+  for(let i=0;i<d.length;i+=80){
     bright+=(d[i]+d[i+1]+d[i+2])/3;
   }
 
@@ -89,22 +85,21 @@ function aiDetectStatus(c){
   let d=c.getContext('2d').getImageData(0,0,c.width,c.height).data;
   let edge=0;
 
-  for(let i=0;i<d.length;i+=80){
+  for(let i=0;i<d.length;i+=100){
     if(d[i]+d[i+1]+d[i+2]>600) edge++;
   }
 
-  if(edge<2000) return '施工前';
-  if(edge<5000) return '施工中';
+  if(edge<1500) return '施工前';
+  if(edge<4000) return '施工中';
   return '施工後';
 }
 
-/* =========================
-   Blob + サムネ
-========================= */
+/* ========= Blob変換 ========= */
 function canvasToBlob(c){
   return new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
 }
 
+/* ========= サムネ ========= */
 function makeThumb(c){
   let t=document.createElement('canvas');
   let size=300;
@@ -118,19 +113,23 @@ function makeThumb(c){
 
   let nw=w*s,nh=h*s;
 
+  ctx.fillStyle="#000";
   ctx.fillRect(0,0,size,size);
   ctx.drawImage(c,(size-nw)/2,(size-nh)/2,nw,nh);
 
   return t.toDataURL('image/jpeg',0.6);
 }
 
-/* =========================
-   撮影
-========================= */
+/* ========= 撮影 ========= */
 async function takePhoto(){
 
+  if(!cur){
+    toast('現場未選択');
+    return;
+  }
+
   let v=$('#vid');
-  if(!v.videoWidth) return;
+  if(!v || !v.videoWidth) return;
 
   let c=document.createElement('canvas');
   c.width=v.videoWidth;
@@ -139,12 +138,15 @@ async function takePhoto(){
   let ctx=c.getContext('2d');
   ctx.drawImage(v,0,0);
 
-  // AI
   let aiF=aiDetectFloor(c);
   let aiS=aiDetectStatus(c);
 
-  let finalFloor = floor || aiF;
-  let finalStatus = $('#stat')?.value || aiS;
+  let statEl=document.getElementById('stat');
+  let noteEl=document.getElementById('note');
+
+  let finalFloor=floor || aiF;
+  let finalStatus=statEl ? statEl.value : aiS;
+  let finalNote=noteEl ? noteEl.value : '';
 
   let blob=await canvasToBlob(c);
   let thumb=makeThumb(c);
@@ -154,6 +156,7 @@ async function takePhoto(){
     siteId:cur.id,
     floor:finalFloor,
     status:finalStatus,
+    note:finalNote,
     ts:Date.now(),
     blob:blob,
     thumb:thumb
@@ -166,24 +169,32 @@ async function takePhoto(){
   }
 }
 
-/* =========================
-   表示（高速）
-========================= */
+/* ========= 表示 ========= */
 function renderPhotos(){
 
   let g=$('#grid');
+  if(!g) return;
+
   g.innerHTML='';
 
   let list=photos.filter(p=>p.floor===floor);
 
   list.forEach(p=>{
+
     let d=document.createElement('div');
     d.className='pic';
 
     let img=document.createElement('img');
 
-    if(p.thumb) img.src=p.thumb;
-    else img.src=p.data;
+    if(p.thumb){
+      img.src=p.thumb;
+    }else if(p.blob){
+      let url=URL.createObjectURL(p.blob);
+      img.src=url;
+      img.onload=()=>URL.revokeObjectURL(url);
+    }else{
+      img.src=p.data;
+    }
 
     d.onclick=()=>{
       if(p.blob){
@@ -200,9 +211,7 @@ function renderPhotos(){
   });
 }
 
-/* =========================
-   ZIP
-========================= */
+/* ========= ZIP ========= */
 async function exportZip(list){
 
   if(!window.JSZip){
@@ -238,10 +247,10 @@ async function exportZip(list){
   setTimeout(()=>URL.revokeObjectURL(url),2000);
 }
 
-/* =========================
-   現場削除（完全）
-========================= */
+/* ========= 現場削除 ========= */
 async function deleteSite(){
+
+  if(!cur) return;
 
   if(!confirm('現場ごと削除しますか？')) return;
 
@@ -261,7 +270,7 @@ async function deleteSite(){
   cur=sites[0]||null;
 
   if(cur){
-    loadSite();
+    location.reload();
   }else{
     location.reload();
   }
@@ -269,9 +278,7 @@ async function deleteSite(){
   toast('完全削除');
 }
 
-/* =========================
-   初期化
-========================= */
+/* ========= 初期化 ========= */
 async function init(){
   db=await openDB();
 }
