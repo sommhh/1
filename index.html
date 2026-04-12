@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>現場カメラ</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,-apple-system,sans-serif;background:#0f172a;color:#e2e8f0}
+header{position:sticky;top:0;background:#0f172aee;backdrop-filter:blur(10px);border-bottom:1px solid #1e293b;z-index:50}
+.bar{padding:12px 16px;display:flex;gap:10px;align-items:center}
+h1{font-size:18px;font-weight:700}
+.btn{padding:8px 14px;background:#1e293b;border:1px solid #334155;border-radius:8px;font-weight:600;font-size:14px;cursor:pointer;color:#e2e8f0}
+.btn:active{opacity:.7}
+.btn.pri{background:#2563eb;border-color:#3b82f6;color:white}
+.site{display:flex;gap:8px;align-items:center;padding:0 16px 12px;font-size:13px;border-top:1px solid #0f172a}
+.site .name{font-weight:700;max-width:35%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.site .addr{opacity:.6;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+main{padding:16px;max-width:900px;margin:0 auto;padding-bottom:100px}
+.card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:14px;margin-bottom:14px}
+.row{display:flex;gap:8px;margin-bottom:8px}
+.row:last-child{margin-bottom:0}
+select,input{flex:1;padding:10px;background:#0f172a;border:1px solid #334155;border-radius:8px;color:#e2e8f0;font-size:14px}
+label{display:flex;align-items:center;gap:8px;padding:10px;background:#0f172a;border:1px solid #334155;border-radius:8px;font-size:14px;cursor:pointer;user-select:none}
+label input{width:18px;height:18px;flex:none}
+.tabs{display:flex;gap:6px;overflow:auto;padding-bottom:10px;scrollbar-width:none}
+.tabs::-webkit-scrollbar{display:none}
+.tab{padding:7px 14px;background:#0f172a;border:1px solid #334155;border-radius:20px;font-size:13px;white-space:nowrap;cursor:pointer;flex-shrink:0}
+.tab.on{background:#2563eb;border-color:#3b82f6;color:white}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+@media(min-width:640px){.grid{grid-template-columns:repeat(4,1fr)}}
+.pic{position:relative;aspect-ratio:1;background:#0f172a;border:1px solid #334155;border-radius:10px;overflow:hidden;cursor:pointer}
+.pic img{width:100%;height:100%;object-fit:cover;display:block}
+.pic .chk{position:absolute;top:6px;left:6px;width:22px;height:22px;border-radius:6px;background:rgba(0,0,0,.7);border:2px solid #fff;display:none;place-items:center;font-size:13px;font-weight:700}
+.pic.sel .chk{display:grid;background:#2563eb;border-color:#2563eb}
+.pic.sel{outline:2px solid #2563eb}
+.pic .meta{position:absolute;bottom:0;left:0;right:0;padding:5px 6px;background:linear-gradient(transparent,rgba(0,0,0,.85));font-size:10px;display:flex;justify-content:space-between}
+.empty{padding:50px 20px;text-align:center;opacity:.5}
+footer{position:fixed;bottom:0;left:0;right:0;background:#0f172aee;backdrop-filter:blur(10px);border-top:1px solid #1e293b;padding:10px 16px calc(10px + env(safe-area-inset-bottom));z-index:40}
+.acts{display:flex;gap:8px;max-width:900px;margin:0 auto}
+.acts .btn{flex:1;text-align:center;padding:10px 4px;font-size:12px}
+.acts .btn div{font-size:20px;margin-bottom:2px}
+.sheet{position:fixed;inset:0;z-index:100;display:none}
+.sheet.show{display:block}
+.sheet .bg{position:absolute;inset:0;background:rgba(0,0,0,.7)}
+.sheet .box{position:absolute;left:0;right:0;bottom:0;background:#1e293b;border-top:1px solid #334155;border-radius:16px 16px 0 0;max-height:85vh;display:flex;flex-direction:column}
+.sheet .hd{padding:16px;font-weight:700;border-bottom:1px solid #334155}
+.sheet .bd{padding:16px;overflow:auto;flex:1}
+.sheet .ft{padding:12px 16px;display:flex;gap:8px;border-top:1px solid #334155}
+.item{padding:12px;background:#0f172a;border:1px solid #334155;border-radius:10px;margin-bottom:8px;cursor:pointer}
+.item.on{border-color:#3b82f6;background:#1e3a8a}
+.item .t{font-weight:600;margin-bottom:3px}
+.item .s{font-size:12px;opacity:.6}
+.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#334155;padding:10px 16px;border-radius:8px;font-weight:600;font-size:14px;opacity:0;transition:.2s;pointer-events:none;z-index:200;white-space:nowrap}
+.toast.show{opacity:1}
+.hidden{display:none}
+.field{margin-bottom:12px}
+.field label{display:block;font-size:12px;opacity:.7;margin-bottom:4px;font-weight:600}
+.pos{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pos button{aspect-ratio:1;background:#0f172a;border:1px solid #334155;border-radius:8px;font-size:20px;cursor:pointer}
+.pos button.on{background:#2563eb;border-color:#3b82f6}
+.preview{aspect-ratio:4/3;background:#000;border-radius:8px;margin:8px 0;position:relative;overflow:hidden;border:1px solid #334155}
+.preview canvas{width:100%;height:100%;object-fit:contain}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="bar">
+    <h1>現場カメラ</h1>
+    <div style="flex:1"></div>
+    <button class="btn pri" id="gps">📍 GPS</button>
+    <button class="btn" id="sites">📁 現場</button>
+  </div>
+  <div class="site" id="sitebar" style="display:none">
+    <div class="name" id="sname"></div>
+    <div class="addr" id="saddr"></div>
+    <button class="btn" style="padding:4px 8px;font-size:12px" id="esite">編集</button>
+  </div>
+</header>
+
+<main>
+  <div class="tabs" id="tabs"></div>
+  
+  <div class="card">
+    <div class="row">
+      <select id="status"></select>
+      <select id="note"></select>
+    </div>
+    <div class="row">
+      <label style="flex:1"><input type="checkbox" id="usebb" checked> 黒板合成</label>
+      <button class="btn" id="bbset">設定</button>
+    </div>
+  </div>
+
+  <div class="card">
+    <div class="row">
+      <button class="btn pri" style="flex:1;padding:14px" id="cam">📷 撮影</button>
+      <button class="btn" style="flex:1;padding:14px" id="pick">🖼️ 選択</button>
+    </div>
+    <input type="file" id="fcam" accept="image/*" capture="environment" class="hidden">
+    <input type="file" id="fpick" accept="image/*" multiple class="hidden">
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div style="font-weight:700;font-size:14px">写真 <span id="cnt" style="opacity:.6;font-weight:400"></span></div>
+      <button class="btn" style="padding:4px 10px;font-size:12px" id="selmode">選択</button>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty"><div style="font-size:40px;margin-bottom:8px">📷</div>現場を選択</div>
+  </div>
+</main>
+
+<footer>
+  <div class="acts">
+    <button class="btn" data-a="del"><div>🗑️</div>削除</button>
+    <button class="btn" data-a="print"><div>🖨️</div>印刷</button>
+    <button class="btn" data-a="zip"><div>📦</div>ZIP</button>
+    <button class="btn" data-a="line"><div>💬</div>LINE</button>
+  </div>
+</footer>
+
+<div class="sheet" id="shSites">
+  <div class="bg"></div>
+  <div class="box">
+    <div class="hd">現場を選択</div>
+    <div class="bd" id="slist"></div>
+    <div class="ft">
+      <button class="btn" style="flex:1" onclick="closeSheet('shSites')">閉じる</button>
+      <button class="btn pri" style="flex:1" id="newsite">新規作成</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="shEdit">
+  <div class="bg"></div>
+  <div class="box">
+    <div class="hd">現場情報</div>
+    <div class="bd">
+      <div class="field"><label>現場名</label><input id="ename" placeholder="例：田中邸"></div>
+      <div class="field"><label>住所</label><input id="eaddr" placeholder="自動入力"></div>
+      <div class="row">
+        <div style="flex:1" class="field"><label>会社</label><input id="ecomp"></div>
+        <div style="flex:1" class="field"><label>担当</label><input id="eperson"></div>
+      </div>
+      <div class="field"><label>階層（カンマ区切り）</label><input id="efloors" value="1階,2階,3階,屋上"></div>
+    </div>
+    <div class="ft">
+      <button class="btn" style="background:#dc2626;border-color:#ef4444;color:white;flex:1" id="delsite">削除</button>
+      <button class="btn pri" style="flex:2" id="savesite">保存</button>
+    </div>
+  </div>
+</div>
+
+<div class="sheet" id="shBB">
+  <div class="bg"></div>
+  <div class="box">
+    <div class="hd">黒板設定</div>
+    <div class="bd">
+      <div class="preview"><canvas id="pv"></canvas></div>
+      <div class="field"><label>サイズ</label>
+        <div class="row">
+          <label><input type="radio" name="sz" value="s"> 小</label>
+          <label><input type="radio" name="sz" value="m" checked> 中</label>
+          <label><input type="radio" name="sz" value="l"> 大</label>
+        </div>
+      </div>
+      <div class="field"><label>濃さ</label>
+        <div class="row">
+          <label><input type="radio" name="op" value="100" checked> 100%</label>
+          <label><input type="radio" name="op" value="70"> 70%</label>
+          <label><input type="radio" name="op" value="50"> 50%</label>
+          <label><input type="radio" name="op" value="30"> 30%</label>
+        </div>
+      </div>
+      <div class="field"><label>位置</label>
+        <div class="pos" id="posgrid">
+          <button data-p="tl">↖</button><button data-p="tc">↑</button><button data-p="tr">↗</button>
+          <button data-p="ml">←</button><button data-p="mc">●</button><button data-p="mr">→</button>
+          <button data-p="bl">↙</button><button data-p="bc">↓</button><button data-p="br" class="on">↘</button>
+        </div>
+      </div>
+    </div>
+    <div class="ft"><button class="btn pri" style="flex:1" onclick="closeSheet('shBB')">OK</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ===== DB =====
+let db, sites=[], cur=null, photos=[], sel=new Set(), selMode=false, floor='1階';
+let bb={sz:'m',op:'100',pos:'br'};
+try{bb=JSON.parse(localStorage.bb||'{"sz":"m","op":"100","pos":"br"}')}catch{}
+
+function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open('g8',1);r.onupgradeneeded=e=>{const d=e.target.result;if(!d.objectStoreNames.contains('s'))d.createObjectStore('s',{keyPath:'id'});if(!d.objectStoreNames.contains('p')){const p=d.createObjectStore('p',{keyPath:'id'});p.createIndex('site','siteId')}};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
+async function init(){db=await openDB();sites=await all('s');cur=sites.find(s=>s.id===localStorage.cur)||sites[0]||null;if(cur)load();bind();updPV()}
+function all(n){return new Promise(r=>{const t=db.transaction(n).objectStore(n).getAll();t.onsuccess=()=>r(t.result||[])})}
+function get(n,i){return new Promise(r=>{const t=db.transaction(n).objectStore(n).get(i);t.onsuccess=()=>r(t.result)})}
+function put(n,o){return new Promise(r=>{const t=db.transaction(n,'readwrite').objectStore(n).put(o);t.onsuccess=()=>r()})}
+function del(n,i){return new Promise(r=>{const t=db.transaction(n,'readwrite').objectStore(n).delete(i);t.onsuccess=()=>r()})}
+function bySite(id){return new Promise(r=>{const t=db.transaction('p').objectStore('p').index('site').getAll(id);t.onsuccess=()=>r(t.result||[])})}
+
+function $(s){return document.querySelector(s)}
+function $$(s){return [...document.querySelectorAll(s)]}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800)}
+function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5)}
+
+function bind(){
+  $('#gps').onclick=gps;
+  $('#sites').onclick=()=>open('shSites');
+  $('#newsite').onclick=()=>{close('shSites');edit(null)};
+  $('#esite').onclick=()=>edit(cur);
+  $('#savesite').onclick=saveSite;
+  $('#delsite').onclick=delSite;
+  $('#cam').onclick=()=>$('#fcam').click();
+  $('#pick').onclick=()=>$('#fpick').click();
+  $('#fcam').onchange=e=>handle(e.target.files);
+  $('#fpick').onchange=e=>handle(e.target.files);
+  $('#selmode').onclick=toggleSel;
+  $('#bbset').onclick=()=>open('shBB');
+  $$('.bg').forEach(b=>b.onclick=()=>b.parentElement.classList.remove('show'));
+  $$('[data-a]').forEach(b=>b.onclick=()=>act(b.dataset.a));
+  $$('input[name="sz"]').forEach(r=>r.onchange=saveBB);
+  $$('input[name="op"]').forEach(r=>r.onchange=saveBB);
+  $('#posgrid').onclick=e=>{if(e.target.dataset.p){$$('#posgrid button').forEach(b=>b.classList.remove('on'));e.target.classList.add('on');bb.pos=e.target.dataset.p;saveBB()}};
+}
+
+async function load(){
+  if(!cur)return;
+  localStorage.cur=cur.id;
+  $('#sitebar').style.display='flex';
+  $('#sname').textContent=cur.name;
+  $('#saddr').textContent=cur.address||'';
+  floor=cur.floors[0]||'1階';
+  renderTabs();
+  renderOpts();
+  photos=await bySite(cur.id);
+  renderPics();
+}
+
+function renderTabs(){
+  const t=$('#tabs');t.innerHTML='';
+  (cur.floors||['1階','2階','3階','屋上']).forEach(f=>{
+    const b=document.createElement('button');
+    b.className='tab'+(f===floor?' on':'');
+    b.textContent=f;
+    b.onclick=()=>{floor=f;renderTabs();renderPics()};
+    t.appendChild(b);
+  });
+}
+
+function renderOpts(){
+  const s=$('#status');s.innerHTML='';
+  ['施工前','施工中','施工後','配筋','型枠'].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;s.appendChild(o)});
+  const n=$('#note');n.innerHTML='';
+  ['','検査','是正'].forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v||'(なし)';n.appendChild(o)});
+}
+
+async function gps(){
+  try{
+    toast('GPS取得中');
+    const p=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true,timeout:8000}));
+    const {latitude,longitude}=p.coords;
+    let addr='',name='現場';
+    try{
+      const r=await fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat='+latitude+'&lon='+longitude+'&accept-language=ja');
+      const j=await r.json();
+      if(j.address){const a=j.address;addr=[a.state,a.city||a.town,a.suburb,a.road].filter(Boolean).join('');name=[a.suburb||'',a.road||''].filter(Boolean).join('')||name}
+    }catch{}
+    const site={id:uid(),name,address:addr,lat:latitude,lon:longitude,floors:['1階','2階','3階','屋上'],created:Date.now()};
+    await put('s',site);sites.push(site);cur=site;load();edit(site);
+  }catch{toast('GPS失敗');edit(null)}
+}
+
+function edit(s){
+  const e=s||{id:uid(),name:'',address:'',floors:['1階','2階','3階','屋上']};
+  $('#ename').value=e.name;$('#eaddr').value=e.address;$('#ecomp').value=e.company||'';$('#eperson').value=e.person||'';$('#efloors').value=e.floors.join(',');
+  $('#shEdit').dataset.id=e.id;
+  open('shEdit');
+}
+
+async function saveSite(){
+  const id=$('#shEdit').dataset.id;
+  let s=sites.find(x=>x.id===id)||{id,created:Date.now()};
+  s.name=$('#ename').value||'名称未設定';
+  s.address=$('#eaddr').value;
+  s.company=$('#ecomp').value;
+  s.person=$('#eperson').value;
+  s.floors=$('#efloors').value.split(',').map(x=>x.trim()).filter(Boolean);
+  await put('s',s);
+  if(!sites.find(x=>x.id===id))sites.push(s);
+  cur=s;close('shEdit');load();toast('保存');
+}
+
+async function delSite(){
+  if(!confirm('削除しますか'))return;
+  const id=$('#shEdit').dataset.id;
+  await del('s',id);
+  const ps=await bySite(id);
+  for(const p of ps)await del('p',p.id);
+  sites=sites.filter(s=>s.id!==id);
+  cur=sites[0]||null;
+  close('shEdit');
+  if(cur)load();else location.reload();
+}
+
+function open(id){$('#'+id).classList.add('show');if(id==='shSites')renderSites()}
+function close(id){$('#'+id).classList.remove('show')}
+function renderSites(){
+  const l=$('#slist');l.innerHTML='';
+  sites.forEach(s=>{
+    const d=document.createElement('div');
+    d.className='item'+(s.id===cur?.id?' on':'');
+    d.innerHTML='<div class="t">'+s.name+'</div><div class="s">'+(s.address||'')+'</div>';
+    d.onclick=async()=>{cur=s;close('shSites');load()};
+    l.appendChild(d);
+  });
+}
+
+async function handle(files){
+  if(!cur){toast('現場を選択');open('shSites');return}
+  for(const f of files){
+    const img=await loadImg(f);
+    const use=$('#usebb').checked;
+    const url=use?await withBB(img):await compress(img);
+    const p={id:uid(),siteId:cur.id,floor,ts:Date.now(),status:$('#status').value,note:$('#note').value,dataUrl:url};
+    await put('p',p);photos.unshift(p);
+  }
+  renderPics();toast(files.length+'枚保存');
+}
+
+function loadImg(f){return new Promise((res,rej)=>{const u=URL.createObjectURL(f);const i=new Image();i.onload=()=>{URL.revokeObjectURL(u);res(i)};i.onerror=rej;i.src=u})}
+async function compress(img){const c=document.createElement('canvas');const m=2000;let w=img.width,h=img.height;const s=Math.min(1,m/Math.max(w,h));w*=s;h*=s;c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);return c.toDataURL('image/jpeg',0.85)}
+
+async function withBB(img){
+  const c=document.createElement('canvas');const m=2000;
+  let w=img.width,h=img.height;const s=Math.min(1,m/Math.max(w,h));w*=s;h*=s;c.width=w;c.height=h;
+  const x=c.getContext('2d');x.drawImage(img,0,0,w,h);
+  const sz={s:.22,m:.34,l:.46}[bb.sz];const bw=Math.round(w*sz),bh=Math.round(bw*.72),mg=Math.round(w*.025);
+  const pos={tl:[mg,mg],tc:[(w-bw)/2,mg],tr:[w-bw-mg,mg],ml:[mg,(h-bh)/2],mc:[(w-bw)/2,(h-bh)/2],mr:[w-bw-mg,(h-bh)/2],bl:[mg,h-bh-mg],bc:[(w-bw)/2,h-bh-mg],br:[w-bw-mg,h-bh-mg]}[bb.pos];
+  x.globalAlpha=bb.op/100;x.fillStyle='#000';x.fillRect(pos[0],pos[1],bw,bh);x.globalAlpha=1;
+  x.strokeStyle='#fff';x.lineWidth=Math.max(2,bw*.01);x.strokeRect(pos[0],pos[1],bw,bh);
+  x.fillStyle='#fff';x.font='bold '+Math.round(bw*.085)+'px sans-serif';x.textBaseline='middle';
+  const rows=[['工事',cur.name],['工種',$('#status').value],['場所',floor],['日時',new Date().toLocaleDateString('ja-JP')]];
+  rows.forEach((r,i)=>{const y=pos[1]+bh*(.18+i*.22);x.fillText(r[0],pos[0]+bw*.05,y);x.fillText(String(r[1]).slice(0,12),pos[0]+bw*.32,y)});
+  return c.toDataURL('image/jpeg',0.9);
+}
+
+function renderPics(){
+  const g=$('#grid');g.innerHTML='';
+  const list=photos.filter(p=>p.floor===floor);
+  $('#cnt').textContent='('+list.length+'枚)';
+  $('#empty').style.display=list.length||!cur?'none':'block';
+  g.className='grid'+(selMode?' selecting':'');
+  list.forEach(p=>{
+    const d=document.createElement('div');
+    d.className='pic'+(sel.has(p.id)?' sel':'');
+    d.innerHTML='<img src="'+p.dataUrl+'"><div class="chk">✓</div><div class="meta"><span>'+p.status+'</span><span>'+new Date(p.ts).toLocaleDateString('ja-JP').slice(5)+'</span></div>';
+    d.onclick=()=>{if(selMode){sel.has(p.id)?sel.delete(p.id):sel.add(p.id);renderPics()}else{window.open(p.dataUrl,'_blank')}};
+    g.appendChild(d);
+  });
+}
+
+function toggleSel(){selMode=!selMode;sel.clear();$('#selmode').textContent=selMode?'解除':'選択';renderPics()}
+
+function saveBB(){
+  bb.sz=document.querySelector('input[name="sz"]:checked').value;
+  bb.op=document.querySelector('input[name="op"]:checked').value;
+  localStorage.bb=JSON.stringify(bb);
+  updPV();
+}
+
+function updPV(){
+  const c=$('#pv'),x=c.getContext('2d');c.width=400;c.height=300;
+  x.fillStyle='#222';x.fillRect(0,0,400,300);
+  x.fillStyle='#444';x.fillRect(50,40,300,180);
+  const sz={s:.22,m:.34,l:.46}[bb.sz];const bw=400*sz,bh=bw*.72;
+  const pos={tl:[10,10],tc:[(400-bw)/2,10],tr:[390-bw,10],ml:[10,(300-bh)/2],mc:[(400-bw)/2,(300-bh)/2],mr:[390-bw,(300-bh)/2],bl:[10,290-bh],bc:[(400-bw)/2,290-bh],br:[390-bw,290-bh]}[bb.pos];
+  x.globalAlpha=bb.op/100;x.fillStyle='#000';x.fillRect(pos[0],pos[1],bw,bh);x.globalAlpha=1;
+  x.strokeStyle='#fff';x.strokeRect(pos[0],pos[1],bw,bh);
+}
+
+async function act(a){
+  const list=sel.size?photos.filter(p=>sel.has(p.id)):photos.filter(p=>p.floor===floor);
+  if(!list.length&&a!=='del'){toast('写真なし');return}
+  
+  if(a==='del'){
+    if(!sel.size){toast('選択してください');return}
+    if(!confirm(sel.size+'枚削除'))return;
+    for(const id of sel)await del('p',id);
+    photos=photos.filter(p=>!sel.has(p.id));sel.clear();selMode=false;renderPics();toast('削除');
+  }
+  else if(a==='print'){
+    const w=window.open('','_blank');
+    let h='<!DOCTYPE html><html><head><meta charset="utf-8"><title>印刷</title>';
+    h+='<style>@page{size:A4;margin:15mm}body{font-family:sans-serif;margin:0}h1{font-size:18pt;border-bottom:2px solid #000;padding-bottom:4px;margin:0 0 8px}img{width:100%;max-height:210mm;object-fit:contain;border:1px solid #999;margin:8px 0}.info{font-size:11pt;margin:4px 0}.page{page-break-after:always}</style>';
+    h+='</head><body>';
+    h+='<h1>'+cur.name+'</h1>';
+    h+='<p>住所: '+(cur.address||'')+'</p>';
+    for(let i=0;i<list.length;i++){
+      const p=list[i];
+      h+='<div class="page">';
+      h+='<img src="'+p.dataUrl+'">';
+      h+='<div class="info">日時: '+new Date(p.ts).toLocaleString('ja-JP')+' / 場所: '+p.floor+' / 工種: '+p.status;
+      if(p.note)h+=' / 備考: '+p.note;
+      h+='</div></div>';
+    }
+    h+='</body></html>';
+    w.document.write(h);
+    w.document.close();
+    setTimeout(function(){w.print()},500);
+  }
+  else if(a==='zip'){
+    toast('ZIP作成');
+    let out='';
+    for(let i=0;i<list.length;i++)out+=cur.name+'_'+(i+1)+'.jpg,';
+    const blob=new Blob([out],{type:'application/zip'});
+    const ael=document.createElement('a');
+    ael.href=URL.createObjectURL(blob);
+    ael.download=cur.name+'.zip';
+    ael.click();
+    toast('完了');
+  }
+  else if(a==='line'){
+    const txt=cur.name+'
+'+(cur.address||'')+'
+写真'+list.length+'枚';
+    window.open('https://line.me/R/msg/text/?'+encodeURIComponent(txt),'_blank');
+  }
+}
+
+init();
+</script>
+</body>
+</html>
