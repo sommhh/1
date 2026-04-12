@@ -192,103 +192,304 @@
 })();</script>
 <script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,user-scalable=no">
-<title>現場カメラ v9</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>現場カメラ v11 - Meta対応</title>
 <style>
-body{margin:0;font-family:system-ui;background:#000;color:#fff}
-header{padding:12px;background:#111;position:sticky;top:0;z-index:10}
-h1{margin:0;font-size:18px}
-main{padding:16px}
-.btn{display:block;width:100%;padding:16px;margin:8px 0;background:#2563eb;border:0;border-radius:8px;color:#fff;font-size:16px;font-weight:600}
-.btn:active{opacity:.7}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:4px;margin-top:16px}
-.pic{aspect-ratio:1;background:#222;border-radius:4px;overflow:hidden}
+*{box-sizing:border-box}
+body{margin:0;font-family:system-ui;background:#0a0f1c;color:#e2e8f0;line-height:1.5}
+header{padding:14px;background:#111827;border-bottom:1px solid #1f2937;position:sticky;top:0;z-index:10}
+h1{margin:0;font-size:18px;font-weight:800}
+h1 span{font-size:11px;background:#2563eb;padding:2px 6px;border-radius:4px;margin-left:6px;vertical-align:middle}
+main{padding:16px;max-width:720px;margin:0 auto;padding-bottom:120px}
+.card{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:14px;margin-bottom:14px}
+.btn{width:100%;padding:14px;background:#2563eb;border:0;border-radius:10px;color:#fff;font-weight:700;font-size:15px;margin:6px 0}
+.btn:active{opacity:.8}
+.btn2{background:#374151}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:12px}
+.pic{aspect-ratio:1;background:#0b1220;border-radius:8px;overflow:hidden;position:relative}
 .pic img{width:100%;height:100%;object-fit:cover}
-#log{position:fixed;bottom:0;left:0;right:0;background:#000;border-top:1px solid #333;padding:8px;font-size:11px;font-family:monospace;max-height:100px;overflow:auto;white-space:pre-wrap}
+.pic .del{position:absolute;top:4px;right:4px;width:24px;height:24px;background:rgba(220,38,38,.9);border-radius:50%;display:grid;place-items:center;font-size:14px;font-weight:700}
+textarea,input,select{width:100%;padding:10px;background:#0b1220;border:1px solid #374151;border-radius:8px;color:#e2e8f0;font-size:14px;margin:6px 0}
+label{display:block;font-size:12px;opacity:.8;margin-top:8px;font-weight:600}
+.row{display:flex;gap:8px}
+.row>*{flex:1}
+#camView{width:100%;aspect-ratio:4/3;background:#000;border-radius:10px;overflow:hidden;position:relative;display:none}
+#camView video{width:100%;height:100%;object-fit:cover}
+#camView canvas{display:none}
+.cam-ctrl{position:absolute;bottom:12px;left:0;right:0;display:flex;justify-content:center;gap:12px}
+.cam-btn{width:64px;height:64px;border-radius:50%;background:#fff;border:4px solid rgba(0,0,0,.3);font-size:28px}
+.cam-close{position:absolute;top:12px;right:12px;width:36px;height:36px;border-radius:50%;background:rgba(0,0,0,.7);border:0;color:#fff;font-size:20px}
+.log{position:fixed;bottom:0;left:0;right:0;background:#000;border-top:1px solid #333;padding:8px;font-size:11px;font-family:monospace;max-height:90px;overflow:auto;white-space:pre-wrap;z-index:100}
+.hidden{display:none}
+.badge{display:inline-block;padding:3px 8px;background:#1e3a8a;border-radius:6px;font-size:11px;margin-left:6px}
 </style>
 </head>
 <body>
-<header><h1>現場カメラ v9 - テスト</h1></header>
+<header>
+  <h1>現場カメラ<span>v11</span> <span class="badge">Meta対応</span></h1>
+</header>
+
 <main>
-  <button class="btn" id="test">1. カメラ起動テスト</button>
-  <button class="btn" id="test2" style="background:#059669">2. ファイル選択テスト</button>
-  <button class="btn" id="test3" style="background:#dc2626">3. 権限確認</button>
-  
-  <input type="file" id="f1" accept="image/*" capture="environment" style="display:none">
-  <input type="file" id="f2" accept="image/*" style="display:none">
-  
-  <div class="grid" id="grid"></div>
+  <div class="card">
+    <label>現場名</label>
+    <input id="site" placeholder="例：名取現場" value="現場1">
+    <div class="row">
+      <div><label>工種</label><select id="status"><option>施工前</option><option>施工中</option><option selected>施工後</option><option>配筋</option><option>型枠</option></select></div>
+      <div><label>場所</label><select id="floor"><option>1階</option><option>2階</option><option>3階</option><option>屋上</option><option>外部</option></select></div>
+    </div>
+    <label>備考</label>
+    <input id="note" placeholder="任意">
+  </div>
+
+  <div class="card">
+    <div id="camView">
+      <video id="video" autoplay playsinline muted></video>
+      <canvas id="canvas"></canvas>
+      <button class="cam-close" onclick="stopCam()">×</button>
+      <div class="cam-ctrl">
+        <button class="cam-btn" onclick="snap()">📷</button>
+      </div>
+    </div>
+    
+    <button class="btn" id="btnStartCam">📷 カメラ起動（Meta内）</button>
+    <button class="btn btn2" id="btnPaste">📋 画像を貼り付け</button>
+    <button class="btn btn2" id="btnFile">🖼️ ファイル選択</button>
+    <input type="file" id="fileIn" accept="image/*" multiple class="hidden">
+    
+    <div style="font-size:12px;opacity:.7;margin-top:8px;line-height:1.4">
+      • Metaブラウザ: 「カメラ起動」→ 撮影<br>
+      • 反応しない場合: スクショを撮って「貼り付け」<br>
+      • または「ファイル選択」で写真選ぶ
+    </div>
+  </div>
+
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <div style="font-weight:700">写真一覧 <span id="count" style="opacity:.6;font-weight:400"></span></div>
+      <button class="btn2" style="width:auto;padding:6px 12px;font-size:13px" onclick="clearAll()">全削除</button>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div id="empty" style="text-align:center;padding:30px;opacity:.5">写真がありません</div>
+  </div>
+
+  <div class="card">
+    <button class="btn" onclick="exportData()">💾 データ保存（JSON）</button>
+    <button class="btn btn2" onclick="makeReport()">🖨️ 帳票作成</button>
+    <textarea id="out" rows="4" placeholder="ここにJSONや帳票が出力されます" style="font-family:monospace;font-size:11px"></textarea>
+  </div>
 </main>
-<div id="log"></div>
+
+<div class="log" id="log"></div>
 
 <script>
 const log = (m) => {
   const el = document.getElementById('log');
-  el.textContent = new Date().toLocaleTimeString() + ' ' + m + '\n' + el.textContent;
+  const t = new Date().toLocaleTimeString();
+  el.textContent = t + ' ' + m + '\n' + el.textContent.slice(0,500);
   console.log(m);
 };
 
-log('起動完了');
-log('UserAgent: ' + navigator.userAgent.slice(0,50));
+log('v11起動');
+log('UA: '+navigator.userAgent.slice(0,40));
 
-document.getElementById('test').onclick = () => {
-  log('カメラボタン押下');
-  try {
-    const i = document.getElementById('f1');
-    log('input要素取得: ' + !!i);
-    i.click();
-    log('click()実行');
-    setTimeout(() => log('3秒経過 - カメラ起動した？'), 3000);
-  } catch(e) {
-    log('ERROR: ' + e.message);
-  }
-};
+let photos = JSON.parse(localStorage.photos||'[]');
+let stream = null;
 
-document.getElementById('test2').onclick = () => {
-  log('ファイル選択ボタン');
-  document.getElementById('f2').click();
-};
+function save(){ localStorage.photos = JSON.stringify(photos); render(); }
+function render(){
+  const g = document.getElementById('grid');
+  g.innerHTML = '';
+  document.getElementById('count').textContent = '('+photos.length+'枚)';
+  document.getElementById('empty').style.display = photos.length ? 'none' : 'block';
+  photos.forEach((p,i)=>{
+    const d = document.createElement('div');
+    d.className = 'pic';
+    d.innerHTML = '<img src="'+p.data+'"><div class="del" onclick="delPic('+i+')">×</div>';
+    g.appendChild(d);
+  });
+}
+function delPic(i){ photos.splice(i,1); save(); }
+function clearAll(){ if(confirm('全削除？')){ photos=[]; save(); } }
 
-document.getElementById('test3').onclick = async () => {
-  log('権限確認開始');
-  log('mediaDevices: ' + !!navigator.mediaDevices);
-  log('getUserMedia: ' + !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia));
+async function startCam(){
+  log('カメラ起動試行');
+  const view = document.getElementById('camView');
+  const video = document.getElementById('video');
   
-  if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
-    try {
-      log('カメラアクセス試行...');
-      const stream = await navigator.mediaDevices.getUserMedia({video:true});
-      log('成功！カメラ取得');
-      stream.getTracks().forEach(t => t.stop());
-    } catch(e) {
-      log('失敗: ' + e.name + ' - ' + e.message);
+  try {
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      log('getUserMedia非対応');
+      alert('このブラウザはカメラ非対応です。\n「貼り付け」か「ファイル選択」を使ってください');
+      return;
     }
-  }
-};
-
-document.getElementById('f1').onchange = (e) => {
-  log('f1 onchange発火 ファイル数:' + e.target.files.length);
-  handle(e.target.files);
-};
-document.getElementById('f2').onchange = (e) => {
-  log('f2 onchange発火 ファイル数:' + e.target.files.length);
-  handle(e.target.files);
-};
-
-function handle(files) {
-  log('handle開始');
-  for (const f of files) {
-    log('ファイル: ' + f.name + ' ' + Math.round(f.size/1024) + 'KB');
-    const url = URL.createObjectURL(f);
-    const div = document.createElement('div');
-    div.className = 'pic';
-    div.innerHTML = '<img src="' + url + '">';
-    document.getElementById('grid').prepend(div);
+    
+    log('権限要求中...');
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: 'environment', width:{ideal:1920}, height:{ideal:1080} }
+    });
+    
+    log('ストリーム取得成功');
+    video.srcObject = stream;
+    view.style.display = 'block';
+    document.getElementById('btnStartCam').style.display = 'none';
+    log('カメラ表示');
+    
+  } catch(e) {
+    log('エラー: '+e.name+' - '+e.message);
+    alert('カメラ起動失敗: '+e.message+'\n\n「貼り付け」機能を使ってください');
   }
 }
 
-// エラーを全てキャッチ
-window.onerror = (m, s, l) => { log('ERROR: ' + m + ' at ' + l); return true; };
+function stopCam(){
+  if(stream){ stream.getTracks().forEach(t=>t.stop()); stream=null; }
+  document.getElementById('camView').style.display='none';
+  document.getElementById('btnStartCam').style.display='block';
+  log('カメラ停止');
+}
+
+function snap(){
+  log('撮影');
+  const video = document.getElementById('video');
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d');
+  
+  canvas.width = video.videoWidth;
+  canvas.height = video.videoHeight;
+  ctx.drawImage(video,0,0);
+  
+  // 黒板合成
+  const site = document.getElementById('site').value || '現場';
+  const status = document.getElementById('status').value;
+  const floor = document.getElementById('floor').value;
+  const note = document.getElementById('note').value;
+  
+  const bw = Math.round(canvas.width * 0.34);
+  const bh = Math.round(bw * 0.7);
+  const x = canvas.width - bw - 20;
+  const y = canvas.height - bh - 20;
+  
+  ctx.fillStyle = 'rgba(0,0,0,0.85)';
+  ctx.fillRect(x,y,bw,bh);
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(x,y,bw,bh);
+  
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold '+Math.round(bw*0.09)+'px sans-serif';
+  const lines = [
+    '工事: '+site,
+    '工種: '+status,
+    '場所: '+floor,
+    '日時: '+new Date().toLocaleDateString('ja-JP')
+  ];
+  if(note) lines.push('備考: '+note);
+  
+  lines.forEach((txt,i)=>{
+    ctx.fillText(txt, x+12, y+28+i*26);
+  });
+  
+  const data = canvas.toDataURL('image/jpeg',0.9);
+  photos.unshift({data, site, status, floor, note, ts:Date.now()});
+  save();
+  log('保存完了');
+  
+  // シャッター音代わり
+  navigator.vibrate && navigator.vibrate(50);
+}
+
+document.getElementById('btnStartCam').onclick = startCam;
+
+document.getElementById('btnPaste').onclick = async () => {
+  log('貼り付け待機');
+  try {
+    const items = await navigator.clipboard.read();
+    log('クリップボード読取: '+items.length+'件');
+    for(const item of items){
+      for(const type of item.types){
+        if(type.startsWith('image/')){
+          const blob = await item.getType(type);
+          const reader = new FileReader();
+          reader.onload = e => {
+            photos.unshift({data:e.target.result, site:document.getElementById('site').value, status:document.getElementById('status').value, floor:document.getElementById('floor').value, note:document.getElementById('note').value, ts:Date.now()});
+            save();
+            log('貼り付け成功');
+          };
+          reader.readAsDataURL(blob);
+          return;
+        }
+      }
+    }
+    log('画像なし');
+    alert('クリップボードに画像がありません\n\nスクショを撮ってから再度実行');
+  } catch(e) {
+    log('貼付エラー: '+e.message);
+    alert('貼り付け失敗\n\n手動で: 長押し→ペースト または ファイル選択を使用');
+  }
+};
+
+document.getElementById('btnFile').onclick = () => document.getElementById('fileIn').click();
+document.getElementById('fileIn').onchange = e => {
+  log('ファイル選択: '+e.target.files.length);
+  [...e.target.files].forEach(f=>{
+    const r = new FileReader();
+    r.onload = ev => {
+      photos.unshift({data:ev.target.result, site:document.getElementById('site').value, status:document.getElementById('status').value, floor:document.getElementById('floor').value, note:document.getElementById('note').value, ts:Date.now()});
+      save();
+    };
+    r.readAsDataURL(f);
+  });
+};
+
+function exportData(){
+  const data = JSON.stringify(photos.map(p=>({...p, data:p.data.slice(0,50)+ '...'})), null, 2);
+  document.getElementById('out').value = '写真'+photos.length+'枚\n\n'+data;
+  log('エクスポート');
+}
+
+function makeReport(){
+  let html = '<!DOCTYPE html><html><head><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script><meta charset="utf-8"><title>工事写真帳</title>';
+  html += '<style>body{font-family:sans-serif;margin:20px}h1{border-bottom:2px solid #000} .p{page-break-after:always;margin:20px 0} img{max-width:100%;height:500px;object-fit:contain;border:1px solid #ccc} .info{margin:10px 0}</style></head><body>';
+  html += '<h1>'+ (document.getElementById('site').value || '工事写真') +'</h1>';
+  
+  photos.forEach(p=>{
+    html += '<div class="p"><img src="'+p.data+'"><div class="info">';
+    html += '日時: '+new Date(p.ts).toLocaleString('ja-JP')+'<br>';
+    html += '場所: '+p.floor+' / 工種: '+p.status;
+    if(p.note) html += '<br>備考: '+p.note;
+    html += '</div></div>';
+  });
+  
+  html += '</body></html>';
+  
+  const w = window.open('','_blank');
+  w.document.write(html);
+  w.document.close();
+  log('帳票作成');
+}
+
+// 初期表示
+render();
+log('準備完了');
+
+// ペーストイベントも監視
+document.addEventListener('paste', e=>{
+  log('ペーストイベント検出');
+  const items = e.clipboardData.items;
+  for(const item of items){
+    if(item.type.startsWith('image/')){
+      const file = item.getAsFile();
+      const r = new FileReader();
+      r.onload = ev => {
+        photos.unshift({data:ev.target.result, site:document.getElementById('site').value, status:document.getElementById('status').value, floor:document.getElementById('floor').value, note:document.getElementById('note').value, ts:Date.now()});
+        save();
+        log('ペースト成功');
+      };
+      r.readAsDataURL(file);
+      e.preventDefault();
+      return;
+    }
+  }
+});
 </script>
 </body>
 </html>
