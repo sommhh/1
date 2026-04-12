@@ -1,564 +1,224 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<!-- Playables SDK -->
-<script>// Playables SDK v1.0.0
-// Game lifecycle bridge: rAF-based game-ready detection + event communication
-(function() {
-  'use strict';
-
-  // Idempotency: skip if already initialized (e.g., server-side injection
-  // followed by client-side inject-javascript via the Bloks webview component).
-  if (window.playablesSDK) return;
-
-  var HANDLER_NAME = 'playablesGameEventHandler';
-  var ANDROID_BRIDGE_NAME = '_MetaPlayablesBridge';
-  var RAF_FRAME_THRESHOLD = 3;
-
-  var gameReadySent = false;
-  var firstInteractionSent = false;
-  var errorSent = false;
-  var frameCount = 0;
-  var originalRAF = window.requestAnimationFrame;
-
-  // --- Transport Layer ---
-
-  function hasIOSBridge() {
-    return !!(window.webkit &&
-              window.webkit.messageHandlers &&
-              window.webkit.messageHandlers[HANDLER_NAME]);
-  }
-
-  function hasAndroidBridge() {
-    return !!(window[ANDROID_BRIDGE_NAME] &&
-              typeof window[ANDROID_BRIDGE_NAME].postEvent === 'function');
-  }
-
-  function isInIframe() {
-    return !!(window.parent && window.parent !== window);
-  }
-
-  function sendEvent(eventName, payload) {
-    var message = {
-      type: eventName,
-      payload: payload || {},
-      timestamp: Date.now()
-    };
-
-    if (hasIOSBridge()) {
-      try {
-        window.webkit.messageHandlers[HANDLER_NAME].postMessage(message);
-      } catch (e) { /* ignore */ }
-      return;
-    }
-
-    if (hasAndroidBridge()) {
-    try {
-      var p = payload || {};
-      p.__secureToken = window.__fbAndroidBridgeAuthToken || '';
-      window[ANDROID_BRIDGE_NAME].postEvent(
-        eventName,
-        JSON.stringify(p)
-      );
-    } catch (e) { /* ignore */ }
-    return;
-  }
-
-    if (isInIframe()) {
-      try {
-        window.parent.postMessage(message, '*');
-      } catch (e) { /* ignore */ }
-      return;
-    }
-  }
-
-  // --- rAF Game-Ready Detection ---
-
-  function onFrame() {
-    if (gameReadySent) return;
-
-    frameCount++;
-    if (frameCount >= RAF_FRAME_THRESHOLD) {
-      gameReadySent = true;
-      sendEvent('game_ready', {
-        frame_count: frameCount,
-        detected_at: Date.now()
-      });
-      return;
-    }
-
-    originalRAF.call(window, onFrame);
-  }
-
-  if (originalRAF) {
-    window.requestAnimationFrame = function(callback) {
-      if (!gameReadySent) {
-        return originalRAF.call(window, function(timestamp) {
-          frameCount++;
-          if (frameCount >= RAF_FRAME_THRESHOLD && !gameReadySent) {
-            gameReadySent = true;
-            sendEvent('game_ready', {
-              frame_count: frameCount,
-              detected_at: Date.now()
-            });
-          }
-          callback(timestamp);
-        });
-      }
-      return originalRAF.call(window, callback);
-    };
-  }
-
-  // --- First User Interaction Detection ---
-
-  function setupFirstInteractionDetection() {
-    var events = ['touchstart', 'mousedown', 'keydown'];
-
-    function onFirstInteraction() {
-      if (firstInteractionSent) return;
-      firstInteractionSent = true;
-      sendEvent('user_interaction_start', null);
-
-      for (var i = 0; i < events.length; i++) {
-        document.removeEventListener(events[i], onFirstInteraction, true);
-      }
-    }
-
-    for (var i = 0; i < events.length; i++) {
-      document.addEventListener(events[i], onFirstInteraction, true);
-    }
-  }
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', setupFirstInteractionDetection);
-  } else {
-    setupFirstInteractionDetection();
-  }
-
-  // --- Auto Error Capture ---
-
-  window.addEventListener('error', function(event) {
-    if (errorSent) return;
-    errorSent = true;
-    sendEvent('error', {
-      message: event.message || 'Unknown error',
-      source: event.filename || '',
-      lineno: event.lineno || 0,
-      colno: event.colno || 0,
-      auto_captured: true
-    });
-  });
-
-  window.addEventListener('unhandledrejection', function(event) {
-    if (errorSent) return;
-    errorSent = true;
-    var reason = event.reason;
-    sendEvent('error', {
-      message: (reason instanceof Error) ? reason.message : String(reason),
-      type: 'unhandled_promise_rejection',
-      auto_captured: true
-    });
-  });
-
-  // --- Public API ---
-
-  window.playablesSDK = {
-    complete: function(score) {
-      sendEvent('game_ended', {
-        score: score,
-        completed: true
-      });
-    },
-
-    error: function(message) {
-      if (errorSent) return;
-      errorSent = true;
-      sendEvent('error', {
-        message: message || 'Unknown error',
-        auto_captured: false
-      });
-    },
-
-    sendEvent: function(eventName, payload) {
-      if (!eventName || typeof eventName !== 'string') return;
-      sendEvent(eventName, payload);
-    }
-  };
-
-  // Kick off rAF detection in case no game code calls rAF immediately
-  if (originalRAF) {
-    originalRAF.call(window, onFrame);
-  }
-})();</script>
-<script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
 <meta name="apple-mobile-web-app-capable" content="yes">
-<title>現場カメラ Pro</title>
+<meta name="mobile-web-app-capable" content="yes">
+<title>現場カメラ PRO</title>
+
 <style>
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;margin:0;padding:0}
-body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;background:#0f172a;color:#e2e8f0}
-header{position:sticky;top:0;z-index:50;background:#0f172af2;backdrop-filter:blur(10px);border-bottom:1px solid #1e293b}
-.hd{display:flex;align-items:center;gap:10px;padding:12px 14px}
-h1{font-size:17px;font-weight:800}
-.badge{font-size:10px;padding:2px 6px;background:#2563eb;border-radius:4px;font-weight:700}
-.sp{flex:1}
-.btn{padding:8px 12px;background:#1e293b;border:1px solid #334155;border-radius:9px;color:#e2e8f0;font-size:13px;font-weight:600;cursor:pointer}
-.btn:active{opacity:.7}
-.btn.p{background:#2563eb;border-color:#3b82f6;color:#fff}
-.site{display:flex;gap:8px;align-items:center;padding:0 14px 10px;font-size:12px}
-.site .nm{font-weight:700;max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.site .ad{opacity:.6;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-main{padding:14px;max-width:960px;margin:0 auto;padding-bottom:110px}
-.card{background:#1e293b;border:1px solid #334155;border-radius:12px;padding:12px;margin-bottom:12px}
-.tabs{display:flex;gap:6px;overflow:auto;padding-bottom:8px;scrollbar-width:none}
-.tabs::-webkit-scrollbar{display:none}
-.tab{padding:7px 14px;background:#0f172a;border:1px solid #334155;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;flex-shrink:0;cursor:pointer}
-.tab.on{background:#2563eb;border-color:#3b82f6;color:#fff}
-.row{display:flex;gap:8px;margin-top:8px}
-.row:first-child{margin-top:0}
-select,input{flex:1;min-width:0;padding:10px;background:#0f172a;border:1px solid #334155;border-radius:9px;color:#e2e8f0;font-size:14px}
-label.chk{display:flex;align-items:center;gap:8px;padding:10px;background:#0f172a;border:1px solid #334155;border-radius:9px;flex:1;cursor:pointer;user-select:none}
-label.chk input{width:18px;height:18px;flex:none;margin:0}
-.big{flex:1;padding:14px;border-radius:11px;font-weight:700;font-size:15px;display:flex;align-items:center;justify-content:center;gap:6px;cursor:pointer;border:none}
-.big.p{background:#2563eb;color:#fff}
-.big.s{background:#334155;color:#e2e8f0}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:10px}
-@media(min-width:600px){.grid{grid-template-columns:repeat(4,1fr)}}
-@media(min-width:900px){.grid{grid-template-columns:repeat(5,1fr)}}
-.pic{position:relative;aspect-ratio:1;background:#0f172a;border:1px solid #334155;border-radius:9px;overflow:hidden;cursor:pointer}
-.pic img{width:100%;height:100%;object-fit:cover;display:block}
-.pic .ck{position:absolute;top:5px;left:5px;width:22px;height:22px;border-radius:6px;background:rgba(0,0,0,.75);border:2px solid rgba(255,255,255,.9);display:none;place-items:center;font-size:12px;font-weight:700}
-.pic.sel .ck{display:grid;background:#2563eb;border-color:#2563eb}
-.pic.sel{outline:2px solid #2563eb;outline-offset:-2px}
-.pic .mt{position:absolute;left:0;right:0;bottom:0;padding:5px 6px;background:linear-gradient(transparent,rgba(0,0,0,.85));font-size:10px;display:flex;justify-content:space-between}
-.empty{padding:40px 20px;text-align:center;opacity:.5}
-.empty .ic{font-size:36px;margin-bottom:8px}
-footer{position:fixed;left:0;right:0;bottom:0;z-index:40;background:#0f172af2;backdrop-filter:blur(10px);border-top:1px solid #1e293b;padding:9px 12px calc(9px + env(safe-area-inset-bottom))}
-.acts{display:flex;gap:7px;max-width:960px;margin:0 auto}
-.acts .btn{flex:1;padding:8px 4px;font-size:11px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px}
-.acts .ic{font-size:20px}
-.sheet{position:fixed;inset:0;z-index:100;display:none}
-.sheet.show{display:block}
-.sheet .bg{position:absolute;inset:0;background:rgba(0,0,0,.7)}
-.sheet .bx{position:absolute;left:0;right:0;bottom:0;background:#1e293b;border-top:1px solid #334155;border-radius:16px 16px 0 0;max-height:85vh;display:flex;flex-direction:column}
-.sheet .hd2{padding:14px 16px;font-weight:800;border-bottom:1px solid #334155}
-.sheet .bd{padding:14px 16px;overflow:auto;flex:1}
-.sheet .ft{padding:12px 16px calc(12px + env(safe-area-inset-bottom));display:flex;gap:8px;border-top:1px solid #334155}
-.it{padding:12px;background:#0f172a;border:1px solid #334155;border-radius:10px;margin-bottom:8px;cursor:pointer}
-.it.on{border-color:#3b82f6;background:#1e3a8a}
-.it .t{font-weight:700;font-size:14px}
-.it .s{font-size:11px;opacity:.6;margin-top:2px}
-.fld{margin-bottom:12px}
-.fld label{display:block;font-size:11px;opacity:.7;margin-bottom:4px;font-weight:600}
-#vidW{display:none;position:relative;background:#000;border-radius:10px;overflow:hidden;margin-top:8px;aspect-ratio:4/3}
-#vid{width:100%;height:100%;object-fit:cover;display:block}
-#vidC{position:absolute;bottom:12px;left:0;right:0;display:flex;justify-content:center}
-#snap{width:64px;height:64px;border-radius:50%;background:#fff;border:3px solid rgba(0,0,0,.2);font-size:24px;cursor:pointer}
-#closeV{position:absolute;top:10px;right:10px;width:32px;height:32px;border-radius:50%;background:rgba(0,0,0,.7);border:none;color:#fff;font-size:18px;cursor:pointer}
-.toast{position:fixed;left:50%;bottom:90px;transform:translateX(-50%);background:#1e293b;border:1px solid #334155;padding:9px 14px;border-radius:9px;font-weight:700;font-size:13px;opacity:0;transition:.2s;pointer-events:none;z-index:200;white-space:nowrap}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system;background:#0f172a;color:#e2e8f0}
+header{position:sticky;top:0;background:#0f172a;border-bottom:1px solid #334155}
+.hd{display:flex;gap:10px;padding:12px}
+.btn{padding:8px 10px;background:#1e293b;border:1px solid #334155;border-radius:8px;color:#fff}
+.btn.p{background:#2563eb}
+main{padding:12px}
+.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
+.pic{aspect-ratio:1;background:#000;border-radius:6px;overflow:hidden}
+.pic img{width:100%;height:100%;object-fit:cover}
+#vidW{display:none;background:#000}
+video{width:100%}
+.toast{position:fixed;bottom:80px;left:50%;transform:translateX(-50%);background:#1e293b;padding:8px 12px;border-radius:8px;opacity:0;transition:.2s}
 .toast.show{opacity:1}
-.hidden{display:none}
 </style>
 </head>
+
 <body>
+
 <header>
-  <div class="hd">
-    <h1>現場カメラ<span class="badge">Pro</span></h1>
-    <div class="sp"></div>
-    <button class="btn p" id="gpsBtn">📍 GPS</button>
-    <button class="btn" id="folderBtn">📁</button>
-  </div>
-  <div class="site" id="siteBar" style="display:none">
-    <div class="nm" id="siteNm"></div>
-    <div class="ad" id="siteAd"></div>
-    <button class="btn" style="padding:4px 8px;font-size:11px" id="editBtn">編集</button>
-  </div>
+<div class="hd">
+<button class="btn p" id="gpsBtn">GPS</button>
+<button class="btn" id="camBtn">撮影</button>
+<button class="btn" id="zipBtn">ZIP</button>
+</div>
 </header>
 
 <main>
-  <div class="tabs" id="tabs"></div>
-  
-  <div class="card">
-    <div class="row">
-      <select id="stat"></select>
-      <select id="note"></select>
-    </div>
-    <div class="row">
-      <label class="chk"><input type="checkbox" id="useBB" checked> 黒板合成</label>
-      <button class="btn" id="bbBtn" style="flex:none;width:auto;padding:10px 14px">設定</button>
-    </div>
-  </div>
 
-  <div class="card">
-    <div id="vidW">
-      <video id="vid" autoplay playsinline muted></video>
-      <button id="closeV" onclick="stopV()">×</button>
-      <div id="vidC"><button id="snap" onclick="shoot()">📷</button></div>
-    </div>
-    <div class="row">
-      <button class="big p" id="camBtn">📷 撮影</button>
-      <button class="big s" id="pickBtn">🖼️ 選択</button>
-    </div>
-    <input type="file" id="fileIn" accept="image/*" capture="environment" multiple class="hidden">
-  </div>
+<div id="vidW">
+<video id="vid" autoplay playsinline muted></video>
+<button id="snap">撮影</button>
+<button id="closeV">閉じる</button>
+</div>
 
-  <div class="card">
-    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-      <div style="font-weight:700;font-size:13px">写真 <span id="cnt" style="opacity:.6;font-weight:400"></span></div>
-      <button class="btn" style="padding:5px 10px;font-size:12px" id="selBtn">選択</button>
-    </div>
-    <div class="grid" id="grid"></div>
-    <div class="empty" id="empty"><div class="ic">📷</div>現場を選択して撮影</div>
-  </div>
+<div class="grid" id="grid"></div>
+
 </main>
-
-<footer>
-  <div class="acts">
-    <button class="btn" data-a="del"><span class="ic">🗑️</span>削除</button>
-    <button class="btn" data-a="print"><span class="ic">🖨️</span>印刷</button>
-    <button class="btn" data-a="zip"><span class="ic">📦</span>ZIP</button>
-    <button class="btn" data-a="line"><span class="ic">💬</span>LINE</button>
-  </div>
-</footer>
-
-<div class="sheet" id="shFolder">
-  <div class="bg" onclick="closeS('shFolder')"></div>
-  <div class="bx">
-    <div class="hd2">現場フォルダ</div>
-    <div class="bd"><div id="folderList"></div></div>
-    <div class="ft">
-      <button class="btn" style="flex:1" onclick="closeS('shFolder')">閉じる</button>
-      <button class="btn p" style="flex:1" id="newFolder">＋ 新規</button>
-    </div>
-  </div>
-</div>
-
-<div class="sheet" id="shEdit">
-  <div class="bg" onclick="closeS('shEdit')"></div>
-  <div class="bx">
-    <div class="hd2">現場編集</div>
-    <div class="bd">
-      <div class="fld"><label>現場名</label><input id="eName"></div>
-      <div class="fld"><label>住所</label><input id="eAddr"></div>
-      <div class="row">
-        <div class="fld" style="flex:1"><label>会社</label><input id="eComp"></div>
-        <div class="fld" style="flex:1"><label>担当</label><input id="ePers"></div>
-      </div>
-      <div class="fld"><label>階層（カンマ区切り）</label><input id="eFloors" value="1階,2階,3階,屋上,外部"></div>
-    </div>
-    <div class="ft">
-      <button class="btn" style="flex:1;background:#dc2626;border-color:#ef4444;color:#fff" id="delFolder">削除</button>
-      <button class="btn p" style="flex:2" id="saveFolder">保存</button>
-    </div>
-  </div>
-</div>
-
-<div class="sheet" id="shBB">
-  <div class="bg" onclick="closeS('shBB')"></div>
-  <div class="bx">
-    <div class="hd2">黒板設定</div>
-    <div class="bd">
-      <div class="fld"><label>位置</label>
-        <div class="row">
-          <button class="btn" data-pos="tl">↖</button>
-          <button class="btn" data-pos="tr">↗</button>
-          <button class="btn" data-pos="bl">↙</button>
-          <button class="btn p" data-pos="br">↘</button>
-        </div>
-      </div>
-      <div class="fld"><label>サイズ</label>
-        <div class="row">
-          <button class="btn" data-sz="s">小</button>
-          <button class="btn p" data-sz="m">中</button>
-          <button class="btn" data-sz="l">大</button>
-        </div>
-      </div>
-    </div>
-    <div class="ft"><button class="btn p" style="flex:1" onclick="closeS('shBB')">OK</button></div>
-  </div>
-</div>
 
 <div class="toast" id="toast"></div>
 
 <script>
-let db, sites=[], cur=null, photos=[], sel=new Set(), selMode=false, floor='1階', stream=null;
-let bb={pos:'br',sz:'m'}; try{bb=Object.assign(bb,JSON.parse(localStorage.bb||'{}'))}catch(e){}
-const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const toast=m=>{const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800)};
-const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,5);
+'use strict';
 
-function openDB(){return new Promise((res,rej)=>{const r=indexedDB.open('genba14',1);r.onupgradeneeded=e=>{const d=e.target.result;if(!d.objectStoreNames.contains('s'))d.createObjectStore('s',{keyPath:'id'});if(!d.objectStoreNames.contains('p')){const p=d.createObjectStore('p',{keyPath:'id'});p.createIndex('site','siteId')}};r.onsuccess=()=>res(r.result);r.onerror=()=>rej(r.error)})}
-const tx=(n,m='readonly')=>db.transaction(n,m).objectStore(n);
-const all=n=>new Promise(r=>{const q=tx(n).getAll();q.onsuccess=()=>r(q.result||[])});
-const put=(n,o)=>new Promise(r=>{const q=tx(n,'readwrite').put(o);q.onsuccess=()=>r()});
-const del=n=>i=>new Promise(r=>{const q=tx(n,'readwrite').delete(i);q.onsuccess=()=>r()});
-const bySite=id=>new Promise(r=>{const q=tx('p').index('site').getAll(id);q.onsuccess=()=>r(q.result||[])});
+/* ===== Utils ===== */
+const $=s=>document.querySelector(s);
+const toast=m=>{
+ const t=$('#toast');
+ t.textContent=m;
+ t.classList.add('show');
+ setTimeout(()=>t.classList.remove('show'),1500);
+};
+const uid=()=>Date.now()+Math.random();
 
+/* ===== State ===== */
+let db,photos=[],stream=null;
+
+/* ===== DB ===== */
+async function initDB(){
+ return new Promise(res=>{
+  const r=indexedDB.open('genba_final',1);
+  r.onupgradeneeded=e=>{
+    const d=e.target.result;
+    d.createObjectStore('p',{keyPath:'id'});
+  };
+  r.onsuccess=()=>res(r.result);
+ });
+}
+const save=async o=>{
+ return new Promise(r=>{
+  const q=db.transaction('p','readwrite').objectStore('p').put(o);
+  q.onsuccess=()=>r();
+ });
+};
+const load=async()=>{
+ return new Promise(r=>{
+  const q=db.transaction('p').objectStore('p').getAll();
+  q.onsuccess=()=>r(q.result||[]);
+ });
+};
+
+/* ===== Camera ===== */
+async function startCamera(){
+ if(stream){stopCamera(); await new Promise(r=>setTimeout(r,200));}
+
+ try{
+  if(location.protocol!=='https:'&&location.hostname!=='localhost'){
+   toast('HTTPS必要');
+   return;
+  }
+
+  stream=await navigator.mediaDevices.getUserMedia({
+   video:{facingMode:'environment',width:{ideal:1280}}
+  });
+
+  const v=$('#vid');
+  v.srcObject=stream;
+  await v.play().catch(()=>{});
+
+  $('#vidW').style.display='block';
+
+ }catch(e){
+  toast('カメラNG');
+ }
+}
+
+function stopCamera(){
+ if(stream){
+  stream.getTracks().forEach(t=>t.stop());
+  stream=null;
+ }
+ $('#vid').srcObject=null;
+ $('#vidW').style.display='none';
+}
+
+/* ===== Photo ===== */
+async function takePhoto(){
+ const v=$('#vid');
+ if(!v.videoWidth){toast('準備中');return;}
+
+ const c=document.createElement('canvas');
+ const max=1600;
+
+ let w=v.videoWidth,h=v.videoHeight;
+ const s=Math.min(1,max/Math.max(w,h));
+ w*=s;h*=s;
+
+ c.width=w;c.height=h;
+ c.getContext('2d').drawImage(v,0,0,w,h);
+
+ const data=c.toDataURL('image/jpeg',0.8);
+
+ const p={id:uid(),data};
+ await save(p);
+
+ photos.unshift(p);
+ render();
+
+ toast('撮影');
+}
+
+/* ===== Render ===== */
+function render(){
+ const g=$('#grid');
+ g.innerHTML='';
+
+ photos.slice(0,100).forEach(p=>{
+  const d=document.createElement('div');
+  d.className='pic';
+  d.innerHTML=`<img src="${p.data}">`;
+  g.appendChild(d);
+ });
+}
+
+/* ===== ZIP ===== */
+async function makeZip(){
+ toast('ZIP作成');
+
+ if(!window.JSZip){
+  await new Promise(res=>{
+   const s=document.createElement('script');
+   s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+   s.onload=res;
+   document.body.appendChild(s);
+  });
+ }
+
+ const zip=new JSZip();
+
+ for(let i=0;i<photos.length;i++){
+  const blob=await fetch(photos[i].data).then(r=>r.blob());
+  zip.file(`photo${i}.jpg`,blob);
+ }
+
+ const blob=await zip.generateAsync({type:'blob'});
+
+ const a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download='photos.zip';
+ a.click();
+
+ toast('ZIP完了');
+}
+
+/* ===== GPS ===== */
+async function getGPS(){
+ try{
+  await new Promise((res,rej)=>
+   navigator.geolocation.getCurrentPosition(res,rej,{timeout:8000})
+  );
+  toast('GPS OK');
+ }catch(e){
+  toast('GPS失敗');
+ }
+}
+
+/* ===== Init ===== */
 async function init(){
-  db=await openDB();
-  sites=await all('s');
-  cur=sites.find(s=>s.id===localStorage.cur)||sites[0]||null;
-  if(cur)await loadCur();
-  bind();
-}
-function bind(){
-  $('#gpsBtn').onclick=gpsCreate;
-  $('#folderBtn').onclick=()=>openS('shFolder');
-  $('#newFolder').onclick=()=>{closeS('shFolder');editFolder(null)};
-  $('#editBtn').onclick=()=>editFolder(cur);
-  $('#saveFolder').onclick=saveFolder;
-  $('#delFolder').onclick=delFolder;
-  $('#camBtn').onclick=startV;
-  $('#pickBtn').onclick=()=>$('#fileIn').click();
-  $('#fileIn').onchange=e=>handleFiles(e.target.files);
-  $('#selBtn').onclick=toggleSel;
-  $('#bbBtn').onclick=()=>openS('shBB');
-  $$('[data-a]').forEach(b=>b.onclick=()=>act(b.dataset.a));
-  $$('#shBB [data-pos]').forEach(b=>b.onclick=()=>{bb.pos=b.dataset.pos;saveBB();$$('#shBB [data-pos]').forEach(x=>x.classList.toggle('p',x===b))});
-  $$('#shBB [data-sz]').forEach(b=>b.onclick=()=>{bb.sz=b.dataset.sz;saveBB();$$('#shBB [data-sz]').forEach(x=>x.classList.toggle('p',x===b))});
-}
-function saveBB(){localStorage.bb=JSON.stringify(bb)}
+ db=await initDB();
+ photos=await load();
+ render();
 
-async function loadCur(){
-  if(!cur)return;
-  localStorage.cur=cur.id;
-  $('#siteBar').style.display='flex';
-  $('#siteNm').textContent=cur.name;
-  $('#siteAd').textContent=cur.address||'';
-  floor=(cur.floors&&cur.floors[0])||'1階';
-  renderTabs();
-  renderOpts();
-  photos=await bySite(cur.id);
-  renderPhotos();
-}
-function renderTabs(){
-  const t=$('#tabs');t.innerHTML='';
-  (cur.floors||['1階','2階','3階']).forEach(f=>{
-    const b=document.createElement('button');
-    b.className='tab'+(f===floor?' on':'');
-    b.textContent=f;
-    b.onclick=()=>{floor=f;renderTabs();renderPhotos()};
-    t.appendChild(b);
-  });
-}
-function renderOpts(){
-  const s=$('#stat');s.innerHTML='';
-  (cur.statuses||['施工前','施工中','施工後']).forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;s.appendChild(o)});
-  const n=$('#note');n.innerHTML='';
-  (cur.notes||['','検査']).forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v||'(なし)';n.appendChild(o)});
-}
-async function gpsCreate(){
-  try{
-    toast('GPS取得中');
-    const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true,timeout:8000}));
-    const {latitude,longitude}=pos.coords;
-    let addr='',name='現場';
-    try{
-      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=ja`);
-      const j=await r.json();
-      if(j.address){const a=j.address;addr=[a.state,a.city||a.town,a.suburb,a.road].filter(Boolean).join('');name=[a.suburb||'',a.road||''].filter(Boolean).join('')||name}
-    }catch(e){}
-    const site={id:uid(),name,address:addr,lat:latitude,lon:longitude,floors:['1階','2階','3階','屋上','外部'],statuses:['施工前','施工中','施工後'],notes:['','検査'],created:Date.now()};
-    await put('s',site);sites.push(site);cur=site;await loadCur();editFolder(site);toast('現場作成')
-  }catch(e){toast('GPS失敗');editFolder(null)}
-}
-function openS(id){$('#'+id).classList.add('show');if(id==='shFolder')renderFolderList()}
-function closeS(id){$('#'+id).classList.remove('show')}
-function renderFolderList(){
-  const box=$('#folderList');box.innerHTML='';
-  sites.forEach(s=>{
-    const d=document.createElement('div');
-    d.className='it'+(s.id===cur?.id?' on':'');
-    d.innerHTML=`<div class="t">${s.name}</div><div class="s">${s.address||''}</div>`;
-    d.onclick=async()=>{cur=s;closeS('shFolder');await loadCur()};
-    box.appendChild(d);
-  });
-}
-function editFolder(s){
-  const site=s||{id:uid(),name:'',address:'',floors:['1階','2階','3階','屋上','外部']};
-  $('#eName').value=site.name;$('#eAddr').value=site.address||'';$('#eComp').value=site.company||'';$('#ePers').value=site.person||'';$('#eFloors').value=(site.floors||[]).join(',');
-  $('#shEdit').dataset.id=site.id;
-  openS('shEdit');
-}
-async function saveFolder(){
-  const id=$('#shEdit').dataset.id;
-  let site=sites.find(x=>x.id===id)||{id,created:Date.now()};
-  site.name=$('#eName').value||'名称未設定';site.address=$('#eAddr').value;site.company=$('#eComp').value;site.person=$('#ePers').value;site.floors=$('#eFloors').value.split(',').map(s=>s.trim()).filter(Boolean);
-  if(!site.statuses)site.statuses=['施工前','施工中','施工後'];if(!site.notes)site.notes=['','検査'];
-  await put('s',site);if(!sites.find(x=>x.id===id))sites.push(site);cur=site;closeS('shEdit');await loadCur();toast('保存')
-}
-async function delFolder(){
-  if(!confirm('削除しますか？'))return;
-  const id=$('#shEdit').dataset.id;
-  await del('s')(id);const ps=await bySite(id);for(const p of ps)await del('p')(p.id);
-  sites=sites.filter(s=>s.id!==id);cur=sites[0]||null;closeS('shEdit');if(cur)await loadCur();else location.reload();
-}
-async function startV(){
-  if(!cur){toast('現場を選択');openS('shFolder');return}
-  try{
-    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment',width:{ideal:1920}}});
-    $('#vid').srcObject=stream;$('#vidW').style.display='block';$('#camBtn').style.display='none';
-  }catch(e){toast('カメラ失敗');$('#fileIn').click()}
-}
-function stopV(){if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}$('#vidW').style.display='none';$('#camBtn').style.display='block'}
-async function shoot(){
-  const v=$('#vid');const c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;const x=c.getContext('2d');x.drawImage(v,0,0);
-  if($('#useBB').checked){
-    const bw=Math.round(c.width*({s:0.26,m:0.34,l:0.44}[bb.sz]));const bh=Math.round(bw*0.7);const m=20;const pos={tl:[m,m],tr:[c.width-bw-m,m],bl:[m,c.height-bh-m],br:[c.width-bw-m,c.height-bh-m]}[bb.pos];
-    x.fillStyle='rgba(0,0,0,0.85)';x.fillRect(pos[0],pos[1],bw,bh);x.strokeStyle='#fff';x.lineWidth=3;x.strokeRect(pos[0],pos[1],bw,bh);
-    x.fillStyle='#fff';x.font=`bold ${Math.round(bw*0.09)}px sans-serif`;
-    const lines=[`工事:${cur.name}`,`工種:${$('#stat').value}`,`場所:${floor}`,`日時:${new Date().toLocaleDateString('ja-JP')}`];
-    lines.forEach((t,i)=>x.fillText(t,pos[0]+12,pos[1]+28+i*24));
-  }
-  const data=c.toDataURL('image/jpeg',0.9);
-  const p={id:uid(),siteId:cur.id,floor,status:$('#stat').value,note:$('#note').value,ts:Date.now(),lat:cur.lat,lon:cur.lon,data};
-  await put('p',p);photos.unshift(p);renderPhotos();toast('撮影');if(navigator.vibrate)navigator.vibrate(30);
-}
-async function handleFiles(files){
-  if(!cur){toast('現場を選択');return}
-  for(const f of files){
-    const img=await new Promise(res=>{const i=new Image();i.onload=()=>res(i);i.src=URL.createObjectURL(f)});
-    const c=document.createElement('canvas');const max=2048;let w=img.width,h=img.height;const s=Math.min(1,max/Math.max(w,h));w*=s;h*=s;c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);
-    if($('#useBB').checked){
-      const x=c.getContext('2d');const bw=Math.round(w*({s:0.26,m:0.34,l:0.44}[bb.sz]));const bh=Math.round(bw*0.7);const m=20;const pos={tl:[m,m],tr:[w-bw-m,m],bl:[m,h-bh-m],br:[w-bw-m,h-bh-m]}[bb.pos];
-      x.fillStyle='rgba(0,0,0,0.85)';x.fillRect(pos[0],pos[1],bw,bh);x.strokeStyle='#fff';x.lineWidth=3;x.strokeRect(pos[0],pos[1],bw,bh);x.fillStyle='#fff';x.font=`bold ${Math.round(bw*0.09)}px sans-serif`;
-      [`工事:${cur.name}`,`工種:${$('#stat').value}`,`場所:${floor}`,`日時:${new Date().toLocaleDateString('ja-JP')}`].forEach((t,i)=>x.fillText(t,pos[0]+12,pos[1]+28+i*24));
-    }
-    const p={id:uid(),siteId:cur.id,floor,status:$('#stat').value,note:$('#note').value,ts:Date.now(),data:c.toDataURL('image/jpeg',0.9)};
-    await put('p',p);photos.unshift(p);
-  }
-  renderPhotos();toast(files.length+'枚追加');
-}
-function renderPhotos(){
-  const g=$('#grid');g.innerHTML='';const list=photos.filter(p=>p.floor===floor);$('#cnt').textContent=`(${list.length})`;$('#empty').style.display=list.length||!cur?'none':'block';
-  list.forEach(p=>{
-    const d=document.createElement('div');d.className='pic'+(sel.has(p.id)?' sel':'');d.innerHTML=`<img src="${p.data}"><div class="ck">✓</div><div class="mt"><span>${p.status}</span><span>${new Date(p.ts).toLocaleDateString('ja-JP').slice(5)}</span></div>`;
-    d.onclick=()=>{if(selMode){sel.has(p.id)?sel.delete(p.id):sel.add(p.id);renderPhotos()}else{window.open(p.data,'_blank')}};g.appendChild(d);
-  });
-}
-function toggleSel(){selMode=!selMode;sel.clear();$('#selBtn').textContent=selMode?'解除':'選択';renderPhotos()}
-
-async function act(a){
-  const list=sel.size?photos.filter(p=>sel.has(p.id)):photos.filter(p=>p.floor===floor);
-  if(!list.length&&a!=='del'){toast('写真なし');return}
-  if(a==='del'){if(!sel.size){toast('選択してください');return}if(!confirm(sel.size+'枚削除?'))return;for(const id of sel)await del('p')(id);photos=photos.filter(p=>!sel.has(p.id));sel.clear();selMode=false;$('#selBtn').textContent='選択';renderPhotos();toast('削除')}
-  else if(a==='print'){
-    const w=window.open('','_blank');const d=w.document;d.open();
-    d.write('<!DOCTYPE html><html><head><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script><meta charset="utf-8"><title>印刷</title><style>@page{size:A4;margin:14mm}body{font-family:sans-serif;margin:0}h1{font-size:18pt;border-bottom:2px solid #000;margin:0 0 8px;padding-bottom:4px}img{width:100%;height:185mm;object-fit:contain;border:1px solid #999}.pg{page-break-after:always}.info{margin-top:6px;font-size:11pt}</style></head><body>');
-    d.write(`<h1>${cur.name}</h1>`);
-    list.forEach(p=>{d.write('<div class="pg">');d.write(`<img src="${p.data}">`);d.write(`<div class="info">日時:${new Date(p.ts).toLocaleString('ja-JP')} / 場所:${p.floor} / ${p.status}${p.note?` / ${p.note}`:''}</div>`);d.write('</div>')});
-    d.write('</body></html>');d.close();setTimeout(()=>w.print(),400);
-  }
-  else if(a==='zip'){toast('ZIP準備中');const txt=list.map((p,i)=>`${i+1}. ${p.floor}_${p.status}.jpg`).join('\n');const b=new Blob([txt],{type:'text/plain'});const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=cur.name+'.txt';a.click();toast('リスト出力')}
-  else if(a==='line'){
-    const text=encodeURIComponent(`${cur.name}\n${cur.address||''}\n写真${list.length}枚\n${cur.lat?`https://maps.google.com/?q=${cur.lat},${cur.lon}`:''}`);
-    window.open(`https://line.me/R/msg/text/?${text}`,'_blank');
-    if(navigator.share&&list[0]){try{const r=await fetch(list[0].data);const b=await r.blob();await navigator.share({files:[new File([b], 'photo.jpg', {type:'image/jpeg'})],text:cur.name})}catch(e){}}
-  }
+ $('#camBtn').onclick=startCamera;
+ $('#closeV').onclick=stopCamera;
+ $('#snap').onclick=takePhoto;
+ $('#zipBtn').onclick=makeZip;
+ $('#gpsBtn').onclick=getGPS;
 }
 
 init();
 </script>
+
 </body>
 </html>
