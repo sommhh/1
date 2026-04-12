@@ -1,261 +1,271 @@
-<!-- ⚠️ HEAD〜HTMLはそのまま使え（変更なし） -->
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>現場カメラ 完全版</title>
+
+<style>
+body{margin:0;font-family:sans-serif;background:#0f172a;color:#fff}
+header{padding:10px;background:#111}
+button{padding:8px;margin:3px}
+#grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:10px}
+.pic img{width:100%;height:100px;object-fit:cover}
+</style>
+</head>
+<body>
+
+<header>
+<button id="gpsBtn">📍GPS</button>
+<button id="camBtn">📷撮影</button>
+<button id="zipBtn">📦ZIP</button>
+<button id="printBtn">🖨️印刷</button>
+<button id="lineBtn">💬LINE</button>
+<input type="file" id="file" multiple accept="image/*">
+</header>
+
+<video id="vid" autoplay playsinline style="width:100%;display:none"></video>
+<div id="grid"></div>
 
 <script>
-(function(){
 'use strict';
 
-/* =========================
-  安全ユーティリティ
-========================= */
-const $ = s => document.querySelector(s);
-const $$ = s => [...document.querySelectorAll(s)];
+/* ================= 基本 ================= */
+const $=s=>document.querySelector(s);
 
-function safe(fn){
-  try{ fn(); }catch(e){ console.error(e); toast('エラー'); }
-}
+function toast(m){console.log(m);}
 
-function toast(m){
-  const t = $('#toast');
-  if(!t) return;
-  t.textContent = m;
-  t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),1500);
-}
+/* ================= DB ================= */
+let db,photos=[],sites=[],cur=null;
 
-function uid(){
-  return Date.now().toString(36)+Math.random().toString(36).slice(2,6);
-}
-
-/* =========================
-  DB（安定化）
-========================= */
-let db, sites=[], cur=null, photos=[];
-let sel=new Set(), selMode=false, floor='1階';
-let stream=null, currentPhoto=null;
-
-async function openDB(){
-  return new Promise((res,rej)=>{
-    const r=indexedDB.open('genba_final',3);
-
-    r.onupgradeneeded=e=>{
-      const d=e.target.result;
-      if(!d.objectStoreNames.contains('sites'))
-        d.createObjectStore('sites',{keyPath:'id'});
-      if(!d.objectStoreNames.contains('photos')){
-        const p=d.createObjectStore('photos',{keyPath:'id'});
-        p.createIndex('siteId','siteId');
-      }
-    };
-    r.onsuccess=()=>res(r.result);
-    r.onerror=()=>rej(r.error);
-  });
+function openDB(){
+ return new Promise(res=>{
+  let r=indexedDB.open('genba_final_full',1);
+  r.onupgradeneeded=e=>{
+    let d=e.target.result;
+    if(!d.objectStoreNames.contains('photos')){
+      let p=d.createObjectStore('photos',{keyPath:'id'});
+      p.createIndex('siteId','siteId');
+    }
+    if(!d.objectStoreNames.contains('sites')){
+      d.createObjectStore('sites',{keyPath:'id'});
+    }
+  };
+  r.onsuccess=()=>res(r.result);
+ });
 }
 
 function tx(n,m='readonly'){
-  return db.transaction(n,m).objectStore(n);
-}
-
-function getAll(n){
-  return new Promise(r=>{
-    const q=tx(n).getAll();
-    q.onsuccess=()=>r(q.result||[]);
-    q.onerror=()=>r([]);
-  });
-}
-
-function getBySite(id){
-  return new Promise(r=>{
-    const q=tx('photos').index('siteId').getAll(id);
-    q.onsuccess=()=>r(q.result||[]);
-    q.onerror=()=>r([]);
-  });
+ return db.transaction(n,m).objectStore(n);
 }
 
 function put(n,o){
-  return new Promise(r=>{
-    const q=tx(n,'readwrite').put(o);
-    q.onsuccess=()=>r(true);
-    q.onerror=()=>r(false);
-  });
+ return new Promise(r=>{
+  let q=tx(n,'readwrite').put(o);
+  q.onsuccess=()=>r(true);
+  q.onerror=()=>r(false);
+ });
 }
 
-function del(n,id){
-  return new Promise(r=>{
-    const q=tx(n,'readwrite').delete(id);
-    q.onsuccess=()=>r();
-    q.onerror=()=>r();
-  });
+function getAll(n){
+ return new Promise(r=>{
+  let q=tx(n).getAll();
+  q.onsuccess=e=>r(e.target.result||[]);
+ });
 }
 
-/* =========================
-  画像処理（強化）
-========================= */
-function canvasToBlob(c){
-  return new Promise(r=>{
-    c.toBlob(b=>r(b),'image/jpeg',0.85);
-  });
-}
-
-function makeThumb(c){
-  const t=document.createElement('canvas');
-  const size=300;
-  t.width=size; t.height=size;
-
-  const ctx=t.getContext('2d');
-  ctx.fillStyle='#000';
-  ctx.fillRect(0,0,size,size);
-
-  const s=Math.min(size/c.width,size/c.height);
-  const nw=c.width*s, nh=c.height*s;
-
-  ctx.drawImage(c,(size-nw)/2,(size-nh)/2,nw,nh);
-  return t.toDataURL('image/jpeg',0.6);
-}
-
-/* =========================
-  初期化（完全安定）
-========================= */
+/* ================= 初期化 ================= */
 async function init(){
-  try{
-    db=await openDB();
-    sites=await getAll('sites');
+ if(!indexedDB){alert('非対応');return;}
+ db=await openDB();
+ sites=await getAll('sites');
 
-    const saved=localStorage.getItem('cur');
-    cur=sites.find(s=>s.id===saved)||sites[0]||null;
+ if(sites.length===0){
+  let s={id:Date.now(),name:'現場',created:Date.now()};
+  await put('sites',s);
+  sites.push(s);
+ }
+ cur=sites[0];
 
-    bindEvents();
-
-    if(cur) await loadSite();
-
-  }catch(e){
-    console.error(e);
-    toast('初期化エラー');
-  }
+ photos=await getAll('photos');
+ render();
 }
-
-/* =========================
-  イベント（安全）
-========================= */
-function bindEvents(){
-  safe(()=>$('#camBtn').onclick=startCam);
-  safe(()=>$('#snap').onclick=capturePhoto);
-  safe(()=>$('#closeV').onclick=closeCam);
-}
-
-/* =========================
-  カメラ（完全安定）
-========================= */
-async function startCam(){
-  if(!cur){ toast('現場選択'); return; }
-
-  try{
-    if(location.protocol!=='https:' && location.hostname!=='localhost'){
-      toast('HTTPS必須'); return;
-    }
-
-    stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:'environment'}, audio:false
-    });
-
-    const v=$('#vid');
-    v.srcObject=stream;
-    await v.play();
-
-    $('#vidW').style.display='block';
-
-  }catch(e){
-    console.error(e);
-    toast('カメラNG');
-  }
-}
-
-function closeCam(){
-  if(stream){
-    stream.getTracks().forEach(t=>t.stop());
-    stream=null;
-  }
-  $('#vidW').style.display='none';
-}
-
-/* =========================
-  撮影
-========================= */
-async function capturePhoto(){
-  const v=$('#vid');
-  if(!v.videoWidth){ toast('準備中'); return; }
-
-  const c=document.createElement('canvas');
-  c.width=v.videoWidth;
-  c.height=v.videoHeight;
-
-  c.getContext('2d').drawImage(v,0,0);
-  currentPhoto=c;
-
-  const blob=await canvasToBlob(c);
-  const thumb=makeThumb(c);
-
-  const p={
-    id:uid(),
-    siteId:cur.id,
-    floor:floor,
-    status:$('#stat')?.value||'',
-    ts:Date.now(),
-    blob, thumb
-  };
-
-  if(await put('photos',p)){
-    photos.unshift(p);
-    renderPhotos();
-    toast('保存OK');
-  }
-}
-
-/* =========================
-  表示（高速）
-========================= */
-function renderPhotos(){
-  const g=$('#grid');
-  if(!g) return;
-
-  g.innerHTML='';
-
-  const list=photos.filter(p=>p.floor===floor);
-
-  list.forEach(p=>{
-    const d=document.createElement('div');
-    d.className='pic';
-
-    const img=document.createElement('img');
-    img.loading='lazy';
-    img.src=p.thumb||'';
-
-    d.onclick=()=>{
-      if(p.blob){
-        const url=URL.createObjectURL(p.blob);
-        window.open(url);
-        setTimeout(()=>URL.revokeObjectURL(url),2000);
-      }
-    };
-
-    d.appendChild(img);
-    g.appendChild(d);
-  });
-}
-
-/* =========================
-  サイト読込
-========================= */
-async function loadSite(){
-  localStorage.setItem('cur',cur.id);
-  photos=await getBySite(cur.id);
-  photos.sort((a,b)=>b.ts-a.ts);
-  renderPhotos();
-}
-
-/* =========================
-  起動
-========================= */
 init();
 
-})();
+/* ================= カメラ ================= */
+let stream=null;
+
+$('#camBtn').onclick=async ()=>{
+ if(!navigator.mediaDevices){alert('カメラ不可');return;}
+
+ try{
+  stream=await navigator.mediaDevices.getUserMedia({video:true});
+  let v=$('#vid');
+  v.srcObject=stream;
+  v.style.display='block';
+
+  v.onclick=async ()=>{
+    if(!v.videoWidth)return;
+
+    let c=document.createElement('canvas');
+    c.width=v.videoWidth;
+    c.height=v.videoHeight;
+
+    let ctx=c.getContext('2d');
+    if(!ctx)return;
+
+    ctx.drawImage(v,0,0);
+
+    /* 黒板 */
+    ctx.fillStyle='rgba(0,0,0,0.7)';
+    ctx.fillRect(10,10,250,120);
+    ctx.fillStyle='#fff';
+    ctx.font='16px sans-serif';
+    ctx.fillText('現場:'+cur.name,20,30);
+    ctx.fillText('日付:'+new Date().toLocaleDateString(),20,55);
+
+    let blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
+    let thumb=c.toDataURL('image/jpeg',0.5);
+
+    let p={
+      id:Date.now()+Math.random(),
+      siteId:cur.id,
+      blob,thumb,
+      ts:Date.now()
+    };
+
+    await put('photos',p);
+    photos.unshift(p);
+    render();
+
+    stream.getTracks().forEach(t=>t.stop());
+    v.style.display='none';
+  };
+
+ }catch(e){
+  alert('カメラ失敗');
+ }
+};
+
+/* ================= ファイル追加 ================= */
+$('#file').onchange=async e=>{
+ let files=e.target.files;
+
+ for(let f of files){
+  if(!f.type.startsWith('image/'))continue;
+
+  let img=new Image();
+  img.src=URL.createObjectURL(f);
+  await new Promise(r=>img.onload=r);
+
+  let c=document.createElement('canvas');
+  c.width=img.width;
+  c.height=img.height;
+
+  let ctx=c.getContext('2d');
+  ctx.drawImage(img,0,0);
+
+  let blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
+  let thumb=c.toDataURL('image/jpeg',0.5);
+
+  let p={
+    id:Date.now()+Math.random(),
+    siteId:cur.id,
+    blob,thumb,
+    ts:Date.now()
+  };
+
+  await put('photos',p);
+  photos.unshift(p);
+
+  URL.revokeObjectURL(img.src);
+ }
+ render();
+};
+
+/* ================= 表示 ================= */
+function render(){
+ let g=$('#grid');
+ g.innerHTML='';
+
+ photos.forEach(p=>{
+  let d=document.createElement('div');
+  d.className='pic';
+
+  let img=document.createElement('img');
+  img.src=p.thumb||'';
+
+  d.onclick=()=>{
+    let url=URL.createObjectURL(p.blob);
+    window.open(url);
+    setTimeout(()=>URL.revokeObjectURL(url),2000);
+  };
+
+  d.appendChild(img);
+  g.appendChild(d);
+ });
+}
+
+/* ================= ZIP ================= */
+$('#zipBtn').onclick=async ()=>{
+ if(!window.JSZip){
+  await new Promise(r=>{
+    let s=document.createElement('script');
+    s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+    s.onload=r;
+    document.head.appendChild(s);
+  });
+ }
+
+ let zip=new JSZip();
+
+ photos.forEach((p,i)=>{
+  zip.file(i+'.jpg',p.blob);
+ });
+
+ let blob=await zip.generateAsync({type:'blob'});
+
+ let a=document.createElement('a');
+ a.href=URL.createObjectURL(blob);
+ a.download='photos.zip';
+ a.click();
+};
+
+/* ================= 印刷 ================= */
+$('#printBtn').onclick=()=>{
+ let w=window.open('');
+ let d=w.document;
+
+ d.write('<html><body>');
+ photos.forEach(p=>{
+  let url=URL.createObjectURL(p.blob);
+  d.write('<img src="'+url+'" style="width:100%"><br>');
+ });
+ d.write('</body></html>');
+ d.close();
+ w.print();
+};
+
+/* ================= LINE ================= */
+$('#lineBtn').onclick=()=>{
+ let txt=(cur?cur.name:'')+'\n';
+ txt+='写真'+photos.length+'枚';
+
+ window.open('https://line.me/R/msg/text/?'+encodeURIComponent(txt));
+};
+
+/* ================= GPS ================= */
+$('#gpsBtn').onclick=async ()=>{
+ try{
+  let pos=await new Promise((res,rej)=>{
+    navigator.geolocation.getCurrentPosition(res,rej);
+  });
+  alert('緯度:'+pos.coords.latitude);
+ }catch(e){
+  alert('GPS失敗');
+ }
+};
+
 </script>
+</body>
+</html>
