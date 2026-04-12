@@ -1,46 +1,100 @@
 <script>
 !function(){
+'use strict';
+
 var $=s=>document.querySelector(s);
-function toast(m){var t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1400)}
+function toast(m){try{var t=$('#toast');if(!t)return alert(m);t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1400)}catch{alert(m)}}
 function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5)}
 
-var db,site=null,photos=[],sel=new Set(),selMode=false,floor='1F',stream=null,shot=null,_saving=false,_zipLoading=false;
+window.onerror=function(msg,src,line,col,err){
+ alert('JSエラー:'+msg+' @'+line);
+};
+
+// ================= 状態 =================
+var db=null,site=null,photos=[],sel=new Set(),selMode=false,floor='1F',stream=null,shot=null,_saving=false,_zipLoading=false;
 
 // ================= DB =================
 function openDB(){
  return new Promise((res,rej)=>{
-  var q=indexedDB.open('gc1',2);
-  q.onupgradeneeded=e=>{
-   var d=e.target.result;
-   if(!d.objectStoreNames.contains('s')) d.createObjectStore('s',{keyPath:'id'});
-   if(!d.objectStoreNames.contains('p')){
-    var p=d.createObjectStore('p',{keyPath:'id'});
-    p.createIndex('site','sid');
-   }
-   if(!d.objectStoreNames.contains('addr')) d.createObjectStore('addr',{keyPath:'id'});
-  };
-  q.onsuccess=()=>res(q.result);
-  q.onerror=()=>rej();
+  try{
+    var q=indexedDB.open('gc1',2);
+
+    q.onupgradeneeded=e=>{
+      var d=e.target.result;
+
+      if(!d.objectStoreNames.contains('s'))
+        d.createObjectStore('s',{keyPath:'id'});
+
+      if(!d.objectStoreNames.contains('p')){
+        var p=d.createObjectStore('p',{keyPath:'id'});
+        p.createIndex('site','sid');
+      }
+
+      if(!d.objectStoreNames.contains('addr'))
+        d.createObjectStore('addr',{keyPath:'id'});
+    };
+
+    q.onsuccess=()=>res(q.result);
+    q.onerror=()=>rej('DB失敗');
+  }catch(e){rej(e)}
  });
 }
 
-function tx(n,m){try{return db.transaction(n,m||'readonly').objectStore(n)}catch(e){toast('DBエラー')}}
-function all(n){return new Promise(r=>{var q=tx(n).getAll();q.onsuccess=()=>r(q.result||[])})}
-function bySite(id){return new Promise(r=>{var q=tx('p').index('site').getAll(id);q.onsuccess=()=>r(q.result||[])})}
-function put(n,o){return new Promise(r=>tx(n,'readwrite').put(o).onsuccess=r)}
-function del(n,i){return new Promise(r=>tx(n,'readwrite').delete(i).onsuccess=r)}
-
-function blob(c){return new Promise(r=>c.toBlob(r,'image/jpeg',0.85))}
-function thumb(c){
- var t=document.createElement('canvas'),s=300;
- t.width=s;t.height=s;
- var x=t.getContext('2d'),w=c.width,h=c.height,k=Math.min(s/w,s/h);
- x.fillStyle='#000';x.fillRect(0,0,s,s);
- x.drawImage(c,(s-w*k)/2,(s-h*k)/2,w*k,h*k);
- return t.toDataURL('image/jpeg',0.7);
+function tx(n,m){
+ try{return db.transaction(n,m||'readonly').objectStore(n)}
+ catch(e){toast('DBエラー');throw e;}
 }
 
-// ================= 住所キャッシュ =================
+function all(n){
+ return new Promise(r=>{
+  try{
+    var q=tx(n).getAll();
+    q.onsuccess=()=>r(q.result||[]);
+    q.onerror=()=>r([]);
+  }catch{r([])}
+ });
+}
+
+function bySite(id){
+ return new Promise(r=>{
+  try{
+    var q=tx('p').index('site').getAll(id);
+    q.onsuccess=()=>r(q.result||[]);
+    q.onerror=()=>r([]);
+  }catch{r([])}
+ });
+}
+
+function put(n,o){
+ return new Promise(r=>{
+  try{
+    tx(n,'readwrite').put(o).onsuccess=r;
+  }catch{r()}
+ });
+}
+
+function del(n,i){
+ return new Promise(r=>{
+  try{
+    tx(n,'readwrite').delete(i).onsuccess=r;
+  }catch{r()}
+ });
+}
+
+// ================= 画像 =================
+function blob(c){return new Promise(r=>c.toBlob(r,'image/jpeg',0.85))}
+function thumb(c){
+ try{
+  var t=document.createElement('canvas'),s=300;
+  t.width=s;t.height=s;
+  var x=t.getContext('2d'),w=c.width,h=c.height,k=Math.min(s/w,s/h);
+  x.fillStyle='#000';x.fillRect(0,0,s,s);
+  x.drawImage(c,(s-w*k)/2,(s-h*k)/2,w*k,h*k);
+  return t.toDataURL('image/jpeg',0.7);
+ }catch{return ''}
+}
+
+// ================= 住所 =================
 function dist(a,b,c,d){
  var R=6371;
  var dLat=(c-a)*Math.PI/180;
@@ -54,38 +108,50 @@ function dist(a,b,c,d){
 async function getCachedAddr(lat,lon){
  var list=await all('addr');
  for(var i=0;i<list.length;i++){
-  if(dist(lat,lon,list[i].lat,list[i].lon)<0.05){
-   return list[i].addr;
-  }
+  if(dist(lat,lon,list[i].lat,list[i].lon)<0.05)
+    return list[i].addr;
  }
  return null;
 }
 
 async function getAddress(lat,lon){
- var c=await getCachedAddr(lat,lon);
- if(c) return c;
-
  try{
+  var c=await getCachedAddr(lat,lon);
+  if(c) return c;
+
   const res=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&accept-language=ja`);
   const data=await res.json();
+
   let a=data.display_name||'';
   a=a.replace('日本,','').replace(/\d{3}-\d{4}/,'');
+
   await put('addr',{id:uid(),lat,lon,addr:a});
   return a;
- }catch(e){
+
+ }catch{
   return '';
  }
 }
 
 // ================= 初期化 =================
 async function init(){
- try{db=await openDB()}catch{alert('DB失敗');return}
+ try{
+  db=await openDB();
+ }catch(e){
+  alert('DB使えない環境');
+  return;
+ }
+
  var sites=await all('s');
  site=sites[0]||{id:uid(),name:'Site1',floors:['1F','2F','3F','RF','EXT']};
+
  if(!sites.length) await put('s',site);
- await load(); bind();
+
+ await load();
+ bind();
 }
 
+// ================= バインド =================
 function bind(){
  $('#gps').onclick=gps;
  $('#cam').onclick=start;
@@ -96,18 +162,23 @@ function bind(){
  $('#pick').onclick=()=>$('#file').click();
  $('#file').onchange=e=>add(e.target.files);
  $('#sel').onclick=toggle;
- document.querySelectorAll('[data-a]').forEach(b=>b.onclick=()=>act(b.dataset.a));
+
+ document.querySelectorAll('[data-a]').forEach(b=>{
+  b.onclick=()=>act(b.dataset.a);
+ });
 }
 
 // ================= 描画 =================
 async function load(){
  photos=await bySite(site.id);
  photos.sort((a,b)=>b.ts-a.ts);
- renderTabs(); render();
+ renderTabs();
+ render();
 }
 
 function renderTabs(){
- var t=$('#tabs');t.innerHTML='';
+ var t=$('#tabs'); if(!t)return;
+ t.innerHTML='';
  site.floors.forEach(f=>{
   var b=document.createElement('button');
   b.className='tab'+(f===floor?' on':'');
@@ -118,26 +189,31 @@ function renderTabs(){
 }
 
 function render(){
- var g=$('#grid');g.innerHTML='';
+ var g=$('#grid'); if(!g)return;
+ g.innerHTML='';
+
  var ls=photos.filter(p=>p.floor===floor);
- $('#cnt').textContent='('+ls.length+')';
- $('#empty').style.display=ls.length?'none':'block';
+ var c=$('#cnt'); if(c)c.textContent='('+ls.length+')';
+ var e=$('#empty'); if(e)e.style.display=ls.length?'none':'block';
 
  ls.forEach(p=>{
   var d=document.createElement('div');d.className='pic';
-  var i=document.createElement('img');i.src=p.thumb;
+  var i=document.createElement('img');i.src=p.thumb||'';
   d.appendChild(i);
 
   d.onclick=()=>{
-   if(selMode){
-    sel.has(p.id)?sel.delete(p.id):sel.add(p.id);
-    d.style.outline=sel.has(p.id)?'2px solid #2563eb':'none';
-   }else{
-    var u=URL.createObjectURL(p.blob);
-    window.open(u);
-    setTimeout(()=>URL.revokeObjectURL(u),2000);
-   }
+   try{
+    if(selMode){
+      sel.has(p.id)?sel.delete(p.id):sel.add(p.id);
+      d.style.outline=sel.has(p.id)?'2px solid #2563eb':'none';
+    }else{
+      var u=URL.createObjectURL(p.blob);
+      window.open(u);
+      setTimeout(()=>URL.revokeObjectURL(u),2000);
+    }
+   }catch{}
   };
+
   g.appendChild(d);
  });
 }
@@ -145,7 +221,14 @@ function render(){
 // ================= GPS =================
 async function gps(){
  try{
-  var p=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{timeout:8000}));
+  if(!navigator.geolocation){
+    toast('GPS非対応');return;
+  }
+
+  var p=await new Promise((res,rej)=>
+    navigator.geolocation.getCurrentPosition(res,rej,{timeout:8000})
+  );
+
   site.lat=p.coords.latitude;
   site.lon=p.coords.longitude;
 
@@ -153,23 +236,28 @@ async function gps(){
   if(!site.addr) site.addr='住所未取得';
 
   await put('s',site);
+
   toast('GPS+住所OK');
 
  }catch(e){
-  toast('GPS失敗:'+e.code);
+  toast('GPS失敗');
  }
 }
 
 // ================= カメラ =================
 async function start(){
- if(!navigator.mediaDevices){toast('非対応');return;}
  try{
+  if(!navigator.mediaDevices){
+    toast('非対応');return;
+  }
+
   stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'}});
-  $('#vid').srcObject=stream;
 
-  await new Promise(r=>$('#vid').onloadedmetadata=r);
+  var v=$('#vid');
+  v.srcObject=stream;
 
-  await $('#vid').play();
+  await new Promise(r=>v.onloadedmetadata=r);
+  await v.play();
 
   $('#vidW').style.display='block';
   $('#vid').style.display='block';
@@ -178,109 +266,136 @@ async function start(){
   $('#retryBtn').style.display='none';
   $('#saveBtn').style.display='none';
 
- }catch(e){toast('カメラ失敗')}
+ }catch(e){
+  toast('カメラ失敗');
+ }
 }
 
 function stop(){
- if(stream) stream.getTracks().forEach(t=>t.stop());
+ try{
+  if(stream) stream.getTracks().forEach(t=>t.stop());
+ }catch{}
  $('#vid').srcObject=null;
  $('#vidW').style.display='none';
  shot=null;
 }
 
+// ================= 撮影 =================
 function take(){
- var v=$('#vid');
- if(!v.videoWidth){toast('準備中');return;}
+ try{
+  var v=$('#vid');
+  if(!v.videoWidth){toast('準備中');return;}
 
- var c=document.createElement('canvas');
- c.width=v.videoWidth;
- c.height=v.videoHeight;
- var x=c.getContext('2d');
- x.drawImage(v,0,0);
+  var c=document.createElement('canvas');
+  c.width=v.videoWidth;
+  c.height=v.videoHeight;
 
- // 黒板
- if($('#useBB').checked){
-  var w=c.width,h=c.height;
-  var bw=w*0.33,bh=bw*0.68,px=w-bw-16,py=h-bh-16;
+  var x=c.getContext('2d');
+  x.drawImage(v,0,0);
 
-  x.fillStyle='rgba(0,0,0,.85)';
-  x.fillRect(px,py,bw,bh);
-  x.strokeStyle='#fff';
-  x.lineWidth=3;
-  x.strokeRect(px,py,bw,bh);
+  if($('#useBB') && $('#useBB').checked){
+    var w=c.width,h=c.height;
+    var bw=w*0.33,bh=bw*0.68,px=w-bw-16,py=h-bh-16;
 
-  x.fillStyle='#fff';
-  x.font='bold '+Math.round(bw*0.09)+'px sans-serif';
+    x.fillStyle='rgba(0,0,0,.85)';
+    x.fillRect(px,py,bw,bh);
 
-  var ls=[
-   'Site:'+site.name,
-   'Work:'+$('#stat').value,
-   'Floor:'+floor,
-   'Addr:'+(site.addr||''),
-   'Date:'+new Date().toLocaleDateString()
-  ];
+    x.strokeStyle='#fff';
+    x.lineWidth=3;
+    x.strokeRect(px,py,bw,bh);
 
-  ls.forEach((t,i)=>x.fillText(t,px+10,py+14+i*20));
+    x.fillStyle='#fff';
+    x.font='bold '+Math.round(bw*0.09)+'px sans-serif';
+
+    var ls=[
+      'Site:'+site.name,
+      'Work:'+$('#stat').value,
+      'Floor:'+floor,
+      'Addr:'+(site.addr||''),
+      'Date:'+new Date().toLocaleDateString()
+    ];
+
+    ls.forEach((t,i)=>x.fillText(t,px+10,py+14+i*20));
+  }
+
+  shot=c;
+
+  $('#preview').src=c.toDataURL('image/jpeg',0.9);
+  $('#vid').style.display='none';
+  $('#previewC').style.display='block';
+  $('#snap').style.display='none';
+  $('#retryBtn').style.display='block';
+  $('#saveBtn').style.display='block';
+
+ }catch(e){
+  toast('撮影失敗');
  }
-
- shot=c;
- $('#preview').src=c.toDataURL('image/jpeg',0.9);
-
- $('#vid').style.display='none';
- $('#previewC').style.display='block';
- $('#snap').style.display='none';
- $('#retryBtn').style.display='block';
- $('#saveBtn').style.display='block';
 }
 
-function retry(){
- $('#vid').style.display='block';
- $('#previewC').style.display='none';
- $('#snap').style.display='block';
- $('#retryBtn').style.display='none';
- $('#saveBtn').style.display='none';
- shot=null;
-}
-
+// ================= 保存 =================
 async function save(){
  if(!shot||_saving) return;
  _saving=true;
 
- var b=await blob(shot),t=thumb(shot);
+ try{
+  var b=await blob(shot);
+  var t=thumb(shot);
 
- var p={id:uid(),sid:site.id,floor,ts:Date.now(),blob:b,thumb:t};
+  await put('p',{
+    id:uid(),
+    sid:site.id,
+    floor,
+    ts:Date.now(),
+    blob:b,
+    thumb:t
+  });
 
- await put('p',p);
- photos.unshift(p);
- render();
+  await load();
 
- toast('保存');
- stop();
+  toast('保存');
+  stop();
+
+ }catch{
+  toast('保存失敗');
+ }
+
  _saving=false;
 }
 
 // ================= 追加 =================
 async function add(files){
- for(let f of files){
-  if(!f.type.startsWith('image')) continue;
+ try{
+  for(let f of files){
+    if(!f.type.startsWith('image')) continue;
 
-  let url=URL.createObjectURL(f);
-  let im=await new Promise(r=>{let i=new Image();i.onload=()=>r(i);i.src=url});
+    let url=URL.createObjectURL(f);
 
-  let c=document.createElement('canvas');
-  let m=1600,w=im.width,h=im.height,s=Math.min(1,m/Math.max(w,h));
+    let im=await new Promise(r=>{
+      let i=new Image();
+      i.onload=()=>r(i);
+      i.src=url;
+    });
 
-  c.width=w*s;
-  c.height=h*s;
-  c.getContext('2d').drawImage(im,0,0,c.width,c.height);
+    let c=document.createElement('canvas');
+    let m=1600,w=im.width,h=im.height,s=Math.min(1,m/Math.max(w,h));
 
-  let b=await blob(c),t=thumb(c);
+    c.width=w*s;
+    c.height=h*s;
+    c.getContext('2d').drawImage(im,0,0,c.width,c.height);
 
-  await put('p',{id:uid(),sid:site.id,floor,ts:Date.now(),blob:b,thumb:t});
-  URL.revokeObjectURL(url);
+    let b=await blob(c),t=thumb(c);
+
+    await put('p',{id:uid(),sid:site.id,floor,ts:Date.now(),blob:b,thumb:t});
+
+    URL.revokeObjectURL(url);
+  }
+
+  await load();
+  toast('追加');
+
+ }catch{
+  toast('追加失敗');
  }
- await load();
- toast('追加');
 }
 
 // ================= 選択 =================
@@ -297,50 +412,69 @@ async function act(a){
  if(!ls.length){toast('なし');return;}
 
  if(a==='del'){
-  for(let p of ls) await del('p',p.id);
-  photos=photos.filter(p=>!sel.has(p.id));
-  toggle(); render(); toast('削除');
-
- }else if(a==='zip'){
-  if(!window.JSZip && !_zipLoading){
-   _zipLoading=true;
-   await new Promise(r=>{
-    var s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-    s.onload=r;
-    document.head.appendChild(s);
-   });
+  try{
+    for(let p of ls) await del('p',p.id);
+    await load();
+    toggle();
+    toast('削除');
+  }catch{
+    toast('削除失敗');
   }
 
-  var z=new JSZip();
-  ls.forEach((p,i)=>z.file((i+1)+'.jpg',p.blob));
-  var b=await z.generateAsync({type:'blob'});
+ }else if(a==='zip'){
+  try{
+    if(!window.JSZip){
+      if(_zipLoading){toast('読込中');return;}
+      _zipLoading=true;
 
-  if(navigator.share){
-   await navigator.share({files:[new File([b],'photos.zip')]});
-  }else{
-   var u=URL.createObjectURL(b);
-   var a=document.createElement('a');
-   a.href=u;
-   a.download='photos.zip';
-   a.click();
-   setTimeout(()=>URL.revokeObjectURL(u),1000);
+      await new Promise((res,rej)=>{
+        var s=document.createElement('script');
+        s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+        s.onload=res;
+        s.onerror=rej;
+        document.head.appendChild(s);
+      });
+    }
+
+    if(!window.JSZip){toast('ZIP不可');return;}
+
+    var z=new JSZip();
+    ls.forEach((p,i)=>z.file((i+1)+'.jpg',p.blob));
+
+    var b=await z.generateAsync({type:'blob'});
+
+    if(navigator.share){
+      await navigator.share({files:[new File([b],'photos.zip')]});
+    }else{
+      var u=URL.createObjectURL(b);
+      var a=document.createElement('a');
+      a.href=u;
+      a.download='photos.zip';
+      a.click();
+      setTimeout(()=>URL.revokeObjectURL(u),1000);
+    }
+
+  }catch(e){
+    toast('ZIP失敗');
   }
 
  }else if(a==='line'){
   try{
-   const files=ls.map((p,i)=>new File([p.blob],`${site.name}_${i+1}.jpg`,{type:'image/jpeg'}));
+    const files=ls.map((p,i)=>new File([p.blob],`${i+1}.jpg`,{type:'image/jpeg'}));
 
-   if(navigator.canShare && navigator.canShare({files})){
-    await navigator.share({files,title:site.name});
-   }else{
-    window.open('https://line.me/R/msg/text/?'+encodeURIComponent(site.name));
-   }
+    if(navigator.share && navigator.canShare && navigator.canShare({files})){
+      await navigator.share({files});
+    }else{
+      const t=site.name+' '+ls.length+'枚';
+      window.open('https://line.me/R/msg/text/?'+encodeURIComponent(t));
+    }
 
-  }catch(e){toast('共有失敗')}
- }
+  }catch{
+    toast('共有失敗');
+  }
 }
 
 init();
+
 }();
 </script>
