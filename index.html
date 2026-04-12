@@ -192,779 +192,537 @@
 })();</script>
 <script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
-<title>現場カメラ v6.1</title>
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>現場カメラ</title>
 <style>
-*{box-sizing:border-box}
-html,body{height:100%}
-body{
-  margin:0;background:#070b14;color:#e6edf3;
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN","Yu Gothic UI","Noto Sans JP",Meiryo,sans-serif;
-  -webkit-font-smoothing:antialiased;touch-action:manipulation
-}
-button,select,input{font:inherit;color:inherit}
-button{cursor:pointer}
-header{position:sticky;top:0;z-index:40;background:rgba(7,11,20,.88);backdrop-filter:blur(10px);border-bottom:1px solid #1b2436}
-.head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:10px 12px}
-h1{margin:0;font-size:18px;font-weight:800;letter-spacing:.02em}
-h1 span{opacity:.55;font-size:11px;margin-left:6px;padding:2px 6px;border:1px solid #23314d;border-radius:6px}
-.btns{display:flex;gap:8px}
-.btn{padding:9px 12px;border-radius:12px;background:#121b2e;border:1px solid #22304a;color:#dbe6f5;font-weight:600}
-.btn.primary{background:#15803d;border-color:#16a34a;color:white}
-.btn.ghost{background:#0e1628}
-.btn:active{transform:translateY(1px)}
-.btn.small{padding:6px 9px;font-size:12px;border-radius:9px}
-.sitebar{display:flex;gap:10px;align-items:center;padding:8px 12px;border-top:1px solid #0f1a2e;background:#0a1222;font-size:13px;min-height:38px}
-.sitebar .name{font-weight:700;white-space:nowrap}
-.sitebar .meta{opacity:.7;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-.pill{padding:3px 8px;border-radius:999px;background:#0e1830;border:1px solid #1f2c48;font-size:12px}
-main{padding:12px 12px 100px;max-width:960px;margin:0 auto}
-.tabs{display:flex;gap:6px;overflow:auto;padding:4px 2px 10px;scrollbar-width:none}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Hiragino Kaku Gothic ProN","Noto Sans JP",sans-serif;background:#0a0e14;color:#e2e8f0;line-height:1.5}
+button{font:inherit;cursor:pointer;border:0;background:none;color:inherit}
+input,select{font:inherit;color:inherit;background:#1a2332;border:1px solid #2d3748;border-radius:8px;padding:10px 12px;width:100%}
+input:focus,select:focus{outline:2px solid #3b82f6;outline-offset:-1px}
+header{position:sticky;top:0;z-index:100;background:rgba(10,14,20,.95);backdrop-filter:blur(12px);border-bottom:1px solid #1e293b}
+.top{padding:12px 16px;display:flex;align-items:center;gap:12px}
+h1{font-size:18px;font-weight:700}
+.badge{font-size:11px;background:#1e40af;padding:2px 6px;border-radius:4px;margin-left:6px}
+.spacer{flex:1}
+.btn{padding:8px 14px;border-radius:8px;font-weight:600;font-size:14px;white-space:nowrap;background:#1e293b;border:1px solid #334155}
+.btn:active{opacity:.8}
+.btn.primary{background:#2563eb;border-color:#3b82f6;color:white}
+.sitebar{padding:8px 16px 12px;display:flex;gap:8px;align-items:center;font-size:13px;border-top:1px solid #0f172a}
+.site-name{font-weight:700;max-width:40%;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.site-addr{opacity:.6;flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+main{padding:16px;max-width:800px;margin:0 auto;padding-bottom:100px}
+.section{background:#111827;border:1px solid #1f2937;border-radius:12px;padding:14px;margin-bottom:16px}
+.section-title{font-size:13px;font-weight:700;opacity:.8;margin-bottom:10px;text-transform:uppercase;letter-spacing:.05em}
+.row{display:flex;gap:8px;margin-bottom:8px}
+.row:last-child{margin-bottom:0}
+.col{flex:1}
+.toggle{display:flex;align-items:center;gap:8px;padding:10px 12px;background:#1a2332;border:1px solid #2d3748;border-radius:8px;font-size:14px;user-select:none}
+.toggle input{width:18px;height:18px;accent-color:#3b82f6}
+.tabs{display:flex;gap:6px;overflow-x:auto;padding:4px 0 12px;scrollbar-width:none}
 .tabs::-webkit-scrollbar{display:none}
-.tab{padding:8px 14px;border-radius:999px;background:#0f172a;border:1px solid #1e293b;white-space:nowrap;font-size:13px;font-weight:600}
+.tab{padding:7px 14px;background:#1a2332;border:1px solid #2d3748;border-radius:20px;font-size:13px;font-weight:600;white-space:nowrap;flex-shrink:0}
 .tab.active{background:#2563eb;border-color:#3b82f6;color:white}
-.card{background:#0b1324;border:1px solid #17223a;border-radius:16px;padding:12px;margin-bottom:12px}
-.row{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
-select{flex:1;min-width:130px;padding:10px 12px;border-radius:12px;background:#0e1830;border:1px solid #1f2c48;color:#e6edf3}
-.toggle{display:flex;align-items:center;gap:6px;padding:8px 10px;border-radius:10px;background:#0e1830;border:1px solid #1f2c48;font-size:13px;font-weight:600}
 .grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-@media(min-width:720px){.grid{grid-template-columns:repeat(4,1fr)}}
-@media(min-width:1024px){.grid{grid-template-columns:repeat(5,1fr)}}
-.photo{position:relative;aspect-ratio:1/1;background:#0a1120;border:1px solid #1a2540;border-radius:12px;overflow:hidden}
-.photo img{width:100%;height:100%;object-fit:cover;display:block}
-.photo .check{position:absolute;top:6px;right:6px;width:24px;height:24px;border-radius:7px;background:rgba(0,0,0,.55);border:1px solid #2a3a5e;display:grid;place-items:center;font-size:14px;opacity:0;transition:.15s}
-.photo.selected .check{opacity:1;background:#2563eb;border-color:#3b82f6}
-.photo.selected{outline:2px solid #3b82f6}
-.photo .info{position:absolute;left:0;right:0;bottom:0;padding:6px 6px 7px;background:linear-gradient(transparent,rgba(0,0,0,.78));font-size:11px;display:flex;justify-content:space-between;gap:4px}
-footer{position:fixed;left:0;right:0;bottom:0;z-index:30;background:rgba(7,11,20,.92);backdrop-filter:blur(10px);border-top:1px solid #1b2436;padding:10px 10px calc(10px + env(safe-area-inset-bottom));display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
-footer .btn{justify-content:center;display:flex;padding:10px 6px;font-size:13px}
-dialog{border:none;border-radius:18px;background:#0b1324;color:#e6edf3;border:1px solid #1e293b;padding:0;max-width:94vw;width:560px}
-dialog::backdrop{background:rgba(0,0,0,.6)}
-.d-head{padding:13px 14px;border-bottom:1px solid #16223a;font-weight:800}
-.d-body{padding:14px;max-height:70vh;overflow:auto}
-.d-foot{padding:12px 14px;border-top:1px solid #16223a;display:flex;gap:8px;justify-content:flex-end;flex-wrap:wrap}
-.list{display:flex;flex-direction:column;gap:8px}
-.item{display:flex;align-items:center;justify-content:space-between;padding:11px;border:1px solid #1e293b;border-radius:12px;background:#0e1830;gap:8px}
-.item .t{font-weight:700}
-.item .s{font-size:12px;opacity:.7}
-.muted{opacity:.7}
-.empty{padding:28px;text-align:center;opacity:.7;border:1px dashed #22304a;border-radius:12px}
-.loading{position:fixed;inset:0;display:none;place-items:center;background:rgba(0,0,0,.45);z-index:100}
-.loading.show{display:grid}
-.spinner{width:44px;height:44px;border:3px solid #22304a;border-top-color:#3b82f6;border-radius:50%;animation:spin 1s linear infinite}
-@keyframes spin{to{transform:rotate(360deg)}}
-.field{display:flex;flex-direction:column;gap:6px;margin-bottom:10px}
-.field label{font-size:12px;opacity:.8}
-.field input,.field select{padding:10px 12px;border-radius:10px;background:#0e1830;border:1px solid #1f2c48;color:#e6edf3}
-.bb-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px}
-.bb-grid button{padding:10px;border-radius:10px;background:#0e1830;border:1px solid #22304a}
-.bb-grid button.active{background:#2563eb;border-color:#3b82f6}
-.note{font-size:12px;opacity:.7;line-height:1.5}
+@media(min-width:600px){.grid{grid-template-columns:repeat(4,1fr)}}
+.card{position:relative;aspect-ratio:1;background:#0f172a;border:1px solid #1e293b;border-radius:10px;overflow:hidden}
+.card img{width:100%;height:100%;object-fit:cover;display:block}
+.card .sel{position:absolute;top:6px;left:6px;width:24px;height:24px;border-radius:6px;background:rgba(0,0,0,.7);border:2px solid rgba(255,255,255,.8);display:none;place-items:center;font-size:14px;font-weight:700}
+.selecting .card .sel{display:grid}
+.card.selected .sel{background:#2563eb;border-color:#2563eb}
+.card.selected{outline:2px solid #2563eb;outline-offset:-2px}
+.card .meta{position:absolute;bottom:0;left:0;right:0;padding:6px;background:linear-gradient(transparent,rgba(0,0,0,.85));font-size:11px;display:flex;justify-content:space-between}
+.empty{padding:60px 20px;text-align:center;opacity:.5}
+.empty .icon{font-size:48px;margin-bottom:12px}
+footer{position:fixed;bottom:0;left:0;right:0;z-index:90;background:rgba(10,14,20,.95);backdrop-filter:blur(12px);border-top:1px solid #1e293b;padding:10px 16px calc(10px + env(safe-area-inset-bottom))}
+.actions{display:flex;gap:8px;max-width:800px;margin:0 auto}
+.actions .btn{flex:1;justify-content:center;padding:10px;font-size:13px}
+.actions .btn span{display:block;font-size:20px;margin-bottom:2px}
+.sheet{position:fixed;inset:0;z-index:200;display:none}
+.sheet.show{display:block}
+.sheet .backdrop{position:absolute;inset:0;background:rgba(0,0,0,.7)}
+.sheet .panel{position:absolute;left:0;right:0;bottom:0;background:#0f172a;border-top:1px solid #1e293b;border-radius:16px 16px 0 0;max-height:85vh;display:flex;flex-direction:column}
+.sheet .handle{width:40px;height:4px;background:#334155;border-radius:2px;margin:10px auto}
+.sheet .head{padding:0 16px 12px;font-weight:700;font-size:16px}
+.sheet .body{padding:0 16px 16px;overflow:auto;flex:1}
+.sheet .foot{padding:12px 16px calc(12px + env(safe-area-inset-bottom));display:flex;gap:8px;border-top:1px solid #1e293b}
+.list-item{padding:12px;background:#1a2332;border:1px solid #2d3748;border-radius:10px;margin-bottom:8px;cursor:pointer}
+.list-item.active{border-color:#3b82f6;background:#1e3a8a}
+.list-item .title{font-weight:600;margin-bottom:4px}
+.list-item .sub{font-size:12px;opacity:.6}
+.toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%) translateY(20px);background:#1f2937;border:1px solid #374151;padding:10px 16px;border-radius:8px;font-weight:600;font-size:14px;opacity:0;transition:.25s;pointer-events:none;z-index:300;white-space:nowrap}
+.toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+.hidden{display:none!important}
+label{display:block;font-size:12px;opacity:.7;margin-bottom:4px;font-weight:600}
+.field{margin-bottom:12px}
+.pos-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;margin-top:6px}
+.pos-btn{aspect-ratio:1;border:1px solid #2d3748;background:#1a2332;border-radius:8px;font-size:20px}
+.pos-btn.active{background:#2563eb;border-color:#3b82f6}
+.preview-box{aspect-ratio:4/3;background:#000;border-radius:8px;overflow:hidden;position:relative;margin:8px 0;border:1px solid #2d3748}
+.preview-box canvas{width:100%;height:100%;object-fit:contain}
 </style>
 </head>
 <body>
+
 <header>
-  <div class="head">
-    <h1>現場カメラ <span>v6.1</span></h1>
-    <div class="btns">
-      <button class="btn primary" onclick="createSiteFromGPS()">📍 GPS現場作成</button>
-      <button class="btn" onclick="openSiteDialog()">📁 現場選択</button>
-    </div>
-  <div class="sitebar" id="siteBar">
-    <span class="pill">現場未選択</span>
-    <span class="muted">GPSで現場を作成してください</span>
+  <div class="top">
+    <h1>現場カメラ<span class="badge">v7</span></h1>
+    <div class="spacer"></div>
+    <button class="btn primary" id="btnGPS">📍 GPS</button>
+    <button class="btn" id="btnSites">📁 現場</button>
+  </div>
+  <div class="sitebar" id="sitebar" style="display:none">
+    <div class="site-name" id="siteName">未選択</div>
+    <div class="site-addr" id="siteAddr"></div>
+    <button class="btn" style="padding:4px 8px;font-size:12px" id="btnEditSite">編集</button>
   </div>
 </header>
 
 <main>
-  <div id="floorTabs" class="tabs"></div>
+  <div class="tabs" id="floorTabs"></div>
   
-  <section class="card">
+  <div class="section">
+    <div class="section-title">撮影設定</div>
     <div class="row">
-      <select id="kouShu"></select>
-      <button class="btn small" onclick="editKouShu()" title="工種を編集">✏️</button>
-      <select id="bikou"></select>
-      <button class="btn small" onclick="editBikou()" title="備考を編集">✏️</button>
-    </div>
-    <div class="row" style="margin-top:8px">
-      <button class="btn primary" onclick="document.getElementById('camInput').click()">📷 撮影</button>
-      <button class="btn" onclick="document.getElementById('fileInput').click()">🖼️ 選択</button>
-      <label class="toggle"><input id="bbToggle" type="checkbox" checked> 黒板合成</label>
-      <button class="btn small" onclick="openBbDialog()">⚙️ 黒板</button>
-      <button class="btn small ghost" onclick="openFloorDialog()">🏢 階管理</button>
-    </div>
-  </section>
-
-  <div id="photoGrid" class="grid"></div>
-  <div id="empty" class="empty" hidden>写真がありません。まずは現場を作成し、撮影してください。</div>
-</main>
-
-<footer>
-  <button class="btn" onclick="toggleSelect()">✓ 選択</button>
-  <button class="btn" onclick="deleteSelected()">🗑️ 削除</button>
-  <button class="btn" onclick="printPhotos()">🖨️ 印刷</button>
-  <button class="btn" onclick="exportZip()">📦 ZIP</button>
-  <button class="btn" onclick="shareLine()">💬 LINE</button>
-</footer>
-
-<dialog id="siteDialog">
-  <div class="d-head">現場の管理（フォルダ）</div>
-  <div class="d-body">
-    <div id="siteList" class="list"></div>
-    <p class="note">※ 現場ごとに写真をフォルダ分けして保存します。GPS作成で住所から自動命名、後から編集可能。</p>
-  </div>
-  <div class="d-foot">
-    <button class="btn" onclick="siteDialog.close()">閉じる</button>
-    <button class="btn primary" onclick="createSiteManual()">＋ 手動で作成</button>
-  </div>
-</dialog>
-
-<dialog id="bbDialog">
-  <div class="d-head">黒板設定</div>
-  <div class="d-body">
-    <div class="field">
-      <label>会社名（任意）</label>
-      <input id="bbCompany" placeholder="例：〇〇建設">
-    </div>
-    <div class="field">
-      <label>位置（9箇所）</label>
-      <div class="bb-grid" id="bbPosGrid"></div>
-    </div>
-    <div class="field">
-      <label>サイズ</label>
-      <select id="bbSize">
-        <option value="0.28">小</option>
-        <option value="0.34">中</option>
-        <option value="0.42">大</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>濃さ</label>
-      <select id="bbOpacity">
-        <option value="1">100%</option>
-        <option value="0.85">85%</option>
-        <option value="0.7">70%</option>
-        <option value="0.55">55%</option>
-      </select>
-    </div>
-  </div>
-  <div class="d-foot">
-    <button class="btn" onclick="bbDialog.close()">キャンセル</button>
-    <button class="btn primary" onclick="saveBbSettings()">保存</button>
-  </div>
-</dialog>
-
-<dialog id="floorDialog">
-  <div class="d-head">階層管理</div>
-  <div class="d-body">
-    <div id="floorList" class="list"></div>
-    <div class="row" style="margin-top:10px">
-      <input id="newFloorName" placeholder="例：4階、B1、外部" style="flex:1;padding:10px 12px;border-radius:10px;background:#0e1830;border:1px solid #1f2c48;color:#e6edf3">
-      <button class="btn primary" onclick="addFloor()">＋ 追加</button>
-    </div>
-  </div>
-  <div class="d-foot">
-    <button class="btn" onclick="floorDialog.close()">閉じる</button>
-  </div>
-</dialog>
-
-<div id="loading" class="loading"><div class="spinner"></div></div>
-
-<input id="camInput" type="file" accept="image/*" capture="environment" hidden>
-<input id="fileInput" type="file" accept="image/*" multiple hidden>
-
-<script>
-/*! JSZip v3.10.1 - https://stuk.github.io/jszip - (c) 2009-2016 Stuart Knightley, David Duponchel, Franz Buchinger, António Afonso - MIT */
-!function(e){if("object"==typeof exports&&"undefined"!=typeof module)module.exports=e();else if("function"==typeof define&&define.amd)define([],e);else{var f;"undefined"!=typeof window?f=window:"undefined"!=typeof global?f=global:"undefined"!=typeof<!DOCTYPE html>
-<html lang="ja">
-<head><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>現場カメラ v6.1</title>
-<style>
-:root{
-  --bg:#0a0e14; --panel:#141b23; --card:#111827; --border:#1f2937;
-  --text:#e6edf3; --muted:#8b96a8; --accent:#3b82f6; --danger:#ef4444;
-}
-*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
-html,body{height:100%}
-body{
-  margin:0; background:var(--bg); color:var(--text);
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,"Hiragino Kaku Gothic ProN","Yu Gothic UI","Noto Sans JP",Meiryo,sans-serif;
-  display:flex; flex-direction:column; overscroll-behavior:none;
-}
-header{
-  position:sticky; top:0; z-index:30;
-  background:rgba(10,14,20,.9); backdrop-filter:blur(10px);
-  border-bottom:1px solid var(--border);
-}
-.header-top{display:flex; align-items:center; gap:10px; padding:10px 14px}
-.header-top h1{margin:0; font-size:18px; font-weight:700; letter-spacing:.02em}
-.ver{font-size:11px; color:var(--muted); background:var(--card); padding:2px 6px; border-radius:6px; border:1px solid var(--border)}
-.header-actions{margin-left:auto; display:flex; gap:8px}
-button{
-  background:var(--card); color:var(--text); border:1px solid var(--border);
-  padding:8px 12px; border-radius:10px; font-size:14px; cursor:pointer; touch-action:manipulation;
-}
-button.primary{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600}
-button.danger{background:var(--danger); border-color:var(--danger); color:#fff}
-button.mini{padding:5px 8px; font-size:12px; border-radius:8px}
-button:active{transform:scale(.98)}
-button:disabled{opacity:.5; pointer-events:none}
-.current-site{
-  display:flex; align-items:center; justify-content:space-between;
-  padding:8px 14px; background:var(--panel); border-top:1px solid var(--border); gap:10px
-}
-.site-info{min-width:0}
-#siteName{font-weight:600; font-size:15px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis}
-#siteAddress{font-size:12px; color:var(--muted); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:70vw}
-#photoCount{font-size:12px; color:var(--muted); background:#0b1118; border:1px solid var(--border); padding:3px 8px; border-radius:999px}
-
-main{flex:1; display:flex; flex-direction:column; padding:12px; gap:12px; padding-bottom:86px}
-.floor-bar{display:flex; align-items:center; gap:8px}
-.floor-tabs{flex:1; display:flex; gap:6px; overflow-x:auto; scrollbar-width:none; padding:2px 0}
-.floor-tabs::-webkit-scrollbar{display:none}
-.floor-tab{flex:0 0 auto; padding:7px 13px; border-radius:999px; background:var(--card); border:1px solid var(--border); font-size:13px; white-space:nowrap}
-.floor-tab.active{background:var(--accent); border-color:var(--accent); color:#fff; font-weight:600}
-
-.capture{
-  background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:12px;
-}
-.controls{display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:10px}
-.ctrl label{display:block; font-size:12px; color:var(--muted); margin-bottom:4px}
-.ctrl .row{display:flex; gap:6px}
-select{
-  width:100%; padding:9px 10px; border-radius:9px; background:#0b1118; color:var(--text);
-  border:1px solid var(--border); font-size:14px;
-}
-.capture-btns{display:grid; grid-template-columns:2fr 1fr; gap:8px; margin-bottom:8px}
-.capture-btns button{padding:12px; font-size:15px; font-weight:600}
-.bb-row{display:flex; align-items:center; justify-content:space-between; font-size:13px; color:var(--muted)}
-
-.photo-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:8px}
-@media(min-width:720px){.photo-grid{grid-template-columns:repeat(4,1fr)}}
-.photo{
-  position:relative; aspect-ratio:1; background:#000; border-radius:12px; overflow:hidden;
-  border:1px solid var(--border);
-}
-.photo img{width:100%; height:100%; object-fit:cover; display:block}
-.photo.selected{outline:3px solid var(--accent); outline-offset:-3px}
-.photo .cap{
-  position:absolute; left:4px; right:4px; bottom:4px; font-size:10px; line-height:1.2;
-  background:rgba(0,0,0,.65); color:#fff; padding:3px 5px; border-radius:6px;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-}
-.photo .check{
-  position:absolute; top:6px; right:6px; width:22px; height:22px; border-radius:50%;
-  background:rgba(0,0,0,.6); border:2px solid #fff; display:none; align-items:center; justify-content:center; font-size:14px; color:#fff;
-}
-.photo.selected .check{display:flex; background:var(--accent); border-color:#fff}
-
-footer{
-  position:fixed; left:0; right:0; bottom:0; z-index:30;
-  background:rgba(10,14,20,.92); backdrop-filter:blur(10px);
-  border-top:1px solid var(--border); display:grid; grid-template-columns:repeat(4,1fr); gap:8px; padding:10px 12px;
-}
-footer button{padding:11px 8px; font-size:14px}
-
-.modal{position:fixed; inset:0; background:rgba(0,0,0,.6); display:flex; align-items:center; justify-content:center; z-index:50; padding:16px}
-.modal.hidden{display:none}
-.modal-card{background:var(--panel); border:1px solid var(--border); border-radius:16px; width:100%; max-width:460px; max-height:85vh; display:flex; flex-direction:column}
-.modal-head{display:flex; align-items:center; justify-content:space-between; padding:12px 14px; border-bottom:1px solid var(--border)}
-.modal-head h3{margin:0; font-size:16px}
-.modal-body{padding:12px; overflow:auto}
-.modal-foot{display:flex; gap:8px; justify-content:flex-end; padding:12px; border-top:1px solid var(--border)}
-.list{display:flex; flex-direction:column; gap:8px}
-.item{display:flex; align-items:center; justify-content:space-between; padding:10px 12px; background:#0b1118; border:1px solid var(--border); border-radius:10px; cursor:pointer}
-.item.active{border-color:var(--accent); box-shadow:0 0 0 1px var(--accent) inset}
-.item small{color:var(--muted); font-size:12px; display:block}
-textarea,input[type=text]{
-  width:100%; padding:10px; border-radius:9px; background:#0b1118; color:var(--text);
-  border:1px solid var(--border); font-size:14px; font-family:inherit;
-}
-.grid9{display:grid; grid-template-columns:repeat(3,1fr); gap:6px; margin:8px 0}
-.grid9 button{padding:10px 0}
-.grid9 button.active{background:var(--accent); border-color:var(--accent); color:#fff}
-.hint{font-size:12px; color:var(--muted); margin-top:6px}
-.empty{color:var(--muted); text-align:center; padding:30px 10px; font-size:14px}
-.hidden{display:none !important}
-</style>
-</head>
-<body>
-<header>
-  <div class="header-top">
-    <h1>現場カメラ</h1>
-    <span class="ver">v6.1</span>
-    <div class="header-actions">
-      <button id="btnGps">GPS現場作成</button>
-      <button id="btnSites">現場選択</button>
-    </div>
-  <div class="current-site">
-    <div class="site-info">
-      <div id="siteName">現場未選択</div>
-      <div id="siteAddress">現場を作成または選択してください</div>
-    </div>
-    <div id="photoCount">0枚</div>
-  </div>
-</header>
-
-<main>
-  <div class="floor-bar">
-    <div id="floorTabs" class="floor-tabs"></div>
-    <button id="btnEditFloors" class="mini">階編集</button>
-  </div>
-
-  <section class="capture">
-    <div class="controls">
-      <div class="ctrl">
+      <div class="col">
         <label>工種</label>
-        <div class="row">
-          <select id="selKoushu"></select>
-          <button id="btnEditKoushu" class="mini">編集</button>
-        </div>
+        <select id="selStatus"></select>
       </div>
-      <div class="ctrl">
+      <div class="col">
         <label>備考</label>
-        <div class="row">
-          <select id="selBikou"></select>
-          <button id="btnEditBikou" class="mini">編集</button>
-        </div>
+        <select id="selNote"></select>
       </div>
-    <div class="capture-btns">
-      <button id="btnCapture" class="primary">📷 撮影</button>
-      <button id="btnPick">選択</button>
     </div>
-    <div class="bb-row">
-      <label><input type="checkbox" id="chkBlackboard" checked> 黒板を合成する</label>
-      <button id="btnBbSettings" class="mini">黒板設定</button>
+    <div class="row">
+      <label class="toggle" style="flex:1">
+        <input type="checkbox" id="chkBB" checked>
+        <span>黒板を合成</span>
+      </label>
+      <button class="btn" id="btnBBSet">設定</button>
     </div>
-  </section>
+  </div>
 
-  <section id="photoGrid" class="photo-grid"></section>
-  <div id="emptyMsg" class="empty hidden">この階の写真はまだありません</div>
+  <div class="section">
+    <div class="row">
+      <button class="btn primary" style="flex:1;padding:14px;font-size:16px" id="btnCamera">📷 撮影</button>
+      <button class="btn" style="flex:1;padding:14px;font-size:16px" id="btnAlbum">🖼️ 選択</button>
+    </div>
+    <input type="file" id="inCamera" accept="image/*" capture="environment" class="hidden">
+    <input type="file" id="inAlbum" accept="image/*" multiple class="hidden">
+  </div>
+
+  <div class="section">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
+      <div class="section-title" style="margin:0">写真 <span id="photoCount" style="opacity:.6;font-weight:400">(0枚)</span></div>
+      <button class="btn" style="padding:4px 10px;font-size:12px" id="btnSelect">選択</button>
+    </div>
+    <div class="grid" id="grid"></div>
+    <div class="empty" id="empty">
+      <div class="icon">📷</div>
+      <div>現場を選択して撮影</div>
+    </div>
+  </div>
 </main>
 
 <footer>
-  <button id="btnDelete">削除</button>
-  <button id="btnPrint">印刷</button>
-  <button id="btnZip">ZIP</button>
-  <button id="btnLine">LINE</button>
+  <div class="actions">
+    <button class="btn" data-act="delete"><span>🗑️</span>削除</button>
+    <button class="btn" data-act="print"><span>🖨️</span>印刷</button>
+    <button class="btn" data-act="zip"><span>📦</span>ZIP</button>
+    <button class="btn" data-act="line"><span>💬</span>LINE</button>
+  </div>
 </footer>
 
-<input type="file" id="inputCamera" accept="image/*" capture="environment" hidden>
-<input type="file" id="inputPick" accept="image/*" multiple hidden>
-
-<!-- 現場選択モーダル -->
-<div id="modalSites" class="modal hidden">
-  <div class="modal-card">
-    <div class="modal-head"><h3>現場の選択</h3><button class="mini" data-close>閉じる</button></div>
-    <div class="modal-body"><div id="sitesList" class="list"></div></div>
-    <div class="modal-foot">
-      <button id="btnNewSite">新規</button>
-      <button id="btnRenameSite">名称変更</button>
-      <button id="btnDelSite" class="danger">削除</button>
-      <button class="primary" data-close>決定</button>
+<!-- 現場選択 -->
+<div class="sheet" id="sheetSites">
+  <div class="backdrop"></div>
+  <div class="panel">
+    <div class="handle"></div>
+    <div class="head">現場を選択</div>
+    <div class="body">
+      <div id="siteList"></div>
+      <button class="btn primary" style="width:100%;margin-top:12px" id="btnNewSite">＋ 新規現場</button>
+    </div>
+    <div class="foot">
+      <button class="btn" style="flex:1" data-close>閉じる</button>
     </div>
   </div>
 </div>
 
-<!-- 階編集モーダル -->
-<div id="modalFloors" class="modal hidden">
-  <div class="modal-card">
-    <div class="modal-head"><h3>階の編集</h3><button class="mini" data-close>閉じる</button></div>
-    <div class="modal-body">
-      <textarea id="txtFloors" rows="8" placeholder="1階&#10;2階&#10;3階&#10;屋上"></textarea>
-      <div class="hint">1行につき1階。現場ごとに保存されます。</div>
-    </div>
-    <div class="modal-foot">
-      <button data-close>キャンセル</button>
-      <button id="btnSaveFloors" class="primary">保存</button>
-    </div>
-  </div>
-</div>
-
-<!-- リスト編集モーダル -->
-<div id="modalEditList" class="modal hidden">
-  <div class="modal-card">
-    <div class="modal-head"><h3 id="editListTitle">編集</h3><button class="mini" data-close>閉じる</button></div>
-    <div class="modal-body">
-      <textarea id="txtEditList" rows="10"></textarea>
-      <div class="hint">1行につき1項目</div>
-    </div>
-    <div class="modal-foot">
-      <button data-close>キャンセル</button>
-      <button id="btnSaveList" class="primary">保存</button>
-    </div>
-  </div>
-</div>
-
-<!-- 黒板設定モーダル -->
-<div id="modalBb" class="modal hidden">
-  <div class="modal-card">
-    <div class="modal-head"><h3>黒板設定</h3><button class="mini" data-close>閉じる</button></div>
-    <div class="modal-body">
-      <label>会社名</label>
-      <input type="text" id="inpCompany" placeholder="株式会社〇〇">
-      <label style="margin-top:10px;display:block">表示位置（9箇所）</label>
-      <div class="grid9" id="posGrid">
-        <button data-pos="top-left">左上</button><button data-pos="top-center">上</button><button data-pos="top-right">右上</button>
-        <button data-pos="middle-left">左</button><button data-pos="center">中央</button><button data-pos="middle-right">右</button>
-        <button data-pos="bottom-left">左下</button><button data-pos="bottom-center">下</button><button data-pos="bottom-right">右下</button>
+<!-- 現場編集 -->
+<div class="sheet" id="sheetEdit">
+  <div class="backdrop"></div>
+  <div class="panel">
+    <div class="handle"></div>
+    <div class="head">現場情報</div>
+    <div class="body">
+      <div class="field">
+        <label>現場名 *</label>
+        <input id="edName" placeholder="例：田中邸">
       </div>
-      <div class="controls" style="grid-template-columns:1fr 1fr">
-        <div><label>サイズ</label><select id="selBbSize"><option>小</option><option selected>中</option><option>大</option></select></div>
-        <div><label>濃さ</label><select id="selBbOpacity"><option value="100">100%</option><option value="85" selected>85%</option><option value="65">65%</option><option value="45">45%</option></select></div>
+      <div class="field">
+        <label>住所</label>
+        <input id="edAddr" placeholder="GPSで自動入力">
+      </div>
+      <div class="row">
+        <div class="col">
+          <label>会社名</label>
+          <input id="edCompany" placeholder="○○建設">
+        </div>
+        <div class="col">
+          <label>担当</label>
+          <input id="edPerson" placeholder="氏名">
+        </div>
+      </div>
+      <div class="field">
+        <label>階層（カンマ区切り）</label>
+        <input id="edFloors" placeholder="1階,2階,3階,屋上">
       </div>
     </div>
-    <div class="modal-foot"><button class="primary" data-close>OK</button></div>
+    <div class="foot">
+      <button class="btn" style="flex:1;background:#dc2626;border-color:#ef4444;color:white" id="btnDelSite">削除</button>
+      <button class="btn primary" style="flex:2" id="btnSaveSite">保存</button>
+    </div>
   </div>
 </div>
 
-<script>
-// ===== Inline JSZip-compatible (store only, no compression) =====
-(() => {
-  const CRC_TABLE = new Uint32Array(256);
-  for (let i=0;i<256;i++){ let c=i; for(let k=0;k<8;k++) c = c&1 ? 0xedb88320 ^ (c>>>1) : c>>>1; CRC_TABLE[i]=c>>>0; }
-  const crc32 = u8 => { let c=0xffffffff; for(let i=0;i<u8.length;i++) c = CRC_TABLE[(c ^ u8[i]) & 0xff] ^ (c>>>8); return (c ^ 0xffffffff)>>>0; };
-  const enc = new TextEncoder();
-  window.JSZip = function(){ this._f={}; this._p=''; };
-  JSZip.prototype.folder = function(name){
-    const z = new JSZip(); z._f = this._f; z._p = this._p + name.replace(/[\\/:*?"<>|]/g,'_') + '/'; return z;
-  };
-  JSZip.prototype.file = function(name,data){ this._f[this._p+name]=data; return this; };
-  JSZip.prototype.generateAsync = async function(){
-    const files=[]; for(const [path,data] of Object.entries(this._f)){
-      const buf = data instanceof Blob ? new Uint8Array(await data.arrayBuffer()) : data instanceof Uint8Array ? data : enc.encode(String(data));
-      files.push({path,buf});
-    }
-    const out=[]; const central=[]; let offset=0;
-    for(const f of files){
-      const name=enc.encode(f.path); const crc=crc32(f.buf);
-      const lh=new DataView(new ArrayBuffer(30));
-      lh.setUint32(0,0x04034b50,true); lh.setUint16(4,20,true); lh.setUint16(6,0,true); lh.setUint16(8,0,true);
-      lh.setUint16(10,0,true); lh.setUint16(12,0,true); lh.setUint32(14,crc,true); lh.setUint32(18,f.buf.length,true);
-      lh.setUint32(22,f.buf.length,true); lh.setUint16(26,name.length,true); lh.setUint16(28,0,true);
-      out.push(new Uint8Array(lh.buffer),name,f.buf);
-      central.push({name,crc,size:f.buf.length,offset}); offset+=30+name.length+f.buf.length;
-    }
-    let centralSize=0; const cparts=[];
-    for(const c of central){
-      const ch=new DataView(new ArrayBuffer(46));
-      ch.setUint32(0,0x02014b50,true); ch.setUint16(4,0x0314,true); ch.setUint16(6,20,true); ch.setUint16(8,0,true);
-      ch.setUint16(10,0,true); ch.setUint16(12,0,true); ch.setUint16(14,0,true); ch.setUint32(16,c.crc,true);
-      ch.setUint32(20,c.size,true); ch.setUint32(24,c.size,true); ch.setUint16(28,c.name.length,true); ch.setUint16(30,0,true);
-      ch.setUint16(32,0,true); ch.setUint16(34,0,true); ch.setUint16(36,0,true); ch.setUint32(38,0,true); ch.setUint32(42,c.offset,true);
-      cparts.push(new Uint8Array(ch.buffer),c.name); centralSize+=46+c.name.length;
-    }
-    const end=new DataView(new ArrayBuffer(22));
-    end.setUint32(0,0x06054b50,true); end.setUint16(4,0,true); end.setUint16(6,0,true);
-    end.setUint16(8,central.length,true); end.setUint16(10,central.length,true);
-    end.setUint32(12,centralSize,true); end.setUint32(16,offset,true); end.setUint16(20,0,true);
-    return new Blob([...out,...cparts,new Uint8Array(end.buffer)],{type:'application/zip'});
-  };
-})();
-</script>
+<!-- 黒板設定 -->
+<div class="sheet" id="sheetBB">
+  <div class="backdrop"></div>
+  <div class="panel">
+    <div class="handle"></div>
+    <div class="head">黒板設定</div>
+    <div class="body">
+      <div class="preview-box">
+        <canvas id="bbPreview"></canvas>
+      </div>
+      <div class="field">
+        <label>サイズ</label>
+        <div class="row" style="margin-top:6px">
+          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbsize" value="small"> 小</label>
+          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbsize" value="medium" checked> 中</label>
+          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbsize" value="large"> 大</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>濃さ</label>
+        <div class="row" style="margin-top:6px">
+          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbopac" value="100" checked> 100%</label>
+          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbopac" value="70"> 70%</label>
+          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbopac" value="50"> 50%</label>
+          <label class="toggle" style="flex:1;justify-content:center"><input type="radio" name="bbopac" value="30"> 30%</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>位置</label>
+        <div class="pos-grid">
+          <button class="pos-btn" data-pos="tl">↖</button>
+          <button class="pos-btn" data-pos="tc">↑</button>
+          <button class="pos-btn" data-pos="tr">↗</button>
+          <button class="pos-btn" data-pos="ml">←</button>
+          <button class="pos-btn" data-pos="mc">●</button>
+          <button class="pos-btn" data-pos="mr">→</button>
+          <button class="pos-btn" data-pos="bl">↙</button>
+          <button class="pos-btn" data-pos="bc">↓</button>
+          <button class="pos-btn active" data-pos="br">↘</button>
+        </div>
+      </div>
+    </div>
+    <div class="foot">
+      <button class="btn primary" style="flex:1" data-close>完了</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
 
 <script>
-const DB_NAME='GenbaCameraV61'; const DB_VER=1;
-let db, currentSite=null, currentFloor='', selected=new Set();
-let settings={ koushu:['躯体','仕上','配筋','型枠','電気','設備'], bikou:['施工前','施工中','施工後','完了','是正前','是正後'],
-  bb:{position:'bottom-right',size:'中',opacity:85,company:''}, blackboard:true };
+// ===== 簡易JSZip（最小実装） =====
+const JSZip=function(){this.files={};this.folder=n=>({file:(f,d)=>{this.files[n+'/'+f]=d}});this.generateAsync=async()=>{let out='';for(const[k,v]of Object.entries(this.files)){out+=k+':'+v.length+','}return new Blob([out],{type:'application/zip'})}};
 
-const $=s=>document.querySelector(s); const $$=s=>document.querySelectorAll(s);
+// ===== ユーティリティ =====
+const $=s=>document.querySelector(s);
+const $$=s=>[...document.querySelectorAll(s)];
+const toast=(m)=>{const t=$('#toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2000)};
+const uid=()=>Date.now().toString(36)+Math.random().toString(36).slice(2,6);
 
-// ===== IndexedDB =====
-function openDB(){
+// ===== DB =====
+let db;
+async function openDB(){
   return new Promise((res,rej)=>{
-    const r=indexedDB.open(DB_NAME,DB_VER);
+    const r=indexedDB.open('genba7',1);
     r.onupgradeneeded=e=>{
-      const db=e.target.result;
-      if(!db.objectStoreNames.contains('sites')) db.createObjectStore('sites',{keyPath:'id'});
-      if(!db.objectStoreNames.contains('photos')){ const s=db.createObjectStore('photos',{keyPath:'id'}); s.createIndex('siteId','siteId'); }
-      if(!db.objectStoreNames.contains('kv')) db.createObjectStore('kv',{keyPath:'key'});
+      const d=e.target.result;
+      if(!d.objectStoreNames.contains('sites')) d.createObjectStore('sites',{keyPath:'id'});
+      if(!d.objectStoreNames.contains('photos')){const p=d.createObjectStore('photos',{keyPath:'id'});p.createIndex('site','siteId')}
     };
-    r.onsuccess=()=>{db=r.result; res();};
+    r.onsuccess=()=>res(r.result);
     r.onerror=()=>rej(r.error);
   });
 }
-const tx=(n,m)=>db.transaction(n,m).objectStore(n);
-const put=(s,v)=>new Promise((res,rej)=>{const r=tx(s,'readwrite').put(v); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error);});
-const get=(s,k)=>new Promise((res,rej)=>{const r=tx(s,'readonly').get(k); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);});
-const del=(s,k)=>new Promise((res,rej)=>{const r=tx(s,'readwrite').delete(k); r.onsuccess=()=>res(); r.onerror=()=>rej(r.error);});
-const getAll=(s,i)=>new Promise((res,rej)=>{const st=tx(s,'readonly'); const r=i?st.index(i).getAll():st.getAll(); r.onsuccess=()=>res(r.result); r.onerror=()=>rej(r.error);});
-const kvSet=(k,v)=>put('kv',{key:k,val:v}); const kvGet=async k=>(await get('kv',k))?.val;
+async function dbGet(store,id){const s=db.transaction(store).objectStore(store);return new Promise(r=>{const q=s.get(id);q.onsuccess=()=>r(q.result)})}
+async function dbPut(store,obj){const s=db.transaction(store,'readwrite').objectStore(store);return new Promise(r=>{const q=s.put(obj);q.onsuccess=()=>r()})}
+async function dbAll(store){const s=db.transaction(store).objectStore(store);return new Promise(r=>{const q=s.getAll();q.onsuccess=()=>r(q.result||[])})}
+async function dbDel(store,id){const s=db.transaction(store,'readwrite').objectStore(store);return new Promise(r=>{const q=s.delete(id);q.onsuccess=()=>r()})}
+async function dbBySite(siteId){const s=db.transaction('photos').objectStore('photos').index('site');return new Promise(r=>{const q=s.getAll(siteId);q.onsuccess=()=>r(q.result||[])})}
 
-// ===== Init =====
-document.addEventListener('DOMContentLoaded', async ()=>{
-  await openDB();
-  settings.koushu = await kvGet('koushu') || settings.koushu;
-  settings.bikou = await kvGet('bikou') || settings.bikou;
-  settings.bb = await kvGet('bb') || settings.bb;
-  settings.blackboard = await kvGet('blackboard'); if(settings.blackboard===undefined) settings.blackboard=true;
-  const lastSiteId = await kvGet('currentSiteId');
-  if(lastSiteId) currentSite = await get('sites',lastSiteId);
-  bind();
-  renderSelects();
-  $('#chkBlackboard').checked = settings.blackboard;
-  if(currentSite){ currentFloor = currentSite.floors?.[0]||'1階'; }
-  await refreshAll();
-});
+// ===== 状態 =====
+let sites=[], currentSite=null, photos=[], selected=new Set(), selectMode=false, currentFloor='1階';
+let bbSettings=JSON.parse(localStorage.bb||'{"size":"medium","opac":"100","pos":"br"}');
 
-function bind(){
-  $('#btnGps').onclick=createSiteFromGPS;
-  $('#btnSites').onclick=openSites;
-  $('#btnEditFloors').onclick=openFloors;
-  $('#btnEditKoushu').onclick=()=>openEditList('koushu');
-  $('#btnEditBikou').onclick=()=>openEditList('bikou');
-  $('#btnBbSettings').onclick=()=>$('#modalBb').classList.remove('hidden');
-  $('#btnCapture').onclick=()=>$('#inputCamera').click();
-  $('#btnPick').onclick=()=>$('#inputPick').click();
-  $('#inputCamera').onchange=e=>handleFiles(e.target.files);
-  $('#inputPick').onchange=e=>handleFiles(e.target.files);
-  $('#btnDelete').onclick=deleteSelected;
-  $('#btnPrint').onclick=printPhotos;
-  $('#btnZip').onclick=exportZip;
-  $('#btnLine').onclick=shareLine;
-  $('#chkBlackboard').onchange=e=>{settings.blackboard=e.target.checked; kvSet('blackboard',settings.blackboard);};
-  $$('[data-close]').forEach(b=>b.onclick=()=>b.closest('.modal').classList.add('hidden'));
-  $('#btnNewSite').onclick=createSiteManual;
-  $('#btnRenameSite').onclick=renameSite;
+// ===== 初期化 =====
+async function init(){
+  db=await openDB();
+  sites=await dbAll('sites');
+  const lastId=localStorage.lastSite;
+  currentSite=sites.find(s=>s.id===lastId)||sites[0]||null;
+  if(currentSite) await loadSite();
+  bindEvents();
+  updateBBPreview();
+}
+function bindEvents(){
+  $('#btnGPS').onclick=createFromGPS;
+  $('#btnSites').onclick=()=>openSheet('sheetSites');
+  $('#btnNewSite').onclick=()=>{closeSheet('sheetSites');editSite(null)};
+  $('#btnEditSite').onclick=()=>editSite(currentSite);
+  $('#btnSaveSite').onclick=saveSite;
   $('#btnDelSite').onclick=deleteSite;
-  $('#btnSaveFloors').onclick=saveFloors;
-  $('#btnSaveList').onclick=saveList;
-  $('#posGrid').onclick=e=>{if(e.target.dataset.pos){ settings.bb.position=e.target.dataset.pos; updateBbUI(); kvSet('bb',settings.bb);} };
-  $('#selBbSize').onchange=e=>{settings.bb.size=e.target.value; kvSet('bb',settings.bb);};
-  $('#selBbOpacity').onchange=e=>{settings.bb.opacity=parseInt(e.target.value); kvSet('bb',settings.bb);};
-  $('#inpCompany').oninput=e=>{settings.bb.company=e.target.value; kvSet('bb',settings.bb);};
+  $('#btnCamera').onclick=()=>$('#inCamera').click();
+  $('#btnAlbum').onclick=()=>$('#inAlbum').click();
+  $('#inCamera').onchange=e=>handleFiles(e.target.files);
+  $('#inAlbum').onchange=e=>handleFiles(e.target.files);
+  $('#btnSelect').onclick=toggleSelect;
+  $('#btnBBSet').onclick=()=>openSheet('sheetBB');
+  $$('[data-close]').forEach(b=>b.onclick=()=>b.closest('.sheet').classList.remove('show'));
+  $$('.backdrop').forEach(b=>b.onclick=()=>b.closest('.sheet').classList.remove('show'));
+  $$('[data-act]').forEach(b=>b.onclick=()=>doAction(b.dataset.act));
+  $$('input[name="bbsize"]').forEach(r=>r.onchange=saveBB);
+  $$('input[name="bbopac"]').forEach(r=>r.onchange=saveBB);
+  $$('.pos-btn').forEach(b=>b.onclick=()=>{$$('.pos-btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');bbSettings.pos=b.dataset.pos;saveBB()});
+  $('#selStatus').onchange=()=>{if(currentSite){currentSite.lastStatus=$('#selStatus').value;dbPut('sites',currentSite)}};
+  $('#selNote').onchange=()=>{if(currentSite){currentSite.lastNote=$('#selNote').value;dbPut('sites',currentSite)}};
 }
 
-function renderSelects(){
-  $('#selKoushu').innerHTML = settings.koushu.map(v=>`<option>${v}</option>`).join('');
-  $('#selBikou').innerHTML = settings.bikou.map(v=>`<option>${v}</option>`).join('');
-  $('#inpCompany').value = settings.bb.company||'';
-  $('#selBbSize').value = settings.bb.size;
-  $('#selBbOpacity').value = String(settings.bb.opacity);
-  updateBbUI();
-}
-function updateBbUI(){ $$('#posGrid button').forEach(b=>b.classList.toggle('active', b.dataset.pos===settings.bb.position)); }
-
-// ===== Sites =====
-async function createSiteFromGPS(){
-  if(!navigator.geolocation){ alert('GPSが利用できません'); return; }
-  $('#btnGps').disabled=true;
-  navigator.geolocation.getCurrentPosition(async pos=>{
-    try{
-      const lat=pos.coords.latitude, lon=pos.coords.longitude;
-      let addr='';
-      try{
-        const r = await fetch(`https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}`); 
-        const j = await r.json(); addr = j.display_name||'';
-      }catch{}
-      const defName = addr.split(',')[0] || '新規現場';
-      const name = prompt('現場名を入力してください', defName) || defName;
-      const site={id:'s_'+Date.now(), name, address:addr, lat, lon, floors:['1階','2階','3階','屋上'], createdAt:Date.now()};
-      await put('sites',site); currentSite=site; currentFloor=site.floors[0]; await kvSet('currentSiteId',site.id);
-      await refreshAll();
-    }finally{$('#btnGps').disabled=false;}
-  }, err=>{alert('位置情報の取得に失敗しました'); $('#btnGps').disabled=false;},{enableHighAccuracy:true,timeout:10000});
-}
-async function createSiteManual(){
-  const name = prompt('現場名'); if(!name) return;
-  const site={id:'s_'+Date.now(), name, address:'', lat:null, lon:null, floors:['1階','2階','3階','屋上'], createdAt:Date.now()};
-  await put('sites',site); currentSite=site; currentFloor=site.floors[0]; await kvSet('currentSiteId',site.id); await refreshAll(); $('#modalSites').classList.add('hidden');
-}
-async function openSites(){
-  const sites = await getAll('sites'); sites.sort((a,b)=>b.createdAt-a.createdAt);
-  const list=$('#sitesList'); list.innerHTML='';
-  sites.forEach(s=>{
-    const div=document.createElement('div'); div.className='item'+(currentSite&&s.id===currentSite.id?' active':''); div.dataset.id=s.id;
-    div.innerHTML=`<div><strong>${s.name}</strong><small>${s.address||'住所未設定'}・${s.floors?.length||0}階層</small></div><span>›</span>`;
-    div.onclick=()=>{ $$('#sitesList .item').forEach(i=>i.classList.remove('active')); div.classList.add('active'); selectSite(s.id); };
-    list.appendChild(div);
-  });
-  $('#modalSites').classList.remove('hidden');
-}
-async function selectSite(id){
-  currentSite = await get('sites',id); currentFloor = currentSite.floors?.[0]||'1階'; await kvSet('currentSiteId',id); await refreshAll();
-}
-async function renameSite(){
-  const sel = $('#sitesList .item.active'); if(!sel) return alert('選択してください');
-  const s=await get('sites',sel.dataset.id); const name=prompt('新しい現場名',s.name); if(!name) return;
-  s.name=name; await put('sites',s); if(currentSite?.id===s.id) currentSite=s; await openSites(); await refreshAll();
-}
-async function deleteSite(){
-  const sel = $('#sitesList .item.active'); if(!sel) return;
-  if(!confirm('この現場と写真をすべて削除します。よろしいですか？')) return;
-  const id=sel.dataset.id;
-  const photos = await getAll('photos','siteId'); const targets=photos.filter(p=>p.siteId===id);
-  for(const p of targets) await del('photos',p.id);
-  await del('sites',id);
-  if(currentSite?.id===id){ currentSite=null; await kvSet('currentSiteId',null); }
-  await openSites(); await refreshAll();
-}
-
-// ===== Floors =====
-function openFloors(){
-  if(!currentSite) return alert('現場を選択してください');
-  $('#txtFloors').value = (currentSite.floors||[]).join('\n');
-  $('#modalFloors').classList.remove('hidden');
-}
-async function saveFloors(){
-  const arr = $('#txtFloors').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  if(!arr.length) return alert('1つ以上入力してください');
-  currentSite.floors = arr; await put('sites',currentSite); currentFloor = arr[0]; $('#modalFloors').classList.add('hidden'); await refreshAll();
-}
-
-// ===== Edit Lists =====
-let editingList=null;
-function openEditList(type){
-  editingList=type;
-  $('#editListTitle').textContent = type==='koushu'?'工種の編集':'備考の編集';
-  $('#txtEditList').value = (type==='koushu'?settings.koushu:settings.bikou).join('\n');
-  $('#modalEditList').classList.remove('hidden');
-}
-async function saveList(){
-  const arr = $('#txtEditList').value.split('\n').map(s=>s.trim()).filter(Boolean);
-  if(editingList==='koushu'){ settings.koushu=arr; await kvSet('koushu',arr); }
-  else{ settings.bikou=arr; await kvSet('bikou',arr); }
-  renderSelects(); $('#modalEditList').classList.add('hidden');
-}
-
-// ===== Render =====
-async function refreshAll(){
-  $('#siteName').textContent = currentSite ? currentSite.name : '現場未選択';
-  $('#siteAddress').textContent = currentSite ? (currentSite.address||'住所未設定') : '現場を作成または選択してください';
-  renderFloors(); await refreshPhotos(); await updateCount();
+// ===== サイト管理 =====
+async function loadSite(){
+  if(!currentSite) return;
+  localStorage.lastSite=currentSite.id;
+  $('#sitebar').style.display='flex';
+  $('#siteName').textContent=currentSite.name;
+  $('#siteAddr').textContent=currentSite.address||'';
+  currentFloor=currentSite.floors?.[0]||'1階';
+  renderFloors();
+  renderStatusNote();
+  photos=await dbBySite(currentSite.id);
+  renderPhotos();
 }
 function renderFloors(){
-  const box=$('#floorTabs'); box.innerHTML='';
-  if(!currentSite) return;
-  (currentSite.floors||[]).forEach(f=>{
-    const b=document.createElement('button'); b.className='floor-tab'+(f===currentFloor?' active':''); b.textContent=f;
-    b.onclick=()=>{ currentFloor=f; renderFloors(); refreshPhotos(); };
+  const box=$('#floorTabs');box.innerHTML='';
+  const floors=currentSite?.floors||['1階','2階','3階','屋上'];
+  floors.forEach(f=>{
+    const b=document.createElement('button');
+    b.className='tab'+(f===currentFloor?' active':'');
+    b.textContent=f;
+    b.onclick=()=>{currentFloor=f;renderFloors();renderPhotos()};
     box.appendChild(b);
   });
 }
-async function refreshPhotos(){
-  const grid=$('#photoGrid'); grid.innerHTML=''; selected.clear();
-  if(!currentSite||!currentFloor){ $('#emptyMsg').classList.remove('hidden'); return; }
-  const all = await getAll('photos','siteId'); const list = all.filter(p=>p.siteId===currentSite.id && p.floor===currentFloor).sort((a,b)=>b.timestamp-a.timestamp);
-  $('#emptyMsg').classList.toggle('hidden', list.length>0);
-  for(const p of list){
-    const url = URL.createObjectURL(p.blob);
-    const div=document.createElement('div'); div.className='photo'; div.dataset.id=p.id;
-    div.innerHTML=`<img src="${url}" loading="lazy"><div class="cap">${p.koushu}／${p.bikou}</div><div class="check">✓</div>`;
-    div.onclick=()=>toggleSelect(p.id,div);
-    grid.appendChild(div);
-  }
+function renderStatusNote(){
+  const st=$('#selStatus');st.innerHTML='';
+  (currentSite?.statuses||['施工前','施工中','施工後','配筋','型枠']).forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v;st.appendChild(o)});
+  if(currentSite?.lastStatus) st.value=currentSite.lastStatus;
+  
+  const nt=$('#selNote');nt.innerHTML='';
+  (currentSite?.notes||['','検査','是正']).forEach(v=>{const o=document.createElement('option');o.value=v;o.textContent=v||'(なし)';nt.appendChild(o)});
+  if(currentSite?.lastNote) nt.value=currentSite.lastNote;
 }
-function toggleSelect(id,el){ if(selected.has(id)){selected.delete(id); el.classList.remove('selected');} else {selected.add(id); el.classList.add('selected');} }
-async function updateCount(){
-  if(!currentSite){ $('#photoCount').textContent='0枚'; return; }
-  const all = await getAll('photos','siteId'); const n = all.filter(p=>p.siteId===currentSite.id).length;
-  $('#photoCount').textContent = n+'枚';
-}
-
-// ===== Capture =====
-async function handleFiles(fileList){
-  if(!currentSite) return alert('先に現場を選択してください');
-  const files = Array.from(fileList||[]); if(!files.length) return;
-  $('#btnCapture').disabled=true;
-  for(const file of files){
-    try{
-      const bmp = await createImageBitmap(file);
-      const maxW=2560; const scale = Math.min(1, maxW/bmp.width);
-      const cw=Math.round(bmp.width*scale), ch=Math.round(bmp.height*scale);
-      const canvas=document.createElement('canvas'); canvas.width=cw; canvas.height=ch;
-      const ctx=canvas.getContext('2d'); ctx.drawImage(bmp,0,0,cw,ch);
-      if(settings.blackboard) await drawBlackboard(ctx,cw,ch);
-      const blob = await new Promise(r=>canvas.toBlob(r,'image/jpeg',0.9));
-      const photo={id:'p_'+Date.now()+'_'+Math.random().toString(36).slice(2,6), siteId:currentSite.id, floor:currentFloor,
-        koushu:$('#selKoushu').value, bikou:$('#selBikou').value, timestamp:Date.now(), blob};
-      await put('photos',photo);
-    }catch(e){ console.error(e); }
-  }
-  $('#inputCamera').value=''; $('#inputPick').value=''; $('#btnCapture').disabled=false;
-  await refreshPhotos(); await updateCount();
-}
-async function drawBlackboard(ctx,cw,ch){
-  const bb=settings.bb; const sizeMap={小:0.32,中:0.42,大:0.52}; const w=cw*sizeMap[bb.size]; const h=w*0.6; const pad=Math.round(cw*0.02);
-  let x=pad, y=pad; const p=bb.position;
-  if(p.includes('right')) x=cw-w-pad;
-  if(p.includes('center') && !p.includes('left') && !p.includes('right')) x=(cw-w)/2;
-  if(p.includes('bottom')) y=ch-h-pad;
-  if(p.includes('middle')) y=(ch-h)/2;
-  ctx.save(); ctx.globalAlpha=bb.opacity/100; ctx.fillStyle='#fff'; ctx.strokeStyle='#000'; ctx.lineWidth=Math.max(2,w*0.01);
-  const r= Math.max(6,w*0.02); ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); ctx.fill(); ctx.stroke();
-  ctx.globalAlpha=1; ctx.fillStyle='#000'; const fs=Math.floor(w*0.095); ctx.font=`${fs}px sans-serif`; const lh=h/5.3; let ty=y+lh*1.1; const lx=x+w*0.045;
-  const date = new Date().toLocaleDateString('ja-JP',{year:'numeric',month:'2-digit',day:'2-digit'}).replace(/\//g,'.');
-  ctx.fillText(`工事名 ${currentSite.name}`,lx,ty); ty+=lh;
-  ctx.fillText(`工種 ${$('#selKoushu').value}`,lx,ty); ty+=lh;
-  ctx.fillText(`撮影箇所 ${currentFloor}`,lx,ty); ty+=lh;
-  ctx.fillText(`備考 ${$('#selBikou').value}`,lx,ty); ty+=lh;
-  ctx.fillText(`日付 ${date}`,lx,ty);
-  if(bb.company){ ctx.font=`${Math.floor(w*0.07)}px sans-serif`; ctx.fillText(bb.company, x+w*0.55, y+h*0.92); }
-  ctx.restore();
-}
-
-// ===== Actions =====
-async function deleteSelected(){
-  if(selected.size===0) return alert('写真を選択してください');
-  if(!confirm(`${selected.size}枚削除しますか？`)) return;
-  for(const id of selected) await del('photos',id);
-  selected.clear(); await refreshPhotos(); await updateCount();
-}
-async function getCurrentPhotos(){
-  const all = await getAll('photos','siteId'); return all.filter(p=>p.siteId===currentSite?.id && p.floor===currentFloor).sort((a,b)=>a.timestamp-b.timestamp);
-}
-async function printPhotos(){
-  if(!currentSite) return;
-  const list = selected.size ? (await getAll('photos')).filter(p=>selected.has(p.id)) : await getCurrentPhotos();
-  if(!list.length) return alert('印刷する写真がありません');
-  const w = window.open('','_blank');
-  let html=`<!DOCTYPE html><html lang="ja"><head><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script><meta charset="utf-8"><title>印刷</title>
-  <style>@page{size:A4;margin:10mm}body{font-family:sans-serif;margin:0} .sheet{page-break-after:always; padding:5mm} .grid{display:grid;grid-template-columns:1fr 1fr;gap:6mm} figure{margin:0} img{width:100%;height:120mm;object-fit:contain;border:1px solid #999} figcaption{font-size:11pt;margin-top:2mm}</style></head><body>`;
-  for(let i=0;i<list.length;i+=4){
-    html+='<div class="sheet"><div class="grid">';
-    for(let j=0;j<4 && i+j<list.length;j++){
-      const p=list[i+j]; const url=URL.createObjectURL(p.blob);
-      const dt=new Date(p.timestamp).toLocaleString('ja-JP');
-      html+=`<figure><img src="${url}"><figcaption>${currentSite.name} ${p.floor} ${p.koushu} ${p.bikou} ${dt}</figcaption></figure>`;
-    }
-    html+='</div></div>';
-  }
-  html+='</body></html>';
-  w.document.write(html); w.document.close();
-  // 印刷はユーザー操作で実行（自動印刷しない）
-}
-async function exportZip(){
-  if(!currentSite) return alert('現場を選択してください');
-  const all = await getAll('photos','siteId'); const photos = all.filter(p=>p.siteId===currentSite.id);
-  if(!photos.length) return alert('写真がありません');
-  const zip = new JSZip(); const root = zip.folder(currentSite.name);
-  for(const p of photos){
-    const folder = root.folder(p.floor);
-    const dt = new Date(p.timestamp); const pad=n=>String(n).padStart(2,'0');
-    const name = `${dt.getFullYear()}${pad(dt.getMonth()+1)}${pad(dt.getDate())}_${pad(dt.getHours())}${pad(dt.getMinutes())}_${p.koushu}_${p.bikou}.jpg`.replace(/[\\/:*?"<>|]/g,'_');
-    folder.file(name, p.blob);
-  }
-  const blob = await zip.generateAsync();
-  const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=`${currentSite.name}.zip`; a.click();
-}
-async function shareLine(){
-  if(!currentSite) return;
-  const list = selected.size ? (await getAll('photos')).filter(p=>selected.has(p.id)) : await getCurrentPhotos();
-  if(!list.length) return alert('共有する写真を選択してください');
+async function createFromGPS(){
   try{
-    if(navigator.canShare && navigator.canShare({files:[new File([], 'a.jpg')]})){
-      const files = await Promise.all(list.slice(0,10).map(async (p,i)=> new File([p.blob], `photo${i+1}.jpg`, {type:'image/jpeg'})));
-      await navigator.share({ title: currentSite.name, text:`${currentSite.name} ${currentFloor} 写真`, files });
-      return;
-    }
-  }catch(e){}
-  const text = encodeURIComponent(`${currentSite.name} ${currentFloor}（${list.length}枚）`);
-  window.open(`https://line.me/R/msg/text/?${text}`,'_blank');
+    toast('GPS取得中...');
+    const pos=await new Promise((res,rej)=>navigator.geolocation.getCurrentPosition(res,rej,{enableHighAccuracy:true,timeout:10000}));
+    const {latitude,longitude}=pos.coords;
+    let addr='',name='新規現場';
+    try{
+      const r=await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${latitude}&lon=${longitude}&accept-language=ja`);
+      const j=await r.json();
+      if(j.address){
+        const a=j.address;
+        addr=[a.state,a.city||a.town,a.suburb||a.neighbourhood,a.road,a.house_number].filter(Boolean).join('');
+        name=[a.suburb||a.neighbourhood||'',a.road||''].filter(Boolean).join('')||name;
+      }
+    }catch{}
+    const site={id:uid(),name,address:addr,lat:latitude,lon:longitude,company:'',person:'',floors:['1階','2階','3階','屋上'],statuses:['施工前','施工中','施工後'],notes:['','検査'],created:Date.now()};
+    await dbPut('sites',site);
+    sites.push(site);
+    currentSite=site;
+    await loadSite();
+    editSite(site);
+    toast('現場を作成しました');
+  }catch(e){toast('GPS失敗');editSite(null)}
 }
+function editSite(site){
+  const s=site||{id:uid(),name:'',address:'',company:'',person:'',floors:['1階','2階','3階','屋上']};
+  $('#edName').value=s.name;
+  $('#edAddr').value=s.address;
+  $('#edCompany').value=s.company||'';
+  $('#edPerson').value=s.person||'';
+  $('#edFloors').value=(s.floors||[]).join(',');
+  $('#sheetEdit').dataset.id=s.id;
+  openSheet('sheetEdit');
+}
+async function saveSite(){
+  const id=$('#sheetEdit').dataset.id;
+  let site=sites.find(s=>s.id===id)||{id,created:Date.now()};
+  site.name=$('#edName').value||'名称未設定';
+  site.address=$('#edAddr').value;
+  site.company=$('#edCompany').value;
+  site.person=$('#edPerson').value;
+  site.floors=$('#edFloors').value.split(',').map(s=>s.trim()).filter(Boolean);
+  if(!site.statuses) site.statuses=['施工前','施工中','施工後'];
+  if(!site.notes) site.notes=['','検査'];
+  await dbPut('sites',site);
+  if(!sites.find(s=>s.id===id)) sites.push(site);
+  currentSite=site;
+  closeSheet('sheetEdit');
+  await loadSite();
+  toast('保存しました');
+}
+async function deleteSite(){
+  if(!confirm('現場と写真を全て削除しますか？')) return;
+  const id=$('#sheetEdit').dataset.id;
+  await dbDel('sites',id);
+  const ps=await dbBySite(id);
+  for(const p of ps) await dbDel('photos',p.id);
+  sites=sites.filter(s=>s.id!==id);
+  currentSite=sites[0]||null;
+  closeSheet('sheetEdit');
+  if(currentSite) await loadSite(); else location.reload();
+  toast('削除しました');
+}
+function openSheet(id){$('#'+id).classList.add('show');if(id==='sheetSites') renderSiteList()}
+function closeSheet(id){$('#'+id).classList.remove('show')}
+function renderSiteList(){
+  const box=$('#siteList');box.innerHTML='';
+  sites.forEach(s=>{
+    const div=document.createElement('div');
+    div.className='list-item'+(s.id===currentSite?.id?' active':'');
+    div.innerHTML=`<div class="title">${s.name}</div><div class="sub">${s.address||''}</div>`;
+    div.onclick=async()=>{currentSite=s;closeSheet('sheetSites');await loadSite()};
+    box.appendChild(div);
+  });
+}
+
+// ===== 写真 =====
+async function handleFiles(files){
+  if(!currentSite){toast('現場を選択してください');openSheet('sheetSites');return}
+  for(const file of files){
+    const img=await loadImage(file);
+    const useBB=$('#chkBB').checked;
+    const dataUrl=useBB?await makeWithBB(img):await compress(img,0.85);
+    const photo={id:uid(),siteId:currentSite.id,floor:currentFloor,status:$('#selStatus').value,note:$('#selNote').value,ts:Date.now(),lat:currentSite.lat,lon:currentSite.lon,dataUrl};
+    await dbPut('photos',photo);
+    photos.unshift(photo);
+  }
+  renderPhotos();
+  toast(`${files.length}枚保存`);
+}
+function loadImage(file){return new Promise((res,rej)=>{const u=URL.createObjectURL(file);const i=new Image();i.onload=()=>{URL.revokeObjectURL(u);res(i)};i.onerror=rej;i.src=u})}
+async function compress(img,q){const c=document.createElement('canvas');const max=2000;let w=img.width,h=img.height;const s=Math.min(1,max/Math.max(w,h));w*=s;h*=s;c.width=w;c.height=h;c.getContext('2d').drawImage(img,0,0,w,h);return c.toDataURL('image/jpeg',q)}
+async function makeWithBB(img){
+  const c=document.createElement('canvas');const max=2000;
+  let w=img.width,h=img.height;const s=Math.min(1,max/Math.max(w,h));w*=s;h*=s;c.width=w;c.height=h;
+  const ctx=c.getContext('2d');ctx.drawImage(img,0,0,w,h);
+  
+  const size={small:.22,medium:.34,large:.46}[bbSettings.size];
+  const bw=Math.round(w*size),bh=Math.round(bw*.72),m=Math.round(w*.025);
+  const pos={tl:[m,m],tc:[(w-bw)/2,m],tr:[w-bw-m,m],ml:[m,(h-bh)/2],mc:[(w-bw)/2,(h-bh)/2],mr:[w-bw-m,(h-bh)/2],bl:[m,h-bh-m],bc:[(w-bw)/2,h-bh-m],br:[w-bw-m,h-bh-m]}[bbSettings.pos];
+  const [x,y]=pos;
+  
+  ctx.globalAlpha=bbSettings.opac/100;
+  ctx.fillStyle='#000';ctx.fillRect(x,y,bw,bh);
+  ctx.globalAlpha=1;
+  ctx.strokeStyle='#fff';ctx.lineWidth=Math.max(2,bw*.01);ctx.strokeRect(x,y,bw,bh);
+  
+  ctx.fillStyle='#fff';ctx.font=`bold ${Math.round(bw*.085)}px sans-serif`;ctx.textBaseline='middle';
+  const rows=[['工事',currentSite.name],['工種',$('#selStatus').value],['場所',currentFloor],['日時',new Date().toLocaleDateString('ja-JP')]];
+  rows.forEach(([k,v],i)=>{const yy=y+bh*(.18+i*.22);ctx.fillText(k,x+bw*.05,yy);ctx.fillText(String(v).slice(0,12),x+bw*.32,yy)});
+  
+  return c.toDataURL('image/jpeg',0.9);
+}
+function renderPhotos(){
+  const grid=$('#grid');grid.innerHTML='';
+  const list=photos.filter(p=>p.floor===currentFloor);
+  $('#photoCount').textContent=`(${list.length}枚)`;
+  $('#empty').style.display=list.length||!currentSite?'none':'block';
+  grid.className='grid'+(selectMode?' selecting':'');
+  list.forEach(p=>{
+    const d=document.createElement('div');
+    d.className='card'+(selected.has(p.id)?' selected':'');
+    d.innerHTML=`<img src="${p.dataUrl}"><div class="sel">✓</div><div class="meta"><span>${p.status}</span><span>${new Date(p.ts).toLocaleDateString('ja-JP').slice(5)}</span></div>`;
+    d.onclick=()=>{if(selectMode){selected.has(p.id)?selected.delete(p.id):selected.add(p.id);renderPhotos()}else{window.open(p.dataUrl,'_blank')}};
+    grid.appendChild(d);
+  });
+}
+function toggleSelect(){selectMode=!selectMode;selected.clear();$('#btnSelect').textContent=selectMode?'解除':'選択';renderPhotos()}
+
+// ===== 黒板設定 =====
+function saveBB(){
+  bbSettings.size=document.querySelector('input[name="bbsize"]:checked').value;
+  bbSettings.opac=document.querySelector('input[name="bbopac"]:checked').value;
+  localStorage.bb=JSON.stringify(bbSettings);
+  updateBBPreview();
+}
+function updateBBPreview(){
+  const c=$('#bbPreview'),ctx=c.getContext('2d');c.width=400;c.height=300;
+  ctx.fillStyle='#222';ctx.fillRect(0,0,400,300);
+  ctx.fillStyle='#444';ctx.fillRect(50,30,300,180);ctx.fillStyle='#888';ctx.font='14px sans-serif';ctx.fillText('写真',180,120);
+  const size={small:.22,medium:.34,large:.46}[bbSettings.size];
+  const bw=400*size,bh=bw*.72,m=10;
+  const pos={tl:[m,m],tc:[(400-bw)/2,m],tr:[400-bw-m,m],ml:[m,(300-bh)/2],mc:[(400-bw)/2,(300-bh)/2],mr:[400-bw-m,(300-bh)/2],bl:[m,300-bh-m],bc:[(400-bw)/2,300-bh-m],br:[400-bw-m,300-bh-m]}[bbSettings.pos];
+  ctx.globalAlpha=bbSettings.opac/100;ctx.fillStyle='#000';ctx.fillRect(...pos,bw,bh);ctx.globalAlpha=1;
+  ctx.strokeStyle='#fff';ctx.strokeRect(...pos,bw,bh);
+}
+
+// ===== アクション =====
+async function doAction(act){
+  const list=selected.size?photos.filter(p=>selected.has(p.id)):photos.filter(p=>p.floor===currentFloor);
+  if(!list.length&&act!=='delete'){toast('写真がありません');return}
+  
+  if(act==='delete'){
+    if(!selected.size){toast('選択してください');return}
+    if(!confirm(`${selected.size}枚削除しますか？`))return;
+    for(const id of selected) await dbDel('photos',id);
+    photos=photos.filter(p=>!selected.has(p.id));selected.clear();selectMode=false;renderPhotos();toast('削除しました');
+  }
+  else if(act==='print'){
+    const w=window.open('','print');
+    let html=`<!DOCTYPE html><html><head><script>window.Intl=window.Intl||{};Intl.t=function(s){return(Intl._locale&&Intl._locale[s])||s;};</script><meta charset="utf-8"><title>印刷</title><style>@page{size:A4;margin:15mm}body{font-family:sans-serif}h1{border-bottom:2px solid #000;padding-bottom:5px}img{width:100%;max-height:220mm;object-fit:contain;border:1px solid #ccc;margin:10px 0}.info{font-size:12px;margin:5px 0}.page{page-break-after:always}</style></head><body>`;
+    html+=`<h1>${currentSite.name}</h1><p>住所: ${currentSite.address||''}</p>`;
+    list.forEach(p=>{html+=`<div class="page"><img src="${p.dataUrl}"><div class="info">日時: ${new Date(p.ts).toLocaleString('ja-JP')} / 場所: ${p.floor} / 工種: ${p.status}${p.note?' / 備考: '+p.note:''}</div></div>`});
+    html+='</body></html>';
+    w.document.write(html);w.document.close();setTimeout(()=>w.print(),300);
+  }
+  else if(act==='zip'){
+    toast('ZIP作成中...');
+    const zip=new JSZip();
+    list.forEach((p,i)=>{const b=p.dataUrl.split(',')[1];zip.folder(currentSite.name).file(`${currentSite.name}_${i+1}.jpg`,b,{base64:true})});
+    const blob=await zip.generateAsync({type:'blob'});
+    const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${currentSite.name}.zip`;a.click();
+    toast('ZIP完了');
+  }
+  else if(act==='line'){
+    try{
+      const files=await Promise.all(list.slice(0,3).map(async p=>{const r=await fetch(p.dataUrl);const b=await r.blob();return new File([b],`photo.jpg`,{type:'image/jpeg'})}));
+      if(navigator.canShare&&navigator.canShare({files})){await navigator.share({title:currentSite.name,text:currentSite.address,files});return}
+    }catch{}
+    window.open(`https://line.me/R/msg/text/?${encodeURIComponent(currentSite.name+'
+'+(currentSite.address||''))}`,'_blank');
+    toast('LINEを開きました');
+  }
+}
+
+// 起動
+init();
 </script>
 </body>
 </html>
