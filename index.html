@@ -1,26 +1,30 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="utf-8">
+<meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>現場カメラ 完全版</title>
 
 <style>
 body{margin:0;font-family:sans-serif;background:#0f172a;color:#fff}
-header{padding:10px;background:#111}
-button{padding:8px;margin:3px}
+header{padding:10px;background:#111;display:flex;gap:5px}
+button{padding:8px}
 #grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;padding:10px}
+.pic{position:relative}
 .pic img{width:100%;height:100px;object-fit:cover}
+.pic.sel{outline:3px solid #2563eb}
 </style>
 </head>
 <body>
 
 <header>
-<button id="gpsBtn">📍GPS</button>
-<button id="camBtn">📷撮影</button>
-<button id="zipBtn">📦ZIP</button>
-<button id="printBtn">🖨️印刷</button>
-<button id="lineBtn">💬LINE</button>
+<button id="camBtn">📷</button>
+<button id="selBtn">選択</button>
+<button id="delBtn">🗑️</button>
+<button id="zipBtn">ZIP</button>
+<button id="printBtn">印刷</button>
+<button id="lineBtn">LINE</button>
+<button id="gpsBtn">GPS</button>
 <input type="file" id="file" multiple accept="image/*">
 </header>
 
@@ -30,111 +34,90 @@ button{padding:8px;margin:3px}
 <script>
 'use strict';
 
-/* ================= 基本 ================= */
 const $=s=>document.querySelector(s);
 
-function toast(m){console.log(m);}
-
-/* ================= DB ================= */
-let db,photos=[],sites=[],cur=null;
+/* ===== DB ===== */
+let db,photos=[],selected=new Set(),selectMode=false,stream=null;
 
 function openDB(){
  return new Promise(res=>{
-  let r=indexedDB.open('genba_final_full',1);
+  let r=indexedDB.open('genba_pro',1);
   r.onupgradeneeded=e=>{
     let d=e.target.result;
     if(!d.objectStoreNames.contains('photos')){
-      let p=d.createObjectStore('photos',{keyPath:'id'});
-      p.createIndex('siteId','siteId');
-    }
-    if(!d.objectStoreNames.contains('sites')){
-      d.createObjectStore('sites',{keyPath:'id'});
+      d.createObjectStore('photos',{keyPath:'id'});
     }
   };
   r.onsuccess=()=>res(r.result);
  });
 }
 
-function tx(n,m='readonly'){
- return db.transaction(n,m).objectStore(n);
-}
-
-function put(n,o){
+function put(p){
  return new Promise(r=>{
-  let q=tx(n,'readwrite').put(o);
+  let q=db.transaction('photos','readwrite').objectStore('photos').put(p);
   q.onsuccess=()=>r(true);
-  q.onerror=()=>r(false);
  });
 }
 
-function getAll(n){
+function del(id){
  return new Promise(r=>{
-  let q=tx(n).getAll();
-  q.onsuccess=e=>r(e.target.result||[]);
+  db.transaction('photos','readwrite').objectStore('photos').delete(id).onsuccess=r;
  });
 }
 
-/* ================= 初期化 ================= */
+function getAll(){
+ return new Promise(r=>{
+  db.transaction('photos').objectStore('photos').getAll().onsuccess=e=>r(e.target.result||[]);
+ });
+}
+
+/* ===== INIT ===== */
 async function init(){
- if(!indexedDB){alert('非対応');return;}
  db=await openDB();
- sites=await getAll('sites');
-
- if(sites.length===0){
-  let s={id:Date.now(),name:'現場',created:Date.now()};
-  await put('sites',s);
-  sites.push(s);
- }
- cur=sites[0];
-
- photos=await getAll('photos');
+ photos=await getAll();
  render();
 }
 init();
 
-/* ================= カメラ ================= */
-let stream=null;
-
+/* ===== CAMERA ===== */
 $('#camBtn').onclick=async ()=>{
- if(!navigator.mediaDevices){alert('カメラ不可');return;}
+ if(!navigator.mediaDevices) return alert('カメラ不可');
 
  try{
-  stream=await navigator.mediaDevices.getUserMedia({video:true});
+  try{
+   stream=await navigator.mediaDevices.getUserMedia({
+     video:{facingMode:{exact:'environment'}}
+   });
+  }catch{
+   stream=await navigator.mediaDevices.getUserMedia({
+     video:{facingMode:'environment'}
+   });
+  }
+
   let v=$('#vid');
   v.srcObject=stream;
   v.style.display='block';
 
   v.onclick=async ()=>{
-    if(!v.videoWidth)return;
-
     let c=document.createElement('canvas');
     c.width=v.videoWidth;
     c.height=v.videoHeight;
-
     let ctx=c.getContext('2d');
-    if(!ctx)return;
-
     ctx.drawImage(v,0,0);
 
     /* 黒板 */
     ctx.fillStyle='rgba(0,0,0,0.7)';
-    ctx.fillRect(10,10,250,120);
+    ctx.fillRect(10,10,260,130);
     ctx.fillStyle='#fff';
     ctx.font='16px sans-serif';
-    ctx.fillText('現場:'+cur.name,20,30);
-    ctx.fillText('日付:'+new Date().toLocaleDateString(),20,55);
+    ctx.fillText('現場写真',20,30);
+    ctx.fillText(new Date().toLocaleDateString(),20,60);
 
     let blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
     let thumb=c.toDataURL('image/jpeg',0.5);
 
-    let p={
-      id:Date.now()+Math.random(),
-      siteId:cur.id,
-      blob,thumb,
-      ts:Date.now()
-    };
-
-    await put('photos',p);
+    let p={id:Date.now()+Math.random(),blob,thumb,ts:Date.now()};
+    await put(p);
     photos.unshift(p);
     render();
 
@@ -147,11 +130,9 @@ $('#camBtn').onclick=async ()=>{
  }
 };
 
-/* ================= ファイル追加 ================= */
+/* ===== FILE ===== */
 $('#file').onchange=async e=>{
- let files=e.target.files;
-
- for(let f of files){
+ for(let f of e.target.files){
   if(!f.type.startsWith('image/'))continue;
 
   let img=new Image();
@@ -161,21 +142,14 @@ $('#file').onchange=async e=>{
   let c=document.createElement('canvas');
   c.width=img.width;
   c.height=img.height;
-
   let ctx=c.getContext('2d');
   ctx.drawImage(img,0,0);
 
   let blob=await new Promise(r=>c.toBlob(r,'image/jpeg',0.85));
   let thumb=c.toDataURL('image/jpeg',0.5);
 
-  let p={
-    id:Date.now()+Math.random(),
-    siteId:cur.id,
-    blob,thumb,
-    ts:Date.now()
-  };
-
-  await put('photos',p);
+  let p={id:Date.now()+Math.random(),blob,thumb,ts:Date.now()};
+  await put(p);
   photos.unshift(p);
 
   URL.revokeObjectURL(img.src);
@@ -183,22 +157,31 @@ $('#file').onchange=async e=>{
  render();
 };
 
-/* ================= 表示 ================= */
+/* ===== RENDER ===== */
 function render(){
  let g=$('#grid');
  g.innerHTML='';
 
  photos.forEach(p=>{
   let d=document.createElement('div');
-  d.className='pic';
+  d.className='pic'+(selected.has(p.id)?' sel':'');
 
   let img=document.createElement('img');
   img.src=p.thumb||'';
 
   d.onclick=()=>{
-    let url=URL.createObjectURL(p.blob);
-    window.open(url);
-    setTimeout(()=>URL.revokeObjectURL(url),2000);
+   if(selectMode){
+     if(selected.has(p.id)){
+       selected.delete(p.id);
+     }else{
+       selected.add(p.id);
+     }
+     render();
+   }else{
+     let url=URL.createObjectURL(p.blob);
+     window.open(url);
+     setTimeout(()=>URL.revokeObjectURL(url),2000);
+   }
   };
 
   d.appendChild(img);
@@ -206,36 +189,54 @@ function render(){
  });
 }
 
-/* ================= ZIP ================= */
+/* ===== SELECT ===== */
+$('#selBtn').onclick=()=>{
+ selectMode=!selectMode;
+ selected.clear();
+ render();
+};
+
+/* ===== DELETE ===== */
+$('#delBtn').onclick=async ()=>{
+ if(selected.size===0)return alert('選択して');
+
+ if(!confirm(selected.size+'枚削除?'))return;
+
+ for(let id of selected){
+   await del(id);
+ }
+
+ photos=photos.filter(p=>!selected.has(p.id));
+ selected.clear();
+ selectMode=false;
+ render();
+};
+
+/* ===== ZIP ===== */
 $('#zipBtn').onclick=async ()=>{
  if(!window.JSZip){
   await new Promise(r=>{
-    let s=document.createElement('script');
-    s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
-    s.onload=r;
-    document.head.appendChild(s);
+   let s=document.createElement('script');
+   s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';
+   s.onload=r;
+   document.head.appendChild(s);
   });
  }
 
  let zip=new JSZip();
-
- photos.forEach((p,i)=>{
-  zip.file(i+'.jpg',p.blob);
- });
+ photos.forEach((p,i)=>zip.file(i+'.jpg',p.blob));
 
  let blob=await zip.generateAsync({type:'blob'});
-
  let a=document.createElement('a');
  a.href=URL.createObjectURL(blob);
  a.download='photos.zip';
  a.click();
 };
 
-/* ================= 印刷 ================= */
+/* ===== PRINT ===== */
 $('#printBtn').onclick=()=>{
  let w=window.open('');
  let d=w.document;
-
  d.write('<html><body>');
  photos.forEach(p=>{
   let url=URL.createObjectURL(p.blob);
@@ -246,22 +247,20 @@ $('#printBtn').onclick=()=>{
  w.print();
 };
 
-/* ================= LINE ================= */
+/* ===== LINE ===== */
 $('#lineBtn').onclick=()=>{
- let txt=(cur?cur.name:'')+'\n';
- txt+='写真'+photos.length+'枚';
-
+ let txt='現場写真\n枚数:'+photos.length;
  window.open('https://line.me/R/msg/text/?'+encodeURIComponent(txt));
 };
 
-/* ================= GPS ================= */
+/* ===== GPS ===== */
 $('#gpsBtn').onclick=async ()=>{
  try{
   let pos=await new Promise((res,rej)=>{
     navigator.geolocation.getCurrentPosition(res,rej);
   });
   alert('緯度:'+pos.coords.latitude);
- }catch(e){
+ }catch{
   alert('GPS失敗');
  }
 };
