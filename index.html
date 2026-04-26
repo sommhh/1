@@ -1,132 +1,954 @@
 <!DOCTYPE html>
-<html>
+<html lang="ja">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no">
-<title>Genba</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>現場カメラ</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
-*{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
-body{font-family:sans-serif;background:#0f172a;color:#e2e8f0}
-header{position:sticky;top:0;background:#0f172a;border-bottom:1px solid #334155;z-index:30}
-.hd{display:flex;align-items:center;gap:8px;padding:10px 12px}
-.hd img{height:24px}
-.sp{flex:1}
-.btn-img{height:32px;cursor:pointer;border-radius:6px}
-.btn-img:active{opacity:.7}
-main{padding:10px;padding-bottom:90px}
-.card{background:#1e293b;border:1px solid #334155;border-radius:10px;padding:10px;margin-bottom:10px}
-.row{display:flex;gap:6px;margin-top:6px}
-select{flex:1;padding:8px;background:#0f172a;border:1px solid #334155;border-radius:7px;color:#fff;font-size:14px}
-.big-img{width:100%;height:48px;object-fit:contain;cursor:pointer;border-radius:9px;margin-bottom:6px}
-.big-img:active{opacity:.8}
-.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:5px;margin-top:8px}
-.pic{aspect-ratio:1;background:#000;border-radius:6px;overflow:hidden;position:relative}
-.pic img{width:100%;height:100%;object-fit:cover}
-.pic.sel{outline:2px solid #2563eb}
-.tabs{display:flex;gap:5px;overflow-x:auto;margin-bottom:8px}
-.tab{padding:5px 12px;background:#111;border:1px solid #333;border-radius:15px;font-size:12px;white-space:nowrap;cursor:pointer}
-.tab.on{background:#2563eb;border-color:#3b82f6}
-#vidW{display:none;position:fixed;inset:0;background:#000;z-index:99}
-#vid,#preview{width:100%;height:100%;object-fit:contain}
-#previewC{display:none;position:absolute;inset:0}
-#snap{position:absolute;bottom:30px;left:50%;transform:translateX(-50%);width:70px;height:70px;border-radius:50%;background:#fff;border:4px solid #0003;font-size:26px}
-#close{position:absolute;top:15px;right:15px;width:36px;height:36px;border-radius:50%;background:#000a;color:#fff;border:none;font-size:22px}
-#saveBtn,#retryBtn{position:absolute;bottom:30px;padding:11px 18px;border:none;border-radius:8px;color:#fff;font-weight:700;display:none}
-#retryBtn{left:20px;background:#334155}
-#saveBtn{right:20px;background:#059669}
-footer{position:fixed;bottom:0;left:0;right:0;background:#0f172a;border-top:1px solid #334155;padding:8px}
-.acts{display:flex;gap:8px;justify-content:space-around}
-.acts img{height:38px;cursor:pointer}
-.acts img:active{opacity:.7}
-.toast{position:fixed;left:50%;bottom:80px;transform:translateX(-50%);background:#1e293b;padding:8px 14px;border-radius:7px;font-size:12px;opacity:0;transition:.2s;pointer-events:none;white-space:nowrap}
-.toast.show{opacity:1}
-.hidden{display:none}
-.empty{padding:30px;text-align:center;opacity:.5}
+  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+
+  :root {
+    --bg: #0f172a;
+    --bg2: #1e293b;
+    --bg3: #334155;
+    --border: #334155;
+    --border2: #475569;
+    --text: #e2e8f0;
+    --text2: #94a3b8;
+    --text3: #64748b;
+    --blue: #2563eb;
+    --blue2: #3b82f6;
+    --green: #059669;
+    --red: #dc2626;
+    --amber: #d97706;
+  }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, 'Hiragino Sans', 'Meiryo', sans-serif;
+    min-height: 100dvh;
+    padding-bottom: 80px;
+  }
+
+  /* Header */
+  header {
+    position: sticky;
+    top: 0;
+    background: var(--bg);
+    border-bottom: 1px solid var(--border);
+    z-index: 30;
+    padding: 12px 16px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+  }
+  .header-inner {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    max-width: 512px;
+    margin: 0 auto;
+  }
+  .header-left { display: flex; align-items: center; gap: 10px; }
+  .btn-icon {
+    background: var(--blue);
+    border: none;
+    border-radius: 10px;
+    padding: 8px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.1s;
+    color: #fff;
+  }
+  .btn-icon:active { transform: scale(0.93); }
+  .site-title { font-size: 13px; font-weight: 700; color: #fff; line-height: 1.2; }
+  .site-sub { font-size: 10px; color: var(--text3); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .header-right { display: flex; align-items: center; gap: 8px; }
+  .btn-gps {
+    background: none; border: none; padding: 8px; cursor: pointer;
+    border-radius: 50%; color: var(--text3); position: relative;
+    transition: background 0.2s;
+  }
+  .btn-gps:hover { background: var(--bg2); }
+  .btn-gps.active { color: var(--blue2); }
+  .gps-dot {
+    display: none;
+    position: absolute; top: 2px; right: 2px;
+    width: 6px; height: 6px;
+    background: #22c55e; border-radius: 50%;
+    border: 1px solid var(--bg);
+    animation: pulse 2s infinite;
+  }
+  .btn-gps.active .gps-dot { display: block; }
+  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
+  .btn-settings {
+    display: flex; align-items: center; gap: 6px;
+    padding: 6px 12px; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 999px; font-size: 12px; font-weight: 500;
+    color: var(--text); cursor: pointer; transition: background 0.2s;
+  }
+  .btn-settings:hover { background: var(--bg3); }
+
+  /* Main */
+  main { max-width: 512px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+
+  /* Floor Tabs */
+  .floors { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+  .floors::-webkit-scrollbar { display: none; }
+  .floor-tab {
+    padding: 6px 16px; border-radius: 999px; font-size: 13px; white-space: nowrap;
+    border: 1px solid var(--border); background: var(--bg2); color: var(--text3);
+    cursor: pointer; transition: all 0.2s; flex-shrink: 0;
+  }
+  .floor-tab.active { background: var(--blue); border-color: var(--blue2); color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,0.3); }
+  .floor-tab-add {
+    width: 32px; height: 32px; border-radius: 50%; background: var(--bg2);
+    border: 1px solid var(--border); color: var(--text3); cursor: pointer;
+    display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; line-height: 1;
+  }
+
+  /* Settings Card */
+  .card {
+    background: rgba(30,41,59,0.5);
+    backdrop-filter: blur(8px);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 16px;
+  }
+  .card-row { display: flex; gap: 8px; margin-bottom: 12px; }
+  select, input[type="text"] {
+    background: var(--bg);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 8px 12px;
+    font-size: 13px;
+    color: var(--text);
+    outline: none;
+    font-family: inherit;
+    transition: box-shadow 0.2s;
+  }
+  select:focus, input[type="text"]:focus { box-shadow: 0 0 0 2px var(--blue); }
+  select { flex: 1; }
+  .input-note { flex: 2; }
+  .card-row2 { display: flex; align-items: center; justify-content: space-between; }
+  .blackboard-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
+  .blackboard-toggle input { width: 15px; height: 15px; accent-color: var(--blue); cursor: pointer; }
+  .blackboard-toggle span { font-size: 11px; color: var(--text3); font-weight: 500; }
+  .address-text { font-size: 9px; color: #475569; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  /* Capture Buttons */
+  .capture-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .btn-capture {
+    display: flex; flex-direction: column; align-items: center; justify-content: center;
+    padding: 24px 16px; border-radius: 16px; border: none; cursor: pointer;
+    transition: all 0.15s; font-family: inherit;
+  }
+  .btn-capture:active { transform: scale(0.95); }
+  .btn-capture svg { margin-bottom: 8px; }
+  .btn-capture span { font-weight: 700; letter-spacing: 0.05em; }
+  .btn-camera { background: var(--blue); color: #fff; box-shadow: 0 8px 24px rgba(37,99,235,0.25); }
+  .btn-camera:hover { background: #3b82f6; }
+  .btn-import { background: var(--bg2); border: 1px solid var(--border); color: var(--text2); }
+  .btn-import:hover { background: var(--bg3); }
+
+  /* Photo List */
+  .photo-section { background: rgba(30,41,59,0.3); border: 1px solid rgba(51,65,85,0.5); border-radius: 16px; padding: 16px; min-height: 300px; }
+  .photo-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
+  .photo-title { font-weight: 700; color: var(--text2); display: flex; align-items: center; gap: 8px; font-size: 14px; }
+  .photo-count { font-size: 11px; font-weight: 400; color: var(--text3); padding: 2px 8px; background: var(--bg); border-radius: 999px; }
+  .btn-select {
+    font-size: 11px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
+    background: var(--bg); color: var(--text3); cursor: pointer; font-family: inherit; transition: all 0.2s;
+  }
+  .btn-select.active { background: var(--blue); border-color: var(--blue2); color: #fff; }
+  .photo-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 0; opacity: 0.3; }
+  .photo-empty svg { margin-bottom: 8px; }
+  .photo-empty p { font-size: 13px; }
+  .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .photo-item {
+    aspect-ratio: 1; border-radius: 12px; overflow: hidden; position: relative;
+    cursor: pointer; border: 2px solid transparent; transition: border-color 0.15s;
+  }
+  .photo-item.selected { border-color: var(--blue2); }
+  .photo-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
+  .photo-check {
+    position: absolute; top: 6px; right: 6px;
+    width: 20px; height: 20px; border-radius: 50%;
+    border: 2px solid rgba(255,255,255,0.8);
+    background: rgba(0,0,0,0.2);
+    display: none; align-items: center; justify-content: center;
+  }
+  .select-mode .photo-check { display: flex; }
+  .photo-item.selected .photo-check { background: var(--blue); border-color: var(--blue); }
+  .photo-hover {
+    position: absolute; inset: 0; background: rgba(0,0,0,0.4);
+    display: flex; align-items: center; justify-content: center;
+    opacity: 0; transition: opacity 0.2s;
+  }
+  .photo-item:hover .photo-hover { opacity: 1; }
+
+  /* Footer */
+  footer {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    background: var(--bg); border-top: 1px solid var(--border);
+    padding: 12px 16px; z-index: 40;
+  }
+  .footer-inner { max-width: 512px; margin: 0 auto; display: flex; justify-content: space-around; align-items: center; }
+  .btn-action {
+    display: flex; flex-direction: column; align-items: center; gap: 4px;
+    background: none; border: none; cursor: pointer; color: var(--text3); font-family: inherit;
+    transition: color 0.2s; padding: 4px 8px;
+  }
+  .btn-action span { font-size: 10px; font-weight: 700; text-transform: uppercase; }
+  .btn-action:hover.del { color: #f87171; }
+  .btn-action:hover.print { color: #fbbf24; }
+  .btn-action:hover.zip { color: #34d399; }
+  .btn-action:hover.line { color: #4ade80; }
+
+  /* Camera Overlay */
+  .overlay {
+    position: fixed; inset: 0; background: #000; z-index: 50;
+    display: none; flex-direction: column;
+    animation: fadeIn 0.2s;
+  }
+  .overlay.open { display: flex; }
+  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
+  .camera-view { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative; }
+  .camera-view video, .camera-view img { width: 100%; height: 100%; object-fit: contain; }
+  .btn-close-cam {
+    position: absolute; top: 24px; right: 24px;
+    background: rgba(0,0,0,0.5); border: none; border-radius: 50%;
+    width: 44px; height: 44px; cursor: pointer; color: #fff;
+    display: flex; align-items: center; justify-content: center; transition: background 0.2s;
+  }
+  .btn-close-cam:hover { background: rgba(0,0,0,0.8); }
+  .camera-controls {
+    height: 160px; background: #000; border-top: 1px solid #1e293b;
+    display: flex; align-items: center; justify-content: center; gap: 32px; padding: 0 24px;
+  }
+  .btn-shutter {
+    width: 80px; height: 80px; border-radius: 50%;
+    border: 4px solid #fff; background: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform 0.1s; box-shadow: 0 0 0 0 rgba(255,255,255,0.4);
+  }
+  .btn-shutter:active { transform: scale(0.92); }
+  .shutter-inner { width: 100%; height: 100%; background: #fff; border-radius: 50%; transition: transform 0.1s; }
+  .btn-shutter:hover .shutter-inner { transform: scale(0.88); }
+  .camera-actions { display: none; width: 100%; justify-content: space-between; align-items: center; }
+  .btn-retake, .btn-save {
+    display: flex; align-items: center; gap: 8px;
+    padding: 12px 24px; border-radius: 16px; border: none;
+    font-weight: 700; font-size: 15px; cursor: pointer; font-family: inherit; transition: all 0.15s;
+  }
+  .btn-retake:active, .btn-save:active { transform: scale(0.95); }
+  .btn-retake { background: #1e293b; color: #fff; }
+  .btn-save { background: #059669; color: #fff; box-shadow: 0 8px 24px rgba(5,150,105,0.3); }
+
+  /* Modals */
+  .modal-backdrop {
+    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+    backdrop-filter: blur(4px); z-index: 50; display: none; align-items: flex-end;
+    justify-content: center;
+  }
+  .modal-backdrop.open { display: flex; }
+  .modal-backdrop.center { align-items: center; }
+  .modal {
+    background: var(--bg); border: 1px solid var(--border);
+    width: 100%; max-width: 512px; border-radius: 24px 24px 0 0;
+    padding: 24px; max-height: 80vh; overflow-y: auto;
+    animation: slideUp 0.25s ease;
+  }
+  .modal.center-modal { border-radius: 20px; max-width: 380px; animation: scaleIn 0.2s ease; }
+  @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
+  @keyframes scaleIn { from{opacity:0;transform:scale(0.9)} to{opacity:1;transform:scale(1)} }
+  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+  .modal-title { font-size: 18px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
+  .btn-modal-close { background: var(--bg2); border: none; border-radius: 50%; padding: 8px; cursor: pointer; color: var(--text); display: flex; }
+  .site-item {
+    width: 100%; text-align: left; padding: 16px; border-radius: 12px;
+    border: 1px solid var(--border); background: var(--bg2); cursor: pointer;
+    margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;
+    transition: border-color 0.2s; font-family: inherit;
+  }
+  .site-item.active { background: rgba(37,99,235,0.1); border-color: var(--blue2); }
+  .site-item:hover:not(.active) { border-color: var(--border2); }
+  .site-item-name { font-weight: 700; color: #fff; font-size: 14px; }
+  .site-item-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
+  .btn-new-site {
+    width: 100%; padding: 16px; border-radius: 12px;
+    border: 1px dashed var(--border); background: none; color: var(--text3);
+    cursor: pointer; font-weight: 700; font-size: 14px; font-family: inherit;
+    display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;
+  }
+  .btn-new-site:hover { border-color: var(--blue2); color: var(--blue2); }
+  .form-group { margin-bottom: 16px; }
+  .form-label { font-size: 11px; font-weight: 700; color: var(--text3); margin-bottom: 6px; margin-left: 4px; display: block; }
+  .form-input {
+    width: 100%; background: var(--bg2); border: 1px solid var(--border);
+    border-radius: 12px; padding: 12px 16px; color: #fff; font-size: 14px;
+    outline: none; font-family: inherit; transition: box-shadow 0.2s;
+  }
+  .form-input:focus { box-shadow: 0 0 0 2px var(--blue); }
+  .modal-actions { display: flex; gap: 12px; margin-top: 8px; }
+  .btn-cancel, .btn-submit {
+    flex: 1; padding: 12px; border-radius: 12px; border: none;
+    font-weight: 700; font-size: 14px; cursor: pointer; font-family: inherit; transition: all 0.15s;
+  }
+  .btn-cancel:active, .btn-submit:active { transform: scale(0.97); }
+  .btn-cancel { background: var(--bg2); color: var(--text2); }
+  .btn-submit { background: var(--blue); color: #fff; }
+
+  /* Toast */
+  .toast {
+    position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%) translateY(60px);
+    background: var(--bg2); color: #fff; padding: 8px 24px;
+    border-radius: 999px; font-size: 13px; font-weight: 500;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.4); border: 1px solid var(--border);
+    z-index: 100; opacity: 0; transition: all 0.3s; white-space: nowrap;
+  }
+  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  svg { pointer-events: none; }
 </style>
 </head>
 <body>
+
+<!-- Header -->
 <header>
-  <div class="hd">
-    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAAAoCAIAAAA0fiJLAAAC0ElEQVR4nO3aW0iTYRzH8eeZM/Eis0X65lUFUc02SfGio4cosBAPoYmibSlbByq7yMzQmnkRSRpqeKA8FR3MxImVCs48dAAhCE2CIqiQ3KkLS4RM103XNfa+f99e+X3u/jAe/jx8GQ9jfEWolgFITSX3ArA0ISwggbCABMICEggLSCAsIIGwgATCAhIIC0ggLCCBsIAEwgISCAtIICwggbCAhFruBeCPoKDlZpMhXLuZq/j4+ER9Q/P09He5l/IdV+gf/cbevBgYGP41P69W+8XF7mKM+TzqIrYfNR8ZeDbU3tb694/R7bBtx77GWzVNTXd6evs55wkJew2HM43G4z9mZhbzViWk1G+ssfGJ4ZGXD9s7U1MSV2k0XMV9HhljdfWN/zyTdAezyWCzDb3/8LGutnKZv39F5Y3BwRGz2Xitomaxb1YiSn1jTU05fs7N6fXhDofT7nCKGb08kzGmUqnKr5Zu2rjhYvE5aXfYEx/TaX1cUlxQXV1fWGTJykx71NEVH7dbtvsVTalhMca6u3vycnNGnr8SP3p5Zk52hrXrqdGQdb2qVtodVmqCHQ7n+nVr3068s9sdhUUWu92p0QRLdFUyUHBYKckHrNYnsTE7xY9ensk5Zx4PY8zj8Ui7g9vlFoTQT5+/6HTasDXCZcuFsDDB5fom0VXJQKlhCUJIQEBAv21QEEJCQ1aLGb08kzHW0novKWl/c8vdM/knpN2ht8+WnpZcVlaef/qY5dL5B20dh9JTe/tsst2vaEp9vOu2aF0ud1TUVrXaT68PZ4yJGb08c2Fh4WxBCWPMUnpF2h3yTKduNlRNTn41mfM55wdTEyMjI3LzTi7yrUpIqT83LD2BgYE52RnR0ZGMsdHR162378/Ozsq9lO8QFpBQ6hsL/nMIC0ggLCCBsIAEwgISCAtIICwggbCABMICEggLSCAsIIGwgATCAhIIC0j8BtJjdAv3wEAzAAAAAElFTkSuQmCC" alt="ç¾å ´ã«ã¡ã©">
-    <div class="sp"></div>
-    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAAkCAIAAACRwCotAAACfklEQVR4nO2YTUgUYRjH/zPvjO6H6+oqxcZCpWhUUEvRISqhT8lDRGIGBVmGSRB1yMSyg2AZhEgWQRBYomEHjRUvfSFKppdEdoPKCI0ENct1dd1mZ+ejw0pEILgzkPD2/k7vfw7v8/x4eJ/DcDmlU/if4Je7gX8NE6YdJkw7TJh2mDDtMGHaYcK0Iyxv+eI8y9E8i6JiLqJVN4cnghoA/70M/4iiAyLB9bb5wKiycbVwqdAuEKgqqh7OjU9rhisaFx5+kPlySFZVXSDcXm8SgKXH3DPfAezYIO7fklRcN6OoKDtovVHiON0QAhBTceJWCECuR7hZknKkdqauJKWscXYiqOVvTa4ssl+8P7cMwv4RpTcgt/VIRbssGak8z2HpMX5Dab6t4em8ogJAa7fkzRYJD/WP4Q2PKZ5MAiAjlU8WOQCvhqI/Zo2PF2aEx6dVWYE3S5gMapNBFUBCEUDOKvJxbOE8L+nn7s7+VWL7evH9VwVAfUfkcaWzJyB3DkQHPsQM9wyTS8vXL50tsPW+kw1EAIQsHE4dsLZUOJ/VpsejSNBS4Wy97Dy5z3rlURhAR59UcC349pNy9Zj9/CGbmZ5NLa3CnZaON9KezUkGIoAvk+o6DwmMKk3Pf7a/lvrqXfHvv99wHJeDX7OCDH6OtfdJ3X65qybtTmfEcM/GJ+x2EYvIvRiU3S5+ZTpJKMZveNIrXThsEwgAHN9t1RZ5m7qO2+UOt4sHkGbnzKxomJnwprXCVEjblisIhPNmCQASigB8A9Fst9BVk/5tRvP1R5VFRIJhrbo53FieKsV0TUNVk/EVDYBjfy0phwnTDhOmHSZMO0yYdpgw7TBh2vkFXaZHPDUtfiYAAAAASUVORK5CYII=" class="btn-img" id="gps" alt="GPS">
-    <img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAAkCAIAAACRwCotAAABNUlEQVR4nGOU07RmGEmAaaAdQG8w6uHhDkY9PNzBqIeHOxj18HAHox4e7mDUw8MdjDgPs5Ck+sj+rYePnvj79y8LC4uNlTkDAwPxXBtHbwpNwDQwMS7y8NETd+7ep5WHr924deLkmY2bt/t4uQkK8DMyMRHPpdwETAPnL1pOkvtJ9vCrV69///6traXx+s3b12/eMjAwkMSl3ARMA0kFJOfhnbv3x0aHnTx1lgwu5SZgNZAkwEjSEE9LY9Wp0+c+fPz49+8/T3dnBgYG4rk19W0UmoDVQFIBaTEsJibKzsZ26PBxMVERURFhkriUm4DVQFIBaXlYS0Pt3bv3+vo6LCws2loaDAwMJHEpNwHTQFIBaUl6GIAR1/AY9fBwB6MeHu5g1MPDHYx6eLiDUQ8PdzDq4eEOAE08nCDiOu4KAAAAAElFTkSuQmCC" class="btn-img" id="siteBtn" alt="ç¾å ´">
+  <div class="header-inner">
+    <div class="header-left">
+      <button class="btn-icon" onclick="openSiteModal()" title="現場切り替え">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+      </button>
+      <div>
+        <div class="site-title">現場カメラ</div>
+        <div class="site-sub" id="header-site-name">現場未選択</div>
+      </div>
+    </div>
+    <div class="header-right">
+      <button class="btn-gps" id="gps-btn" onclick="handleGps()" title="GPS位置取得">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+        <span class="gps-dot"></span>
+      </button>
+      <button class="btn-settings" onclick="openEditModal()">
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 4.93m0 14.14a10 10 0 0 0 14.14 0M12 2v2m0 18v2M2 12h2m18 0h2"/></svg>
+        設定
+      </button>
+    </div>
   </div>
 </header>
+
 <main>
-<div class="tabs" id="tabs"></div>
-<div class="card">
-<div class="row"><select id="stat"><option>æ½å·¥å</option><option>æ½å·¥ä¸­</option><option>æ½å·¥å¾</option></select><select id="note"><option value="">-</option><option>æ¤æ»</option></select></div>
-<div class="row"><label style="display:flex;align-items:center;gap:6px;font-size:13px"><input type="checkbox" id="useBB" checked> é»æ¿åæ</label></div>
-</div>
-<div class="card">
-<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAAAwCAIAAADb+6K9AAAB60lEQVR4nO3bv0sbYRzH8e/lzio2NlSLkqlU1LEEikuhk5ubQ6FDNgvFwTFTlyz9CxxcHDO4OuuiDk6K+AOhCIUuIlZDqQW55tKupdRLfHIfvEfer+07PD8C78tlSTA5f2FA1gr3fQE8TIQFCcKCBGFBgrAgQViQICxIEBYkCAsShAUJwoIEYUGCsCBBWJAgLEgQFiQICxKEBQnCggRhQSK67wu4+LzybGM/TpLfURjMVB6ZWco49f6bw6ou93S+Ve/H5ZyXYR18aW0dxqubN2/fDIw8KRQCSxndVnW55+7SyKvFy8z3v+04j3gZ1tlVEresMh6dN9vnzcTMUsaP7x5/Wv1511Udxx5v1ftxOefl02Bmazs3H2YHt47ijuPz0dBhVcexXi02aqXB/qBRK9Wrxcz3/2f0TuDjH1aXFoa2j381r9tJYnOv+80sZVxc/uGwqss9/34VZrj/bcd5xMtvrPJwONAXrO/F5eHC2NMwfXRb1eWezrfq/bic8/I31ssX0cX39vRUFIVBZTwys/TRbVX6WK8WJ8rhyddWo1Y6PUvqjets9//vR/CIl69C5J+Xr0LkH2FBgrAgQViQICxIEBYkCAsShAUJwoIEYUGCsCBBWJAgLEgQFiQICxKEBQnCggRhQYKwIPEHJDdwcSNqipoAAAAASUVORK5CYII=" class="big-img" id="cam" alt="æ®å½±">
-<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAMgAAAAwCAIAAADb+6K9AAABjElEQVR4nO3bsUpCYRjG8fd4wq1Q9AYyjhANDUJDBCE0tUSEQxfQ0NjSRbQ0NnQBjc0NDUKDVKSCW0Q3kHnINlMapDvo+d4P+f+2Z/rO4fzxnMWk0WwZ8N8K3heAxURYkCAsSBAWJAgLEoQFCcKCBGFBgrAgQViQICxIEBYkCAsShAUJwoIEYUGCsCBBWJAgLEgQFiSWvC/AzOz25vrxuTedzdI03WpsmploHh6fhDzOa85v01cUYb2+vb/0Bnf37b3mTmllOSkkohn4OK/p+zTnogjrYzia/EzqWW34mQ9HuZnpZuDjvKa7WL6x2g+do4P9bn+gnoGP85rukhj+sHp+dtrtD8bj7+l01tzdNjPRvLi8Cnmc15zfpq8ofrGqlXKxWOw8dauVcqVc0s3Ax3lNz2f5J4pvrGxtdZR/bazX0zStZzUz083Ax3lNd1G8CrF4ongVYvEQFiQICxKEBQnCggRhQYKwIEFYkCAsSBAWJAgLEoQFCcKCBGFBgrAgQViQICxIEBYkCAsSv9t8uETV/U8TAAAAAElFTkSuQmCC" class="big-img" id="pick" alt="é¸æ">
-<input type="file" id="file" accept="image/*" multiple class="hidden">
-</div>
-<div class="card">
-<div style="display:flex;justify-content:space-between;margin-bottom:6px"><b>åç <span id="cnt" style="opacity:.6;font-weight:400"></span></b><button id="sel" style="padding:4px 10px;background:#1e293b;border:1px solid #334155;border-radius:6px;color:#fff;font-size:12px">é¸æ</button></div>
-<div class="grid" id="grid"></div>
-<div id="empty" class="empty">ç¾å ´ãé¸ãã§æ®å½±</div>
-</div>
+  <!-- Floor Tabs -->
+  <div class="floors" id="floor-tabs"></div>
+
+  <!-- Settings Card -->
+  <div class="card">
+    <div class="card-row">
+      <select id="work-status">
+        <option>施工前</option>
+        <option>施工中</option>
+        <option>施工後</option>
+        <option>確認事項</option>
+        <option>品質検査</option>
+      </select>
+      <input type="text" class="input-note" id="note-input" placeholder="備考を入力...">
+    </div>
+    <div class="card-row2">
+      <label class="blackboard-toggle">
+        <input type="checkbox" id="use-blackboard" checked>
+        <span>電子小黒板を有効にする</span>
+      </label>
+      <span class="address-text" id="address-text"></span>
+    </div>
+  </div>
+
+  <!-- Capture Buttons -->
+  <div class="capture-grid">
+    <button class="btn-capture btn-camera" onclick="startCamera()">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+      <span>撮影開始</span>
+    </button>
+    <button class="btn-capture btn-import" onclick="document.getElementById('file-input').click()">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      <span>インポート</span>
+    </button>
+    <input type="file" id="file-input" class="hidden" multiple accept="image/*" onchange="handleFileUpload(this)" style="display:none">
+  </div>
+
+  <!-- Photo List -->
+  <div class="photo-section" id="photo-section">
+    <div class="photo-header">
+      <h2 class="photo-title">
+        写真一覧
+        <span class="photo-count" id="photo-count">0枚</span>
+      </h2>
+      <button class="btn-select" id="select-btn" onclick="toggleSelectMode()">選択</button>
+    </div>
+    <div id="photo-empty" class="photo-empty">
+      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+      <p>写真がありません</p>
+    </div>
+    <div class="photo-grid" id="photo-grid"></div>
+  </div>
 </main>
+
+<!-- Footer -->
 <footer>
-<div class="acts">
-<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAAoCAIAAADmAupWAAABIUlEQVR4nO2YsWrCUBSGT7wlayBx7mIaqmtxEkTJA4i1k0/hUJ9CB5/Cqb6AxUVwUKmJrto3MFfRMb3FwUWaC7ocCyfn2/4M58/HuRdCjMd8CdJE5r9f4N6wMHVYmDosTB0Wpg4LU4eFqcPC1Emd8EPy0eCjP5t//SolhCgWXwAAKTbemqh15/nXhdeb72ARDj9Hvl+xLMvIGEgRu+7WDUfbKP6JPc+VcielBAC8iF2XRH+Hx+PJa70WBEvseJ/5lxjJn3jt91YYrg7Ho1KqWikDAFLsdHuodef5f9Bs2Mk6pmlOp/Os49i2jRex67Qb1tzhJze33+0LhWchhOe5AIAXseuSaI40bVL34cHC1GFh6rAwdViYOixMHRamDgtT5wTf1TyCE0v5+wAAAABJRU5ErkJggg==" data-a="del" alt="åé¤">
-<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAAoCAIAAADmAupWAAABWklEQVR4nGOU07RmGEmAaaAdQG8w6uHhDkY9PNzBqIeHOxj18HAHox4e7mDUw8MdjHp4uIOh5OHYmMiW5jopKUlKDGHBI7d2zbJTp8/++/uXmZnZ1NSYgYGBRtzgkCiC1gWHRLm6Omdk5jk7OUye1EvQNHI8fPvO3fPnLuzavdfZ2YGfn5+RiZFGXGKsY2Bg2L17b1VlybTps61tLAmaRo6H3755+/vPbzU1lXfv3r97946BgYF2XGKsW7xkOTEqkxLj5s1fhMtTBPLwoUNHgwL9z5+/SGsu8WoIqpSQEMfjIwIednK033/gkImJEa25xKshqLKtvZtMDwuLCLOxsZ08eVpEWFhISIh2XGKsI95heHzEgD8Pq6oof3j/QUtLg5mZWU1NhYGBgXZcYqwj3mF4AOPouPQwB6MeHu5g1MPDHYx6eLiDUQ8PdzDq4eEORj083MGoh4c7AABh6r7+XyWodAAAAABJRU5ErkJggg==" data-a="print" alt="å°å·">
-<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAAoCAIAAADmAupWAAAB1klEQVR4nO2Yv0sCYRjHH+9OV+kUt4rSjooM6cfUUOkiWGQZRaFlEDS0F0UZKOjgXkNBlmUE9Q8UURkNJWZNFZ5gtebVqKTZcCBhCdlrBW/vZ7rv8jzfD+/dO5ykoq4N/hPUXxf4bYgw7hBh3CHCuEOEcYcI4w4Rxh0ijDvMXxcAALCPWqvVVQBAURRXoxkYtAGAf33FNjIOAFsBX5SPQTZL08yqz8/zMZRdqMK7O4HzUPg1k6FpurW1GQC+Hi39w+IQ39qG+GAyGW+ub/NWpNNph8MFAJUV5ZOTE1PTcyiFUYWjfCxycbm3f2AwdMjlcgkl+XrMG8WyZQZ9x8zsQqFdd/cPKpUKsTCqcOIx8ZJ+4TiNIDwJggAARcX3jNltm4HtVCpVaJdW2xCPxxELl+DSCgZP+3p7IpGrb8QcOl0jRVHhcOTjfIZhnM55l9PRZTIuLi0jti3BpaXvbD88Cra0NH0jikilUqt1yOPxfjo/9w2XBNQTVigVMpns7CykVChYli0q5ob0W8zHxyeJRP5L/hOgnnCNRv389FxfX0vTNMdpAKCoKGI2d0f5mHiNA4Db7U0mk4jFCiEh/6UxhwjjDhHGHSKMO0QYd4gw7hBh3CHCuPMGBhPnm8oZ+tQAAAAASUVORK5CYII=" data-a="zip" alt="ZIP">
-<img src="data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAFAAAAAoCAIAAADmAupWAAABoUlEQVR4nO2Yv07CUBSHb7ktKwlldhGqFlgUJgf/sJkQo5JAfBYhWvUtHFQQ2qS+gMZoSByQKBrSBkTfQAp7S+OAIRgitlcjyfV86dDfSW7P+XLvXcpMzS2i/4Rn0gP8NSBMOyBMOyBMOyBMOyBMOyBMOyBMOxMTzp8efVWRSyfS3s5ovVQ8lqRs/0km18j6sgRrztXiXfXe7vUwxvH4AkLIedxKbX/7fdM0PRiHw6Km6cN1y7JyuX2CgYchEW69vNYeHi8urxKJZZ/Px3gY59FhC0VRM+lUNicRjDcekiPdfmublikIQcPoGIbhKjpsUa9rCKFIRCQYbzyEd7hcvt3cWK/VngiiQ2RFzaRTwxWWZQd3eEYIkU1OcqQRQqsrS9c35VhsniA6RNN027aj0fCg8it3mGSH+QDv9XorlWqA5/1+v6voqpGsqOnPm/xzSHY4FJzudrqiOIsxFoQgQshV/GjMsocHu/33RqOZL5RGG+l6wzItjuMGSyQp239/brYKZzLB8Az8l6YcEKYdEKYdEKYdEKYdEKYdEKYdEKadd8Hv7pCLy1uSAAAAAElFTkSuQmCC" data-a="line" alt="LINE">
-</div>
+  <div class="footer-inner">
+    <button class="btn-action del" onclick="handleAction('del')">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
+      <span>削除</span>
+    </button>
+    <button class="btn-action print" onclick="handleAction('print')">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
+      <span>印刷</span>
+    </button>
+    <button class="btn-action zip" onclick="handleAction('zip')">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+      <span>ZIP</span>
+    </button>
+    <button class="btn-action line" onclick="handleAction('line')">
+      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+      <span>LINE</span>
+    </button>
+  </div>
 </footer>
 
-<div id="vidW">
-<video id="vid" autoplay playsinline muted></video>
-<div id="previewC"><img id="preview"></div>
-<button id="close">Ã</button>
-<button id="snap">ð·</button>
-<button id="retryBtn">æ®ç´</button>
-<button id="saveBtn">ä¿å­</button>
+<!-- Camera Overlay -->
+<div class="overlay" id="camera-overlay">
+  <div class="camera-view">
+    <video id="camera-video" autoplay playsinline muted></video>
+    <img id="captured-img" style="display:none">
+    <button class="btn-close-cam" onclick="stopCamera()">
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+    </button>
+  </div>
+  <div class="camera-controls" id="camera-controls">
+    <button class="btn-shutter" id="shutter-btn" onclick="takePhoto()">
+      <div class="shutter-inner"></div>
+    </button>
+    <div class="camera-actions" id="camera-actions">
+      <button class="btn-retake" onclick="retakePhoto()">撮り直し</button>
+      <button class="btn-save" onclick="savePhoto()">保存する</button>
+    </div>
+  </div>
 </div>
+
+<!-- Site Selection Modal -->
+<div class="modal-backdrop" id="site-modal" onclick="closeSiteModal(event)">
+  <div class="modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
+        現場切り替え
+      </div>
+      <button class="btn-modal-close" onclick="closeSiteModalBtn()">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+    <div id="site-list"></div>
+    <button class="btn-new-site" onclick="createNewSite()">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      新規現場を作成
+    </button>
+  </div>
+</div>
+
+<!-- Edit Site Modal -->
+<div class="modal-backdrop center" id="edit-modal" onclick="closeEditModal(event)">
+  <div class="modal center-modal" onclick="event.stopPropagation()">
+    <div class="modal-header">
+      <div class="modal-title">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 4.93m0 14.14a10 10 0 0 0 14.14 0"/></svg>
+        現場情報の変更
+      </div>
+    </div>
+    <div class="form-group">
+      <label class="form-label">工事名 (現場名)</label>
+      <input type="text" class="form-input" id="edit-site-name" placeholder="工事名を入力...">
+    </div>
+    <div class="form-group">
+      <label class="form-label">施工会社名</label>
+      <input type="text" class="form-input" id="edit-contractor" placeholder="施工会社名を入力...">
+    </div>
+    <div class="modal-actions">
+      <button class="btn-cancel" onclick="closeEditModalBtn()">キャンセル</button>
+      <button class="btn-submit" onclick="updateSiteDetails()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Toast -->
 <div class="toast" id="toast"></div>
 
 <script>
-!function(){
-var $=function(s){return document.querySelector(s)};
-function t(m){var e=$('#toast');e.textContent=m;e.classList.add('show');setTimeout(function(){e.classList.remove('show')},1400)}
-function uid(){return Date.now().toString(36)+Math.random().toString(36).slice(2,5)}
-var db,site=null,photos=[],sel=new Set(),selMode=false,floor='1é',stream=null,shot=null;
+// ===== State =====
+const DEFAULT_FLOORS = ['1階', '2階', '3階', '屋上', '外部'];
+const WORK_STATUSES = ['施工前', '施工中', '施工後', '確認事項', '品質検査'];
 
-function openDB(){return new Promise(function(r){var q=indexedDB.open('g1',1);q.onupgradeneeded=function(e){var d=e.target.result;if(!d.objectStoreNames.contains('s'))d.createObjectStore('s',{keyPath:'id'});if(!d.objectStoreNames.contains('p')){var p=d.createObjectStore('p',{keyPath:'id'});p.createIndex('site','sid')}};q.onsuccess=function(){r(q.result)}})}
-function tx(n,m){return db.transaction(n,m||'readonly').objectStore(n)}
-function all(n){return new Promise(function(r){tx(n).getAll().onsuccess=function(e){r(e.target.result||[])}})}
-function bySite(id){return new Promise(function(r){tx('p').index('site').getAll(id).onsuccess=function(e){r(e.target.result||[])}})}
-function put(n,o){return new Promise(function(r){tx(n,'readwrite').put(o).onsuccess=function(){r(1)}})}
-function del(n,i){return new Promise(function(r){tx(n,'readwrite').delete(i).onsuccess=r})}
-function blob(c){return new Promise(function(r){c.toBlob(r,'image/jpeg',0.85)})}
-function thumb(c){var t=document.createElement('canvas'),s=300;t.width=s;t.height=s;var x=t.getContext('2d'),w=c.width,h=c.height,k=Math.min(s/w,s/h);x.fillStyle='#000';x.fillRect(0,0,s,s);x.drawImage(c,(s-w*k)/2,(s-h*k)/2,w*k,h*k);return t.toDataURL('image/jpeg',0.7)}
+let db = null;
+let site = null;
+let allSites = [];
+let photos = [];
+let selectedIds = new Set();
+let isSelectMode = false;
+let currentFloor = '1階';
+let stream = null;
+let capturedCanvas = null;
 
-async function init(){db=await openDB();var sites=await all('s');site=sites[0]||{id:uid(),name:'ç¾å ´1',floors:['1é','2é','3é','å±ä¸','å¤é¨']};if(!sites.length)await put('s',site);await load();bind()}
-function bind(){$('#gps').onclick=gps;$('#siteBtn').onclick=function(){alert(site.name)};$('#cam').onclick=start;$('#close').onclick=stop;$('#snap').onclick=take;$('#retryBtn').onclick=retry;$('#saveBtn').onclick=save;$('#pick').onclick=function(){$('#file').click()};$('#file').onchange=function(e){add(e.target.files)};$('#sel').onclick=toggle;document.querySelectorAll('[data-a]').forEach(function(b){b.onclick=function(){act(b.dataset.a)}})}
+// ===== IndexedDB =====
+function openDB() {
+  return new Promise((resolve, reject) => {
+    const req = indexedDB.open('genbaCamera', 1);
+    req.onupgradeneeded = e => {
+      const d = e.target.result;
+      if (!d.objectStoreNames.contains('sites')) d.createObjectStore('sites', { keyPath: 'id' });
+      if (!d.objectStoreNames.contains('photos')) {
+        const ps = d.createObjectStore('photos', { keyPath: 'id' });
+        ps.createIndex('sid', 'sid', { unique: false });
+      }
+    };
+    req.onsuccess = e => { db = e.target.result; resolve(); };
+    req.onerror = () => reject(req.error);
+  });
+}
 
-async function load(){photos=await bySite(site.id);photos.sort(function(a,b){return b.ts-a.ts});renderTabs();render()}
-function renderTabs(){var t=$('#tabs');t.innerHTML='';site.floors.forEach(function(f){var b=document.createElement('button');b.className='tab'+(f===floor?' on':'');b.textContent=f;b.onclick=function(){floor=f;renderTabs();render()};t.appendChild(b)})}
-function render(){var g=$('#grid');g.innerHTML='';var ls=photos.filter(function(p){return p.floor===floor});$('#cnt').textContent='('+ls.length+')';$('#empty').style.display=ls.length?'none':'block';ls.forEach(function(p){var d=document.createElement('div');d.className='pic';if(sel.has(p.id))d.classList.add('sel');var i=document.createElement('img');i.src=p.thumb;i.loading='lazy';d.appendChild(i);d.onclick=function(){if(selMode){if(sel.has(p.id))sel.delete(p.id);else sel.add(p.id);d.classList.toggle('sel')}else{var u=URL.createObjectURL(p.blob);window.open(u);setTimeout(function(){URL.revokeObjectURL(u)},2000)}};g.appendChild(d)})}
+function txGet(store, id) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).get(id);
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
 
-async function gps(){try{var p=await new Promise(function(res,rej){navigator.geolocation.getCurrentPosition(res,rej,{timeout:8000})});site.lat=p.coords.latitude;site.lon=p.coords.longitude;await put('s',site);t('GPS OK')}catch(e){t('GPS fail')}}
+function txGetAll(store) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readonly');
+    const req = tx.objectStore(store).getAll();
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
 
-async function start(){try{stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'environment'},audio:false});$('#vid').srcObject=stream;await $('#vid').play();$('#vidW').style.display='block';$('#vid').style.display='block';$('#previewC').style.display='none';$('#snap').style.display='block';$('#retryBtn').style.display='none';$('#saveBtn').style.display='none'}catch(e){t('Camera error')}}
-function stop(){if(stream){stream.getTracks().forEach(function(t){t.stop()});stream=null}$('#vid').srcObject=null;$('#vidW').style.display='none';shot=null}
-function take(){var v=$('#vid');var c=document.createElement('canvas');c.width=v.videoWidth;c.height=v.videoHeight;var x=c.getContext('2d');x.drawImage(v,0,0);if($('#useBB').checked){var w=c.width,h=c.height,bw=w*0.33,bh=bw*0.68,px=w-bw-16,py=h-bh-16;x.fillStyle='rgba(0,0,0,.85)';x.fillRect(px,py,bw,bh);x.strokeStyle='#fff';x.lineWidth=3;x.strokeRect(px,py,bw,bh);x.fillStyle='#fff';x.font='bold '+Math.round(bw*0.09)+'px sans-serif';var ls=['å·¥äº:'+site.name,'å·¥ç¨®:'+$('#stat').value,'å ´æ:'+floor,'æ¥æ:'+new Date().toLocaleDateString('ja-JP')];for(var i=0;i<ls.length;i++)x.fillText(ls[i],px+10,py+14+i*20)}shot=c;$('#preview').src=c.toDataURL('image/jpeg',0.9);$('#vid').style.display='none';$('#previewC').style.display='block';$('#snap').style.display='none';$('#retryBtn').style.display='block';$('#saveBtn').style.display='block'}
-function retry(){$('#vid').style.display='block';$('#previewC').style.display='none';$('#snap').style.display='block';$('#retryBtn').style.display='none';$('#saveBtn').style.display='none';shot=null}
-async function save(){if(!shot)return;var b=await blob(shot),timg=thumb(shot);var p={id:uid(),sid:site.id,floor:floor,ts:Date.now(),blob:b,thumb:timg};await put('p',p);photos.unshift(p);render();t('ä¿å­');stop()}
+function txPut(store, item) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).put(item);
+    req.onsuccess = () => res();
+    req.onerror = () => rej(req.error);
+  });
+}
 
-async function add(files){var n=0;for(var i=0;i<files.length;i++){var f=files[i];if(!f.type.startsWith('image'))continue;var im=await new Promise(function(r){var im=new Image();im.onload=function(){r(im)};im.src=URL.createObjectURL(f)});var c=document.createElement('canvas'),m=1600,w=im.width,h=im.height,s=Math.min(1,m/Math.max(w,h));c.width=w*s;c.height=h*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);var b=await blob(c),timg=thumb(c);await put('p',{id:uid(),sid:site.id,floor:floor,ts:Date.now(),blob:b,thumb:timg});n++;URL.revokeObjectURL(im.src)}if(n){await load();t(n+'æè¿½å ')}}
+function txDelete(store, id) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction(store, 'readwrite');
+    const req = tx.objectStore(store).delete(id);
+    req.onsuccess = () => res();
+    req.onerror = () => rej(req.error);
+  });
+}
 
-function toggle(){selMode=!selMode;sel.clear();$('#sel').textContent=selMode?'è§£é¤':'é¸æ';render()}
-async function act(a){var ls=sel.size?photos.filter(function(p){return sel.has(p.id)}):photos.filter(function(p){return p.floor===floor});if(!ls.length){t('åçãªã');return}if(a==='del'){if(!sel.size){t('é¸æãã¦');return}for(var i=0;i<ls.length;i++)await del('p',ls[i].id);photos=photos.filter(function(p){return !sel.has(p.id)});sel.clear();selMode=false;$('#sel').textContent='é¸æ';render();t('åé¤')}else if(a==='zip'){if(!window.JSZip){await new Promise(function(r){var s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js';s.onload=r;document.head.appendChild(s)})}var z=new JSZip();ls.forEach(function(p,i){z.file((i+1)+'.jpg',p.blob)});var b=await z.generateAsync({type:'blob'});var u=URL.createObjectURL(b),a=document.createElement('a');a.href=u;a.download='photos.zip';a.click();setTimeout(function(){URL.revokeObjectURL(u)},1000)}else if(a==='line'){var txt=site.name+' '+ls.length+'æ';if(site.lat)txt+=' https://maps.google.com/?q='+site.lat+','+site.lon;window.open('https://line.me/R/msg/text/?'+encodeURIComponent(txt))}else if(a==='print'){var w=window.open('','_blank');w.document.write('<html><body>');ls.forEach(function(p){w.document.write('<img src="'+p.thumb+'" style="width:100%;page-break-after:always">')});w.document.write('</body></html>');w.print()}}
+function getPhotosBySite(sid) {
+  return new Promise((res, rej) => {
+    const tx = db.transaction('photos', 'readonly');
+    const idx = tx.objectStore('photos').index('sid');
+    const req = idx.getAll(sid);
+    req.onsuccess = () => res(req.result);
+    req.onerror = () => rej(req.error);
+  });
+}
 
+// ===== Init =====
+async function init() {
+  try {
+    await openDB();
+    allSites = await txGetAll('sites');
+    let cur = allSites[0];
+    if (!cur) {
+      cur = { id: rndId(), name: '新規現場', contractor: '施工会社名未設定', floors: DEFAULT_FLOORS };
+      await txPut('sites', cur);
+      allSites = [cur];
+    }
+    await loadSite(cur);
+  } catch (e) {
+    showToast('データベースの起動に失敗しました');
+  }
+}
+
+function rndId() { return Math.random().toString(36).substring(2, 9); }
+
+async function loadSite(s) {
+  site = s;
+  document.getElementById('header-site-name').textContent = s.name;
+  document.getElementById('edit-site-name').value = s.name;
+  document.getElementById('edit-contractor').value = s.contractor;
+  document.getElementById('address-text').textContent = s.address || '';
+  document.getElementById('gps-btn').classList.toggle('active', !!s.lat);
+
+  if (!s.floors.includes(currentFloor)) currentFloor = s.floors[0] || '1階';
+  renderFloors();
+
+  const all = await getPhotosBySite(s.id);
+  photos = all.sort((a, b) => b.ts - a.ts);
+  renderPhotos();
+}
+
+// ===== Floor Tabs =====
+function renderFloors() {
+  const cont = document.getElementById('floor-tabs');
+  cont.innerHTML = '';
+  (site?.floors || []).forEach(f => {
+    const btn = document.createElement('button');
+    btn.className = 'floor-tab' + (f === currentFloor ? ' active' : '');
+    btn.textContent = f;
+    btn.onclick = () => { currentFloor = f; renderFloors(); renderPhotos(); };
+    cont.appendChild(btn);
+  });
+  const add = document.createElement('button');
+  add.className = 'floor-tab-add';
+  add.innerHTML = '+';
+  add.onclick = addFloor;
+  cont.appendChild(add);
+}
+
+async function addFloor() {
+  const name = prompt('階層名を入力してください (例: 4階、屋上等)');
+  if (name && site) {
+    site.floors = [...site.floors, name];
+    await txPut('sites', site);
+    currentFloor = name;
+    renderFloors();
+    renderPhotos();
+  }
+}
+
+// ===== Photo Grid =====
+function renderPhotos() {
+  const filtered = photos.filter(p => p.floor === currentFloor);
+  document.getElementById('photo-count').textContent = filtered.length + '枚';
+  const empty = document.getElementById('photo-empty');
+  const grid = document.getElementById('photo-grid');
+  const section = document.getElementById('photo-section');
+
+  section.classList.toggle('select-mode', isSelectMode);
+  empty.style.display = filtered.length === 0 ? 'flex' : 'none';
+  grid.style.display = filtered.length === 0 ? 'none' : 'grid';
+  grid.innerHTML = '';
+
+  filtered.forEach(p => {
+    const div = document.createElement('div');
+    div.className = 'photo-item' + (selectedIds.has(p.id) ? ' selected' : '');
+    div.onclick = () => toggleSelect(p.id);
+
+    const img = document.createElement('img');
+    img.src = p.thumb;
+    img.loading = 'lazy';
+
+    const check = document.createElement('div');
+    check.className = 'photo-check';
+    if (selectedIds.has(p.id)) {
+      check.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+    }
+
+    const hover = document.createElement('div');
+    hover.className = 'photo-hover';
+    hover.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
+
+    div.appendChild(img);
+    div.appendChild(check);
+    div.appendChild(hover);
+    grid.appendChild(div);
+  });
+}
+
+function toggleSelect(id) {
+  if (!isSelectMode) {
+    const p = photos.find(x => x.id === id);
+    if (p) {
+      const url = URL.createObjectURL(p.blob);
+      window.open(url);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+    }
+    return;
+  }
+  if (selectedIds.has(id)) selectedIds.delete(id);
+  else selectedIds.add(id);
+  renderPhotos();
+}
+
+function toggleSelectMode() {
+  isSelectMode = !isSelectMode;
+  selectedIds.clear();
+  document.getElementById('select-btn').classList.toggle('active', isSelectMode);
+  document.getElementById('select-btn').textContent = isSelectMode ? '選択解除' : '選択';
+  renderPhotos();
+}
+
+// ===== GPS =====
+async function handleGps() {
+  if (!site) return;
+  showToast('位置情報を取得中...');
+  try {
+    const pos = await new Promise((res, rej) =>
+      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 })
+    );
+    const { latitude: lat, longitude: lon } = pos.coords;
+    showToast('住所を取得中...');
+    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
+      headers: { 'Accept-Language': 'ja' }
+    });
+    const data = await res.json();
+    const address = data.display_name || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
+    const newName = data.address?.road || data.address?.suburb || site.name;
+    site = { ...site, lat, lon, address, name: newName };
+    await txPut('sites', site);
+    allSites = allSites.map(s => s.id === site.id ? site : s);
+    document.getElementById('header-site-name').textContent = site.name;
+    document.getElementById('address-text').textContent = address;
+    document.getElementById('gps-btn').classList.add('active');
+    showToast('GPS情報を更新しました');
+  } catch (e) {
+    showToast('GPS/住所取得に失敗しました');
+  }
+}
+
+// ===== Camera =====
+async function startCamera() {
+  try {
+    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+    const video = document.getElementById('camera-video');
+    video.srcObject = stream;
+    video.style.display = 'block';
+    document.getElementById('captured-img').style.display = 'none';
+    document.getElementById('shutter-btn').style.display = 'flex';
+    document.getElementById('camera-actions').style.display = 'none';
+    capturedCanvas = null;
+    document.getElementById('camera-overlay').classList.add('open');
+  } catch (e) {
+    showToast('カメラを起動できませんでした');
+  }
+}
+
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  document.getElementById('camera-overlay').classList.remove('open');
+}
+
+function takePhoto() {
+  const video = document.getElementById('camera-video');
+  const canvas = document.createElement('canvas');
+  canvas.width = video.videoWidth || 640;
+  canvas.height = video.videoHeight || 480;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+
+  if (document.getElementById('use-blackboard').checked && site) {
+    const w = canvas.width, h = canvas.height;
+    const bw = w * 0.35, bh = bw * 0.7;
+    const px = w - bw - 20, py = h - bh - 20;
+    ctx.fillStyle = 'rgba(0,0,0,0.85)';
+    ctx.fillRect(px, py, bw, bh);
+    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
+    ctx.strokeRect(px, py, bw, bh);
+    ctx.fillStyle = '#fff';
+    const fs = Math.round(bw * 0.08);
+    ctx.font = `bold ${fs}px sans-serif`;
+    const note = document.getElementById('note-input').value;
+    const status = document.getElementById('work-status').value;
+    const labels = [
+      `工事: ${site.name}`, `会社: ${site.contractor}`,
+      `種別: ${status}`, `場所: ${currentFloor}`,
+      `日付: ${new Date().toLocaleDateString('ja-JP')}`,
+      note ? `備考: ${note}` : ''
+    ].filter(Boolean);
+    labels.forEach((t, i) => ctx.fillText(t, px + 15, py + 30 + i * (fs * 1.5)));
+  }
+
+  capturedCanvas = canvas;
+  const img = document.getElementById('captured-img');
+  img.src = canvas.toDataURL('image/jpeg', 0.9);
+  img.style.display = 'block';
+  document.getElementById('camera-video').style.display = 'none';
+  document.getElementById('shutter-btn').style.display = 'none';
+  document.getElementById('camera-actions').style.display = 'flex';
+}
+
+function retakePhoto() {
+  capturedCanvas = null;
+  document.getElementById('captured-img').style.display = 'none';
+  document.getElementById('camera-video').style.display = 'block';
+  document.getElementById('shutter-btn').style.display = 'flex';
+  document.getElementById('camera-actions').style.display = 'none';
+}
+
+async function savePhoto() {
+  if (!capturedCanvas || !site) return;
+  const thumb = genThumb(capturedCanvas);
+  capturedCanvas.toBlob(async blob => {
+    if (!blob) return;
+    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    const status = document.getElementById('work-status').value;
+    const note = document.getElementById('note-input').value;
+    const p = { id, sid: site.id, floor: currentFloor, ts: Date.now(), blob, thumb, status, note };
+    await txPut('photos', p);
+    photos = [p, ...photos];
+    showToast('保存しました');
+    stopCamera();
+    renderPhotos();
+  }, 'image/jpeg', 0.85);
+}
+
+function genThumb(src) {
+  const c = document.createElement('canvas');
+  const s = 300; c.width = s; c.height = s;
+  const ctx = c.getContext('2d');
+  const k = Math.min(s / src.width, s / src.height);
+  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, s, s);
+  ctx.drawImage(src, (s - src.width * k) / 2, (s - src.height * k) / 2, src.width * k, src.height * k);
+  return c.toDataURL('image/jpeg', 0.7);
+}
+
+// ===== File Upload =====
+async function handleFileUpload(input) {
+  const files = input.files;
+  if (!files || !site) return;
+  const list = [];
+  for (const file of Array.from(files)) {
+    if (!file.type.startsWith('image')) continue;
+    const img = await new Promise(res => {
+      const i = new Image(); i.onload = () => res(i);
+      i.src = URL.createObjectURL(file);
+    });
+    const canvas = document.createElement('canvas');
+    const maxDim = 1600, scale = Math.min(1, maxDim / Math.max(img.width, img.height));
+    canvas.width = img.width * scale; canvas.height = img.height * scale;
+    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(img.src);
+    const blob = await new Promise(res => canvas.toBlob(b => res(b), 'image/jpeg', 0.85));
+    const thumb = genThumb(canvas);
+    const id = rndId();
+    const p = { id, sid: site.id, floor: currentFloor, ts: Date.now(), blob, thumb, status: 'インポート', note: '' };
+    await txPut('photos', p);
+    list.push(p);
+  }
+  photos = [...list, ...photos];
+  renderPhotos();
+  showToast(`${list.length}枚追加しました`);
+  input.value = '';
+}
+
+// ===== Actions =====
+async function handleAction(type) {
+  const filtered = photos.filter(p => p.floor === currentFloor);
+  const targets = selectedIds.size > 0 ? photos.filter(p => selectedIds.has(p.id)) : filtered;
+
+  if (targets.length === 0) { showToast('対象がありません'); return; }
+
+  if (type === 'del') {
+    if (selectedIds.size === 0) { showToast('削除する写真を選択してください'); return; }
+    if (!confirm(`${selectedIds.size}枚の写真を削除しますか？`)) return;
+    for (const id of selectedIds) await txDelete('photos', id);
+    photos = photos.filter(p => !selectedIds.has(p.id));
+    selectedIds.clear(); isSelectMode = false;
+    document.getElementById('select-btn').classList.remove('active');
+    document.getElementById('select-btn').textContent = '選択';
+    renderPhotos();
+    showToast('削除完了');
+  } else if (type === 'zip') {
+    if (typeof JSZip === 'undefined') { showToast('JSZipが読み込まれていません'); return; }
+    const zip = new JSZip();
+    targets.forEach((p, i) => zip.file(`${i + 1}.jpg`, p.blob));
+    const content = await zip.generateAsync({ type: 'blob' });
+    const url = URL.createObjectURL(content);
+    const a = document.createElement('a');
+    a.href = url; a.download = `現場写真_${new Date().toISOString().slice(0, 10)}.zip`; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 2000);
+    showToast('ZIPを作成しました');
+  } else if (type === 'line') {
+    let text = `${site?.name || '現場'} ${targets.length}枚の写真`;
+    if (site?.lat) text += `\n現在地: https://maps.google.com/?q=${site.lat},${site.lon}`;
+    window.open(`https://line.me/R/msg/text/?${encodeURIComponent(text)}`);
+  } else if (type === 'print') {
+    const w = window.open('', '_blank');
+    if (w) {
+      w.document.write('<html><body style="margin:0;text-align:center;">');
+      targets.forEach(p => w.document.write(`<img src="${p.thumb}" style="width:100%;max-width:800px;page-break-after:always;margin-bottom:20px;">`));
+      w.document.write('</body></html>');
+      w.document.close(); w.print();
+    }
+  }
+}
+
+// ===== Site Modal =====
+function openSiteModal() { document.getElementById('site-modal').classList.add('open'); renderSiteList(); }
+function closeSiteModal(e) { if (e.target === document.getElementById('site-modal')) closeSiteModalBtn(); }
+function closeSiteModalBtn() { document.getElementById('site-modal').classList.remove('open'); }
+
+function renderSiteList() {
+  const cont = document.getElementById('site-list');
+  cont.innerHTML = '';
+  allSites.forEach(s => {
+    const btn = document.createElement('button');
+    btn.className = 'site-item' + (site?.id === s.id ? ' active' : '');
+    btn.innerHTML = `
+      <div>
+        <div class="site-item-name">${s.name}</div>
+        <div class="site-item-sub">${s.contractor}</div>
+      </div>
+      ${site?.id === s.id ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
+    `;
+    btn.onclick = async () => { await loadSite(s); closeSiteModalBtn(); };
+    cont.appendChild(btn);
+  });
+}
+
+async function createNewSite() {
+  const newSite = {
+    id: rndId(),
+    name: `現場_${new Date().toLocaleDateString('ja-JP')}`,
+    contractor: site?.contractor || '施工会社名',
+    floors: DEFAULT_FLOORS
+  };
+  await txPut('sites', newSite);
+  allSites.push(newSite);
+  await loadSite(newSite);
+  closeSiteModalBtn();
+  showToast('新しい現場を作成しました');
+}
+
+// ===== Edit Modal =====
+function openEditModal() { document.getElementById('edit-modal').classList.add('open'); }
+function closeEditModal(e) { if (e.target === document.getElementById('edit-modal')) closeEditModalBtn(); }
+function closeEditModalBtn() { document.getElementById('edit-modal').classList.remove('open'); }
+
+async function updateSiteDetails() {
+  if (!site) return;
+  site.name = document.getElementById('edit-site-name').value;
+  site.contractor = document.getElementById('edit-contractor').value;
+  await txPut('sites', site);
+  allSites = allSites.map(s => s.id === site.id ? site : s);
+  document.getElementById('header-site-name').textContent = site.name;
+  closeEditModalBtn();
+  showToast('現場情報を更新しました');
+}
+
+// ===== Toast =====
+let toastTimer = null;
+function showToast(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+}
+
+// ===== Start =====
 init();
-}();
 </script>
 </body>
 </html>
