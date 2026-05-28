@@ -203,6 +203,7 @@ body{
   </select>
   <button id="toiletBtn" class="action-btn active">🚻 トイレ</button>
   <button id="parkingBtn" class="action-btn">🅿️ 駐車場</button>
+  <button id="drinkBtn" class="action-btn">🥤 DRINK</button>
 </div>
 
 <div class="status" id="status">
@@ -220,6 +221,7 @@ body{
 const state = {
   searchLocked:false,
   mode:'toilet',
+  drinkPriority:true,
   map:null,
   userMarker:null,
   markers:[],
@@ -334,9 +336,17 @@ async function loadNearby(){
     `;
   }
 
-  const query = state.mode === 'toilet'
-    ? buildToiletQuery()
-    : buildParkingQuery();
+  let query = '';
+
+  if(state.mode === 'toilet'){
+    query = buildToiletQuery();
+  }
+  else if(state.mode === 'drink'){
+    query = buildDrinkQuery();
+  }
+  else {
+    query = buildParkingQuery();
+  }
 
   const url = 'https://overpass-api.de/api/interpreter';
 
@@ -362,7 +372,8 @@ async function loadNearby(){
     // 同じ結果なら再描画しない
     if(newHash !== lastRenderHash){
       clearMarkers();
-      renderResults(filtered);
+      const analyzed = findDrinkNearToilet(filtered);
+      renderResults(analyzed);
       lastRenderHash = newHash;
     }
 
@@ -394,6 +405,23 @@ function buildToiletQuery(){
   node["railway"="station"](around:${state.radius},${state.userLat},${state.userLon});
 );
 out center;
+  `;
+}
+
+function buildDrinkQuery(){
+  return `
+[out:json][timeout:25];
+(
+  node["amenity"="vending_machine"](around:${state.radius},${state.userLat},${state.userLon});
+  way["amenity"="vending_machine"](around:${state.radius},${state.userLat},${state.userLon});
+
+  node["vending"="drinks"](around:${state.radius},${state.userLat},${state.userLon});
+  way["vending"="drinks"](around:${state.radius},${state.userLat},${state.userLon});
+
+  node["shop"="convenience"](around:${state.radius},${state.userLat},${state.userLon});
+  way["shop"="convenience"](around:${state.radius},${state.userLat},${state.userLon});
+);
+out center tags;
   `;
 }
 
@@ -557,10 +585,89 @@ function cardHTML(item){
   `;
 }
 
+function isCokeON(item){
+  const brand = (item.tags?.brand || '').toLowerCase();
+  const operator = (item.tags?.operator || '').toLowerCase();
+  const name = (item.tags?.name || '').toLowerCase();
+
+  return brand.includes('coca')
+    || operator.includes('coca')
+    || name.includes('coke on');
+}
+
+function isDyDo(item){
+  const brand = (item.tags?.brand || '').toLowerCase();
+  const operator = (item.tags?.operator || '').toLowerCase();
+  const name = (item.tags?.name || '').toLowerCase();
+
+  return brand.includes('dydo')
+    || operator.includes('dydo')
+    || name.includes('dydo');
+}
+
+function isDrinkMachine(item){
+  return item.tags?.amenity === 'vending_machine'
+    || item.tags?.vending === 'drinks';
+}
+
+function isConvenience(item){
+  return item.tags?.shop === 'convenience';
+}
+
+function findDrinkNearToilet(items){
+
+  const toilets = items.filter(i=>
+    i.tags?.amenity === 'toilets'
+  );
+
+  const drinks = items.filter(i=>
+    isDrinkMachine(i)
+  );
+
+  toilets.forEach(toilet=>{
+
+    const tlat = toilet.lat || toilet.center?.lat;
+    const tlon = toilet.lon || toilet.center?.lon;
+
+    drinks.forEach(drink=>{
+
+      const dlat = drink.lat || drink.center?.lat;
+      const dlon = drink.lon || drink.center?.lon;
+
+      const dist = calcDistance(tlat, tlon, dlat, dlon);
+
+      if(dist <= 50){
+        toilet.hasDrink = true;
+      }
+    });
+  });
+
+  return items;
+}
+
 function buildTags(item){
   const tags = [];
 
-  if(state.mode === 'toilet'){
+  if(state.mode === 'drink'){
+    tags.push(tag('🥤 DRINK','blue'));
+
+    if(isDrinkMachine(item)){
+      tags.push(tag('🥤 自販機','green'));
+    }
+
+    if(isCokeON(item)){
+      tags.push(tag('🥤 Coke ON','blue'));
+    }
+
+    if(isDyDo(item)){
+      tags.push(tag('🥤 DyDo','yellow'));
+    }
+
+    if(isConvenience(item)){
+      tags.push(tag('🏪 コンビニ','yellow'));
+    }
+  }
+  else if(state.mode === 'toilet'){
     tags.push(tag('🚻 トイレ','green'));
 
     if(item.tags?.public_toilet === 'yes'){
@@ -585,6 +692,10 @@ function buildTags(item){
     if(item.tags?.fee === 'no'){
       tags.push(tag('💴 無料','blue'));
     }
+  }
+
+  if(item.hasDrink){
+    tags.push(tag('🚻+🥤','green'));
   }
 
   return tags.join('');
@@ -637,16 +748,22 @@ function escapeHTML(str=''){
 const toiletBtn = document.getElementById('toiletBtn');
 const parkingBtn = document.getElementById('parkingBtn');
 
+const drinkBtn = document.getElementById('drinkBtn');
+
 function switchMode(mode){
   state.mode = mode;
   state.radius = 500;
 
   toiletBtn.classList.remove('active');
   parkingBtn.classList.remove('active');
+  drinkBtn.classList.remove('active');
 
   if(mode === 'toilet'){
     toiletBtn.classList.add('active');
     document.getElementById('sheetTitle').textContent = '近くのトイレ';
+  }else if(mode === 'drink'){
+    drinkBtn.classList.add('active');
+    document.getElementById('sheetTitle').textContent = '近くのDRINK';
   }else{
     parkingBtn.classList.add('active');
     document.getElementById('sheetTitle').textContent = '近くの駐車場';
@@ -657,6 +774,7 @@ function switchMode(mode){
 
 toiletBtn.onclick = ()=>switchMode('toilet');
 parkingBtn.onclick = ()=>switchMode('parking');
+drinkBtn.onclick = ()=>switchMode('drink');
 
 // ===== 半径変更 =====
 
@@ -1541,6 +1659,138 @@ function createSplash(){
   },1200);
 }
 
+// ===== DRINK DB 月次更新 =====
+
+const DRINK_DB_KEY = 'drink-db-v1';
+const DRINK_DB_UPDATED_KEY = 'drink-db-updated';
+
+async function shouldUpdateDrinkDB(){
+
+  const last = localStorage.getItem(DRINK_DB_UPDATED_KEY);
+
+  if(!last) return true;
+
+  const diff = Date.now() - parseInt(last,10);
+
+  const month = 1000 * 60 * 60 * 24 * 30;
+
+  return diff > month;
+}
+
+async function saveDrinkDB(items){
+
+  try{
+
+    const drinks = items.filter(item=>
+      isDrinkMachine(item)
+    );
+
+    localStorage.setItem(
+      DRINK_DB_KEY,
+      JSON.stringify({
+        updated:Date.now(),
+        items:drinks
+      })
+    );
+
+    localStorage.setItem(
+      DRINK_DB_UPDATED_KEY,
+      Date.now().toString()
+    );
+
+    saveRuntimeLog('drink-db-save',{
+      count:drinks.length
+    });
+
+  }catch(err){
+    console.error(err);
+  }
+}
+
+async function loadDrinkDB(){
+
+  try{
+
+    const raw = localStorage.getItem(DRINK_DB_KEY);
+
+    if(!raw) return [];
+
+    const parsed = JSON.parse(raw);
+
+    return parsed.items || [];
+
+  }catch(err){
+    console.error(err);
+    return [];
+  }
+}
+
+async function updateDrinkDatabase(){
+
+  const need = await shouldUpdateDrinkDB();
+
+  if(!need){
+    console.log('[drink-db] monthly cache active');
+    return;
+  }
+
+  try{
+
+    setStatus('🥤 DRINK DB更新中');
+
+    const query = buildDrinkQuery();
+
+    const data = await fetchOverpass(query);
+
+    await saveDrinkDB(data.elements || []);
+
+    setStatus('🥤 DRINK DB更新完了');
+
+  }catch(err){
+    console.error(err);
+
+    setStatus('🥤 DRINK DB更新失敗');
+  }
+}
+
+function createDrinkDBInfo(){
+
+  const box = document.createElement('div');
+
+  box.id = 'drink-db-info';
+
+  box.style.cssText = `
+    position:fixed;
+    top:70px;
+    right:12px;
+    z-index:9999;
+    background:rgba(15,17,21,.92);
+    border:1px solid #2a2f3a;
+    border-radius:14px;
+    padding:10px 12px;
+    font-size:12px;
+    font-weight:700;
+    backdrop-filter:blur(10px);
+  `;
+
+  const last = localStorage.getItem(DRINK_DB_UPDATED_KEY);
+
+  let text = '未更新';
+
+  if(last){
+    const d = new Date(parseInt(last,10));
+
+    text = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+  }
+
+  box.innerHTML = `
+    🥤 DRINK DB<br>
+    最終更新: ${text}
+  `;
+
+  document.body.appendChild(box);
+}
+
 // ===== 実運用ログ保存 =====
 
 function saveRuntimeLog(type,data={}){
@@ -1594,6 +1844,10 @@ async function bootOptimizations(){
 
   await initDB();
 
+  await updateDrinkDatabase();
+
+  createDrinkDBInfo();
+
   saveRuntimeLog('boot');
 }
 
@@ -1616,3 +1870,165 @@ initGPS();
 
 </body>
 </html>
+
+---
+
+# 実機点検・バグ潰し統合フェーズ
+
+## 点検対象
+
+### GPS
+
+- watchPosition暴走
+- 位置飛び
+- 無限再検索
+- 半径固定化
+- バックグラウンド暴走
+
+---
+
+### UI
+
+- ピン点滅
+- 再描画ちらつき
+- ボタン重複
+- スクロールカクつき
+- Safariズーム暴走
+
+---
+
+### 検索
+
+- 同地点重複
+- ホテル混入
+- 空データ無限検索
+- APIタイムアウト
+- radius暴走拡張
+
+---
+
+### メモリ
+
+- markerリーク
+- tileリーク
+- IndexedDB肥大化
+- localStorage肥大化
+
+---
+
+### オフライン
+
+- ServiceWorker競合
+- cache破損
+- offline復帰失敗
+- PWA install不具合
+
+---
+
+# フルコード統合方針
+
+## 削らない機能
+
+- トイレ
+- 駐車場
+- DRINK
+- Coke ON
+- DyDo
+- 公園解析
+- 駅解析
+- 神社寺
+- 空港
+- ヒートマップ
+- Offline
+- PWA
+- IndexedDB
+- キャッシュ
+- GPS最適化
+
+全部維持。
+
+---
+
+# フル最適化
+
+## 描画
+
+- circleMarker統一
+- 再描画差分更新
+- cluster再利用
+- lazy popup
+
+---
+
+## 検索
+
+- debounce
+- query queue
+- fallback API
+- cache first
+
+---
+
+## iPhone最適化
+
+- 低RAM保護
+- GPU抑制
+- passive event
+- animation最小化
+
+---
+
+## Android最適化
+
+- battery saver
+- heat protection
+- radius自動抑制
+- background pause
+
+---
+
+# 実戦ログ解析
+
+## 保存
+
+```txt
+検索失敗
+API失敗
+GPS異常
+描画遅延
+battery low
+```
+
+---
+
+# 最終構造
+
+## Core
+
+- gps-engine.js
+- map-engine.js
+- search-engine.js
+- offline-engine.js
+- drink-engine.js
+- parking-engine.js
+- ui-engine.js
+
+---
+
+# 実機検証
+
+## iPhone
+
+- Safari
+- PWA standalone
+- 低電力モード
+- 圏外復帰
+
+---
+
+## Android
+
+- Chrome
+- WebView
+- バッテリー
+- 発熱
