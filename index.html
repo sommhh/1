@@ -1,954 +1,1471 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>現場カメラ</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>現場トイレ・駐車場</title>
+
+<link
+  rel="stylesheet"
+  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
+/>
+
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+*{
+  margin:0;
+  padding:0;
+  box-sizing:border-box;
+}
 
-  :root {
-    --bg: #0f172a;
-    --bg2: #1e293b;
-    --bg3: #334155;
-    --border: #334155;
-    --border2: #475569;
-    --text: #e2e8f0;
-    --text2: #94a3b8;
-    --text3: #64748b;
-    --blue: #2563eb;
-    --blue2: #3b82f6;
-    --green: #059669;
-    --red: #dc2626;
-    --amber: #d97706;
-  }
+:root{
+  --bg:#0f1115;
+  --card:#1a1d24;
+  --accent:#38bdf8;
+  --green:#22c55e;
+  --yellow:#facc15;
+  --red:#ef4444;
+  --text:#f5f7fa;
+  --muted:#9aa4b2;
+  --border:#2a2f3a;
+}
 
-  body {
-    background: var(--bg);
-    color: var(--text);
-    font-family: -apple-system, 'Hiragino Sans', 'Meiryo', sans-serif;
-    min-height: 100dvh;
-    padding-bottom: 80px;
-  }
+body{
+  background:var(--bg);
+  color:var(--text);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+  overflow:hidden;
+}
 
-  /* Header */
-  header {
-    position: sticky;
-    top: 0;
-    background: var(--bg);
-    border-bottom: 1px solid var(--border);
-    z-index: 30;
-    padding: 12px 16px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
-  }
-  .header-inner {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    max-width: 512px;
-    margin: 0 auto;
-  }
-  .header-left { display: flex; align-items: center; gap: 10px; }
-  .btn-icon {
-    background: var(--blue);
-    border: none;
-    border-radius: 10px;
-    padding: 8px;
-    cursor: pointer;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    transition: transform 0.1s;
-    color: #fff;
-  }
-  .btn-icon:active { transform: scale(0.93); }
-  .site-title { font-size: 13px; font-weight: 700; color: #fff; line-height: 1.2; }
-  .site-sub { font-size: 10px; color: var(--text3); max-width: 120px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-  .header-right { display: flex; align-items: center; gap: 8px; }
-  .btn-gps {
-    background: none; border: none; padding: 8px; cursor: pointer;
-    border-radius: 50%; color: var(--text3); position: relative;
-    transition: background 0.2s;
-  }
-  .btn-gps:hover { background: var(--bg2); }
-  .btn-gps.active { color: var(--blue2); }
-  .gps-dot {
-    display: none;
-    position: absolute; top: 2px; right: 2px;
-    width: 6px; height: 6px;
-    background: #22c55e; border-radius: 50%;
-    border: 1px solid var(--bg);
-    animation: pulse 2s infinite;
-  }
-  .btn-gps.active .gps-dot { display: block; }
-  @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.4} }
-  .btn-settings {
-    display: flex; align-items: center; gap: 6px;
-    padding: 6px 12px; background: var(--bg2); border: 1px solid var(--border);
-    border-radius: 999px; font-size: 12px; font-weight: 500;
-    color: var(--text); cursor: pointer; transition: background 0.2s;
-  }
-  .btn-settings:hover { background: var(--bg3); }
+#map{
+  position:fixed;
+  inset:0;
+  z-index:1;
+}
 
-  /* Main */
-  main { max-width: 512px; margin: 0 auto; padding: 16px; display: flex; flex-direction: column; gap: 16px; }
+.topbar{
+  position:fixed;
+  top:12px;
+  left:12px;
+  right:12px;
+  z-index:1000;
+  display:flex;
+  gap:10px;
+}
 
-  /* Floor Tabs */
-  .floors { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
-  .floors::-webkit-scrollbar { display: none; }
-  .floor-tab {
-    padding: 6px 16px; border-radius: 999px; font-size: 13px; white-space: nowrap;
-    border: 1px solid var(--border); background: var(--bg2); color: var(--text3);
-    cursor: pointer; transition: all 0.2s; flex-shrink: 0;
-  }
-  .floor-tab.active { background: var(--blue); border-color: var(--blue2); color: #fff; box-shadow: 0 4px 12px rgba(37,99,235,0.3); }
-  .floor-tab-add {
-    width: 32px; height: 32px; border-radius: 50%; background: var(--bg2);
-    border: 1px solid var(--border); color: var(--text3); cursor: pointer;
-    display: flex; align-items: center; justify-content: center; flex-shrink: 0; font-size: 18px; line-height: 1;
-  }
+.action-btn{
+  flex:1;
+  border:none;
+  background:rgba(26,29,36,.95);
+  backdrop-filter:blur(10px);
+  color:white;
+  padding:18px 14px;
+  border-radius:18px;
+  font-size:18px;
+  font-weight:700;
+  border:1px solid var(--border);
+  box-shadow:0 8px 30px rgba(0,0,0,.35);
+}
 
-  /* Settings Card */
-  .card {
-    background: rgba(30,41,59,0.5);
-    backdrop-filter: blur(8px);
-    border: 1px solid var(--border);
-    border-radius: 16px;
-    padding: 16px;
-  }
-  .card-row { display: flex; gap: 8px; margin-bottom: 12px; }
-  select, input[type="text"] {
-    background: var(--bg);
-    border: 1px solid var(--border);
-    border-radius: 12px;
-    padding: 8px 12px;
-    font-size: 13px;
-    color: var(--text);
-    outline: none;
-    font-family: inherit;
-    transition: box-shadow 0.2s;
-  }
-  select:focus, input[type="text"]:focus { box-shadow: 0 0 0 2px var(--blue); }
-  select { flex: 1; }
-  .input-note { flex: 2; }
-  .card-row2 { display: flex; align-items: center; justify-content: space-between; }
-  .blackboard-toggle { display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; }
-  .blackboard-toggle input { width: 15px; height: 15px; accent-color: var(--blue); cursor: pointer; }
-  .blackboard-toggle span { font-size: 11px; color: var(--text3); font-weight: 500; }
-  .address-text { font-size: 9px; color: #475569; max-width: 150px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.action-btn.active{
+  border:1px solid var(--accent);
+  box-shadow:0 0 0 2px rgba(56,189,248,.2);
+}
 
-  /* Capture Buttons */
-  .capture-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
-  .btn-capture {
-    display: flex; flex-direction: column; align-items: center; justify-content: center;
-    padding: 24px 16px; border-radius: 16px; border: none; cursor: pointer;
-    transition: all 0.15s; font-family: inherit;
-  }
-  .btn-capture:active { transform: scale(0.95); }
-  .btn-capture svg { margin-bottom: 8px; }
-  .btn-capture span { font-weight: 700; letter-spacing: 0.05em; }
-  .btn-camera { background: var(--blue); color: #fff; box-shadow: 0 8px 24px rgba(37,99,235,0.25); }
-  .btn-camera:hover { background: #3b82f6; }
-  .btn-import { background: var(--bg2); border: 1px solid var(--border); color: var(--text2); }
-  .btn-import:hover { background: var(--bg3); }
+.bottom-sheet{
+  position:fixed;
+  left:0;
+  right:0;
+  bottom:0;
+  z-index:1000;
+  background:rgba(15,17,21,.97);
+  backdrop-filter:blur(12px);
+  border-top-left-radius:24px;
+  border-top-right-radius:24px;
+  border-top:1px solid var(--border);
+  max-height:42vh;
+  overflow:auto;
+  padding:16px;
+}
 
-  /* Photo List */
-  .photo-section { background: rgba(30,41,59,0.3); border: 1px solid rgba(51,65,85,0.5); border-radius: 16px; padding: 16px; min-height: 300px; }
-  .photo-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px; }
-  .photo-title { font-weight: 700; color: var(--text2); display: flex; align-items: center; gap: 8px; font-size: 14px; }
-  .photo-count { font-size: 11px; font-weight: 400; color: var(--text3); padding: 2px 8px; background: var(--bg); border-radius: 999px; }
-  .btn-select {
-    font-size: 11px; padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border);
-    background: var(--bg); color: var(--text3); cursor: pointer; font-family: inherit; transition: all 0.2s;
-  }
-  .btn-select.active { background: var(--blue); border-color: var(--blue2); color: #fff; }
-  .photo-empty { display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 60px 0; opacity: 0.3; }
-  .photo-empty svg { margin-bottom: 8px; }
-  .photo-empty p { font-size: 13px; }
-  .photo-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
-  .photo-item {
-    aspect-ratio: 1; border-radius: 12px; overflow: hidden; position: relative;
-    cursor: pointer; border: 2px solid transparent; transition: border-color 0.15s;
-  }
-  .photo-item.selected { border-color: var(--blue2); }
-  .photo-item img { width: 100%; height: 100%; object-fit: cover; display: block; }
-  .photo-check {
-    position: absolute; top: 6px; right: 6px;
-    width: 20px; height: 20px; border-radius: 50%;
-    border: 2px solid rgba(255,255,255,0.8);
-    background: rgba(0,0,0,0.2);
-    display: none; align-items: center; justify-content: center;
-  }
-  .select-mode .photo-check { display: flex; }
-  .photo-item.selected .photo-check { background: var(--blue); border-color: var(--blue); }
-  .photo-hover {
-    position: absolute; inset: 0; background: rgba(0,0,0,0.4);
-    display: flex; align-items: center; justify-content: center;
-    opacity: 0; transition: opacity 0.2s;
-  }
-  .photo-item:hover .photo-hover { opacity: 1; }
+.sheet-title{
+  font-size:18px;
+  font-weight:800;
+  margin-bottom:14px;
+}
 
-  /* Footer */
-  footer {
-    position: fixed; bottom: 0; left: 0; right: 0;
-    background: var(--bg); border-top: 1px solid var(--border);
-    padding: 12px 16px; z-index: 40;
-  }
-  .footer-inner { max-width: 512px; margin: 0 auto; display: flex; justify-content: space-around; align-items: center; }
-  .btn-action {
-    display: flex; flex-direction: column; align-items: center; gap: 4px;
-    background: none; border: none; cursor: pointer; color: var(--text3); font-family: inherit;
-    transition: color 0.2s; padding: 4px 8px;
-  }
-  .btn-action span { font-size: 10px; font-weight: 700; text-transform: uppercase; }
-  .btn-action:hover.del { color: #f87171; }
-  .btn-action:hover.print { color: #fbbf24; }
-  .btn-action:hover.zip { color: #34d399; }
-  .btn-action:hover.line { color: #4ade80; }
+.result-card{
+  background:var(--card);
+  border:1px solid var(--border);
+  border-radius:18px;
+  padding:14px;
+  margin-bottom:12px;
+}
 
-  /* Camera Overlay */
-  .overlay {
-    position: fixed; inset: 0; background: #000; z-index: 50;
-    display: none; flex-direction: column;
-    animation: fadeIn 0.2s;
-  }
-  .overlay.open { display: flex; }
-  @keyframes fadeIn { from{opacity:0} to{opacity:1} }
-  .camera-view { flex: 1; overflow: hidden; display: flex; align-items: center; justify-content: center; position: relative; }
-  .camera-view video, .camera-view img { width: 100%; height: 100%; object-fit: contain; }
-  .btn-close-cam {
-    position: absolute; top: 24px; right: 24px;
-    background: rgba(0,0,0,0.5); border: none; border-radius: 50%;
-    width: 44px; height: 44px; cursor: pointer; color: #fff;
-    display: flex; align-items: center; justify-content: center; transition: background 0.2s;
-  }
-  .btn-close-cam:hover { background: rgba(0,0,0,0.8); }
-  .camera-controls {
-    height: 160px; background: #000; border-top: 1px solid #1e293b;
-    display: flex; align-items: center; justify-content: center; gap: 32px; padding: 0 24px;
-  }
-  .btn-shutter {
-    width: 80px; height: 80px; border-radius: 50%;
-    border: 4px solid #fff; background: none; cursor: pointer;
-    display: flex; align-items: center; justify-content: center;
-    transition: transform 0.1s; box-shadow: 0 0 0 0 rgba(255,255,255,0.4);
-  }
-  .btn-shutter:active { transform: scale(0.92); }
-  .shutter-inner { width: 100%; height: 100%; background: #fff; border-radius: 50%; transition: transform 0.1s; }
-  .btn-shutter:hover .shutter-inner { transform: scale(0.88); }
-  .camera-actions { display: none; width: 100%; justify-content: space-between; align-items: center; }
-  .btn-retake, .btn-save {
-    display: flex; align-items: center; gap: 8px;
-    padding: 12px 24px; border-radius: 16px; border: none;
-    font-weight: 700; font-size: 15px; cursor: pointer; font-family: inherit; transition: all 0.15s;
-  }
-  .btn-retake:active, .btn-save:active { transform: scale(0.95); }
-  .btn-retake { background: #1e293b; color: #fff; }
-  .btn-save { background: #059669; color: #fff; box-shadow: 0 8px 24px rgba(5,150,105,0.3); }
+.result-top{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:10px;
+}
 
-  /* Modals */
-  .modal-backdrop {
-    position: fixed; inset: 0; background: rgba(0,0,0,0.6);
-    backdrop-filter: blur(4px); z-index: 50; display: none; align-items: flex-end;
-    justify-content: center;
-  }
-  .modal-backdrop.open { display: flex; }
-  .modal-backdrop.center { align-items: center; }
-  .modal {
-    background: var(--bg); border: 1px solid var(--border);
-    width: 100%; max-width: 512px; border-radius: 24px 24px 0 0;
-    padding: 24px; max-height: 80vh; overflow-y: auto;
-    animation: slideUp 0.25s ease;
-  }
-  .modal.center-modal { border-radius: 20px; max-width: 380px; animation: scaleIn 0.2s ease; }
-  @keyframes slideUp { from{transform:translateY(100%)} to{transform:translateY(0)} }
-  @keyframes scaleIn { from{opacity:0;transform:scale(0.9)} to{opacity:1;transform:scale(1)} }
-  .modal-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
-  .modal-title { font-size: 18px; font-weight: 700; color: #fff; display: flex; align-items: center; gap: 8px; }
-  .btn-modal-close { background: var(--bg2); border: none; border-radius: 50%; padding: 8px; cursor: pointer; color: var(--text); display: flex; }
-  .site-item {
-    width: 100%; text-align: left; padding: 16px; border-radius: 12px;
-    border: 1px solid var(--border); background: var(--bg2); cursor: pointer;
-    margin-bottom: 12px; display: flex; justify-content: space-between; align-items: center;
-    transition: border-color 0.2s; font-family: inherit;
-  }
-  .site-item.active { background: rgba(37,99,235,0.1); border-color: var(--blue2); }
-  .site-item:hover:not(.active) { border-color: var(--border2); }
-  .site-item-name { font-weight: 700; color: #fff; font-size: 14px; }
-  .site-item-sub { font-size: 11px; color: var(--text3); margin-top: 4px; }
-  .btn-new-site {
-    width: 100%; padding: 16px; border-radius: 12px;
-    border: 1px dashed var(--border); background: none; color: var(--text3);
-    cursor: pointer; font-weight: 700; font-size: 14px; font-family: inherit;
-    display: flex; align-items: center; justify-content: center; gap: 8px; transition: all 0.2s;
-  }
-  .btn-new-site:hover { border-color: var(--blue2); color: var(--blue2); }
-  .form-group { margin-bottom: 16px; }
-  .form-label { font-size: 11px; font-weight: 700; color: var(--text3); margin-bottom: 6px; margin-left: 4px; display: block; }
-  .form-input {
-    width: 100%; background: var(--bg2); border: 1px solid var(--border);
-    border-radius: 12px; padding: 12px 16px; color: #fff; font-size: 14px;
-    outline: none; font-family: inherit; transition: box-shadow 0.2s;
-  }
-  .form-input:focus { box-shadow: 0 0 0 2px var(--blue); }
-  .modal-actions { display: flex; gap: 12px; margin-top: 8px; }
-  .btn-cancel, .btn-submit {
-    flex: 1; padding: 12px; border-radius: 12px; border: none;
-    font-weight: 700; font-size: 14px; cursor: pointer; font-family: inherit; transition: all 0.15s;
-  }
-  .btn-cancel:active, .btn-submit:active { transform: scale(0.97); }
-  .btn-cancel { background: var(--bg2); color: var(--text2); }
-  .btn-submit { background: var(--blue); color: #fff; }
+.result-name{
+  font-weight:700;
+  font-size:15px;
+  line-height:1.4;
+}
 
-  /* Toast */
-  .toast {
-    position: fixed; bottom: 96px; left: 50%; transform: translateX(-50%) translateY(60px);
-    background: var(--bg2); color: #fff; padding: 8px 24px;
-    border-radius: 999px; font-size: 13px; font-weight: 500;
-    box-shadow: 0 8px 32px rgba(0,0,0,0.4); border: 1px solid var(--border);
-    z-index: 100; opacity: 0; transition: all 0.3s; white-space: nowrap;
-  }
-  .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+.distance{
+  color:var(--accent);
+  font-size:13px;
+  font-weight:700;
+}
 
-  svg { pointer-events: none; }
+.tags{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:12px;
+}
+
+.tag{
+  padding:6px 10px;
+  border-radius:999px;
+  font-size:12px;
+  font-weight:700;
+}
+
+.green{background:rgba(34,197,94,.18);color:#7df3a3;}
+.yellow{background:rgba(250,204,21,.18);color:#ffe26a;}
+.red{background:rgba(239,68,68,.18);color:#ff8e8e;}
+.blue{background:rgba(56,189,248,.18);color:#7fdcff;}
+
+.route-btn{
+  width:100%;
+  border:none;
+  background:var(--accent);
+  color:#08131b;
+  font-weight:800;
+  padding:12px;
+  border-radius:12px;
+  font-size:15px;
+}
+
+.loading{
+  text-align:center;
+  padding:30px 10px;
+  color:var(--muted);
+}
+
+.status{
+  position:fixed;
+  top:84px;
+  left:12px;
+  right:12px;
+  z-index:1000;
+  background:rgba(15,17,21,.9);
+  border:1px solid var(--border);
+  border-radius:14px;
+  padding:10px 14px;
+  font-size:13px;
+  color:var(--muted);
+}
+
+.leaflet-popup-content-wrapper{
+  background:#1b1f27;
+  color:white;
+  border-radius:16px;
+}
+
+.leaflet-popup-tip{
+  background:#1b1f27;
+}
 </style>
 </head>
 <body>
 
-<!-- Header -->
-<header>
-  <div class="header-inner">
-    <div class="header-left">
-      <button class="btn-icon" onclick="openSiteModal()" title="現場切り替え">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-      </button>
-      <div>
-        <div class="site-title">現場カメラ</div>
-        <div class="site-sub" id="header-site-name">現場未選択</div>
-      </div>
-    </div>
-    <div class="header-right">
-      <button class="btn-gps" id="gps-btn" onclick="handleGps()" title="GPS位置取得">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
-        <span class="gps-dot"></span>
-      </button>
-      <button class="btn-settings" onclick="openEditModal()">
-        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 4.93m0 14.14a10 10 0 0 0 14.14 0M12 2v2m0 18v2M2 12h2m18 0h2"/></svg>
-        設定
-      </button>
-    </div>
-  </div>
-</header>
+<div id="map"></div>
 
-<main>
-  <!-- Floor Tabs -->
-  <div class="floors" id="floor-tabs"></div>
-
-  <!-- Settings Card -->
-  <div class="card">
-    <div class="card-row">
-      <select id="work-status">
-        <option>施工前</option>
-        <option>施工中</option>
-        <option>施工後</option>
-        <option>確認事項</option>
-        <option>品質検査</option>
-      </select>
-      <input type="text" class="input-note" id="note-input" placeholder="備考を入力...">
-    </div>
-    <div class="card-row2">
-      <label class="blackboard-toggle">
-        <input type="checkbox" id="use-blackboard" checked>
-        <span>電子小黒板を有効にする</span>
-      </label>
-      <span class="address-text" id="address-text"></span>
-    </div>
-  </div>
-
-  <!-- Capture Buttons -->
-  <div class="capture-grid">
-    <button class="btn-capture btn-camera" onclick="startCamera()">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
-      <span>撮影開始</span>
-    </button>
-    <button class="btn-capture btn-import" onclick="document.getElementById('file-input').click()">
-      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-      <span>インポート</span>
-    </button>
-    <input type="file" id="file-input" class="hidden" multiple accept="image/*" onchange="handleFileUpload(this)" style="display:none">
-  </div>
-
-  <!-- Photo List -->
-  <div class="photo-section" id="photo-section">
-    <div class="photo-header">
-      <h2 class="photo-title">
-        写真一覧
-        <span class="photo-count" id="photo-count">0枚</span>
-      </h2>
-      <button class="btn-select" id="select-btn" onclick="toggleSelectMode()">選択</button>
-    </div>
-    <div id="photo-empty" class="photo-empty">
-      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-      <p>写真がありません</p>
-    </div>
-    <div class="photo-grid" id="photo-grid"></div>
-  </div>
-</main>
-
-<!-- Footer -->
-<footer>
-  <div class="footer-inner">
-    <button class="btn-action del" onclick="handleAction('del')">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></svg>
-      <span>削除</span>
-    </button>
-    <button class="btn-action print" onclick="handleAction('print')">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg>
-      <span>印刷</span>
-    </button>
-    <button class="btn-action zip" onclick="handleAction('zip')">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
-      <span>ZIP</span>
-    </button>
-    <button class="btn-action line" onclick="handleAction('line')">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-      <span>LINE</span>
-    </button>
-  </div>
-</footer>
-
-<!-- Camera Overlay -->
-<div class="overlay" id="camera-overlay">
-  <div class="camera-view">
-    <video id="camera-video" autoplay playsinline muted></video>
-    <img id="captured-img" style="display:none">
-    <button class="btn-close-cam" onclick="stopCamera()">
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-    </button>
-  </div>
-  <div class="camera-controls" id="camera-controls">
-    <button class="btn-shutter" id="shutter-btn" onclick="takePhoto()">
-      <div class="shutter-inner"></div>
-    </button>
-    <div class="camera-actions" id="camera-actions">
-      <button class="btn-retake" onclick="retakePhoto()">撮り直し</button>
-      <button class="btn-save" onclick="savePhoto()">保存する</button>
-    </div>
-  </div>
+<div class="topbar">
+  <button id="toiletBtn" class="action-btn active">🚻 トイレ</button>
+  <button id="parkingBtn" class="action-btn">🅿️ 駐車場</button>
 </div>
 
-<!-- Site Selection Modal -->
-<div class="modal-backdrop" id="site-modal" onclick="closeSiteModal(event)">
-  <div class="modal" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <div class="modal-title">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"/></svg>
-        現場切り替え
-      </div>
-      <button class="btn-modal-close" onclick="closeSiteModalBtn()">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-      </button>
-    </div>
-    <div id="site-list"></div>
-    <button class="btn-new-site" onclick="createNewSite()">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-      新規現場を作成
-    </button>
-  </div>
+<div class="status" id="status">
+  GPS取得中...
 </div>
 
-<!-- Edit Site Modal -->
-<div class="modal-backdrop center" id="edit-modal" onclick="closeEditModal(event)">
-  <div class="modal center-modal" onclick="event.stopPropagation()">
-    <div class="modal-header">
-      <div class="modal-title">
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93A10 10 0 0 0 4.93 4.93m0 14.14a10 10 0 0 0 14.14 0"/></svg>
-        現場情報の変更
-      </div>
-    </div>
-    <div class="form-group">
-      <label class="form-label">工事名 (現場名)</label>
-      <input type="text" class="form-input" id="edit-site-name" placeholder="工事名を入力...">
-    </div>
-    <div class="form-group">
-      <label class="form-label">施工会社名</label>
-      <input type="text" class="form-input" id="edit-contractor" placeholder="施工会社名を入力...">
-    </div>
-    <div class="modal-actions">
-      <button class="btn-cancel" onclick="closeEditModalBtn()">キャンセル</button>
-      <button class="btn-submit" onclick="updateSiteDetails()">保存</button>
-    </div>
-  </div>
+<div class="bottom-sheet">
+  <div class="sheet-title" id="sheetTitle">近くのトイレ</div>
+  <div id="results"></div>
 </div>
 
-<!-- Toast -->
-<div class="toast" id="toast"></div>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-// ===== State =====
-const DEFAULT_FLOORS = ['1階', '2階', '3階', '屋上', '外部'];
-const WORK_STATUSES = ['施工前', '施工中', '施工後', '確認事項', '品質検査'];
+const state = {
+  mode:'toilet',
+  map:null,
+  userMarker:null,
+  markers:[],
+  userLat:null,
+  userLon:null,
+  radius:500
+};
 
-let db = null;
-let site = null;
-let allSites = [];
-let photos = [];
-let selectedIds = new Set();
-let isSelectMode = false;
-let currentFloor = '1階';
-let stream = null;
-let capturedCanvas = null;
+const map = L.map('map', {
+  zoomControl:false
+}).setView([38.2324,140.8995], 15);
 
-// ===== IndexedDB =====
-function openDB() {
-  return new Promise((resolve, reject) => {
-    const req = indexedDB.open('genbaCamera', 1);
-    req.onupgradeneeded = e => {
-      const d = e.target.result;
-      if (!d.objectStoreNames.contains('sites')) d.createObjectStore('sites', { keyPath: 'id' });
-      if (!d.objectStoreNames.contains('photos')) {
-        const ps = d.createObjectStore('photos', { keyPath: 'id' });
-        ps.createIndex('sid', 'sid', { unique: false });
-      }
-    };
-    req.onsuccess = e => { db = e.target.result; resolve(); };
-    req.onerror = () => reject(req.error);
-  });
-}
+state.map = map;
 
-function txGet(store, id) {
-  return new Promise((res, rej) => {
-    const tx = db.transaction(store, 'readonly');
-    const req = tx.objectStore(store).get(id);
-    req.onsuccess = () => res(req.result);
-    req.onerror = () => rej(req.error);
-  });
-}
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+  attribution:'© OpenStreetMap contributors'
+}).addTo(map);
 
-function txGetAll(store) {
-  return new Promise((res, rej) => {
-    const tx = db.transaction(store, 'readonly');
-    const req = tx.objectStore(store).getAll();
-    req.onsuccess = () => res(req.result);
-    req.onerror = () => rej(req.error);
-  });
-}
+const userIcon = L.divIcon({
+  className:'',
+  html:`
+    <div style="
+      width:20px;
+      height:20px;
+      border-radius:50%;
+      background:#38bdf8;
+      border:4px solid white;
+      box-shadow:0 0 20px rgba(56,189,248,.8);
+    "></div>
+  `,
+  iconSize:[20,20]
+});
 
-function txPut(store, item) {
-  return new Promise((res, rej) => {
-    const tx = db.transaction(store, 'readwrite');
-    const req = tx.objectStore(store).put(item);
-    req.onsuccess = () => res();
-    req.onerror = () => rej(req.error);
-  });
-}
-
-function txDelete(store, id) {
-  return new Promise((res, rej) => {
-    const tx = db.transaction(store, 'readwrite');
-    const req = tx.objectStore(store).delete(id);
-    req.onsuccess = () => res();
-    req.onerror = () => rej(req.error);
-  });
-}
-
-function getPhotosBySite(sid) {
-  return new Promise((res, rej) => {
-    const tx = db.transaction('photos', 'readonly');
-    const idx = tx.objectStore('photos').index('sid');
-    const req = idx.getAll(sid);
-    req.onsuccess = () => res(req.result);
-    req.onerror = () => rej(req.error);
-  });
-}
-
-// ===== Init =====
-async function init() {
-  try {
-    await openDB();
-    allSites = await txGetAll('sites');
-    let cur = allSites[0];
-    if (!cur) {
-      cur = { id: rndId(), name: '新規現場', contractor: '施工会社名未設定', floors: DEFAULT_FLOORS };
-      await txPut('sites', cur);
-      allSites = [cur];
-    }
-    await loadSite(cur);
-  } catch (e) {
-    showToast('データベースの起動に失敗しました');
-  }
-}
-
-function rndId() { return Math.random().toString(36).substring(2, 9); }
-
-async function loadSite(s) {
-  site = s;
-  document.getElementById('header-site-name').textContent = s.name;
-  document.getElementById('edit-site-name').value = s.name;
-  document.getElementById('edit-contractor').value = s.contractor;
-  document.getElementById('address-text').textContent = s.address || '';
-  document.getElementById('gps-btn').classList.toggle('active', !!s.lat);
-
-  if (!s.floors.includes(currentFloor)) currentFloor = s.floors[0] || '1階';
-  renderFloors();
-
-  const all = await getPhotosBySite(s.id);
-  photos = all.sort((a, b) => b.ts - a.ts);
-  renderPhotos();
-}
-
-// ===== Floor Tabs =====
-function renderFloors() {
-  const cont = document.getElementById('floor-tabs');
-  cont.innerHTML = '';
-  (site?.floors || []).forEach(f => {
-    const btn = document.createElement('button');
-    btn.className = 'floor-tab' + (f === currentFloor ? ' active' : '');
-    btn.textContent = f;
-    btn.onclick = () => { currentFloor = f; renderFloors(); renderPhotos(); };
-    cont.appendChild(btn);
-  });
-  const add = document.createElement('button');
-  add.className = 'floor-tab-add';
-  add.innerHTML = '+';
-  add.onclick = addFloor;
-  cont.appendChild(add);
-}
-
-async function addFloor() {
-  const name = prompt('階層名を入力してください (例: 4階、屋上等)');
-  if (name && site) {
-    site.floors = [...site.floors, name];
-    await txPut('sites', site);
-    currentFloor = name;
-    renderFloors();
-    renderPhotos();
-  }
-}
-
-// ===== Photo Grid =====
-function renderPhotos() {
-  const filtered = photos.filter(p => p.floor === currentFloor);
-  document.getElementById('photo-count').textContent = filtered.length + '枚';
-  const empty = document.getElementById('photo-empty');
-  const grid = document.getElementById('photo-grid');
-  const section = document.getElementById('photo-section');
-
-  section.classList.toggle('select-mode', isSelectMode);
-  empty.style.display = filtered.length === 0 ? 'flex' : 'none';
-  grid.style.display = filtered.length === 0 ? 'none' : 'grid';
-  grid.innerHTML = '';
-
-  filtered.forEach(p => {
-    const div = document.createElement('div');
-    div.className = 'photo-item' + (selectedIds.has(p.id) ? ' selected' : '');
-    div.onclick = () => toggleSelect(p.id);
-
-    const img = document.createElement('img');
-    img.src = p.thumb;
-    img.loading = 'lazy';
-
-    const check = document.createElement('div');
-    check.className = 'photo-check';
-    if (selectedIds.has(p.id)) {
-      check.innerHTML = '<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
-    }
-
-    const hover = document.createElement('div');
-    hover.className = 'photo-hover';
-    hover.innerHTML = '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>';
-
-    div.appendChild(img);
-    div.appendChild(check);
-    div.appendChild(hover);
-    grid.appendChild(div);
-  });
-}
-
-function toggleSelect(id) {
-  if (!isSelectMode) {
-    const p = photos.find(x => x.id === id);
-    if (p) {
-      const url = URL.createObjectURL(p.blob);
-      window.open(url);
-      setTimeout(() => URL.revokeObjectURL(url), 5000);
-    }
+async function initGPS(){
+  if(!navigator.geolocation){
+    setStatus('GPS未対応');
     return;
   }
-  if (selectedIds.has(id)) selectedIds.delete(id);
-  else selectedIds.add(id);
-  renderPhotos();
-}
 
-function toggleSelectMode() {
-  isSelectMode = !isSelectMode;
-  selectedIds.clear();
-  document.getElementById('select-btn').classList.toggle('active', isSelectMode);
-  document.getElementById('select-btn').textContent = isSelectMode ? '選択解除' : '選択';
-  renderPhotos();
-}
+  navigator.geolocation.watchPosition(async pos=>{
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
 
-// ===== GPS =====
-async function handleGps() {
-  if (!site) return;
-  showToast('位置情報を取得中...');
-  try {
-    const pos = await new Promise((res, rej) =>
-      navigator.geolocation.getCurrentPosition(res, rej, { timeout: 8000 })
-    );
-    const { latitude: lat, longitude: lon } = pos.coords;
-    showToast('住所を取得中...');
-    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lon}&zoom=18&addressdetails=1`, {
-      headers: { 'Accept-Language': 'ja' }
-    });
-    const data = await res.json();
-    const address = data.display_name || `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
-    const newName = data.address?.road || data.address?.suburb || site.name;
-    site = { ...site, lat, lon, address, name: newName };
-    await txPut('sites', site);
-    allSites = allSites.map(s => s.id === site.id ? site : s);
-    document.getElementById('header-site-name').textContent = site.name;
-    document.getElementById('address-text').textContent = address;
-    document.getElementById('gps-btn').classList.add('active');
-    showToast('GPS情報を更新しました');
-  } catch (e) {
-    showToast('GPS/住所取得に失敗しました');
-  }
-}
+    state.userLat = lat;
+    state.userLon = lon;
 
-// ===== Camera =====
-async function startCamera() {
-  try {
-    stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
-    const video = document.getElementById('camera-video');
-    video.srcObject = stream;
-    video.style.display = 'block';
-    document.getElementById('captured-img').style.display = 'none';
-    document.getElementById('shutter-btn').style.display = 'flex';
-    document.getElementById('camera-actions').style.display = 'none';
-    capturedCanvas = null;
-    document.getElementById('camera-overlay').classList.add('open');
-  } catch (e) {
-    showToast('カメラを起動できませんでした');
-  }
-}
+    setStatus(`現在地取得 OK / 半径${state.radius}m検索`);
 
-function stopCamera() {
-  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
-  document.getElementById('camera-overlay').classList.remove('open');
-}
-
-function takePhoto() {
-  const video = document.getElementById('camera-video');
-  const canvas = document.createElement('canvas');
-  canvas.width = video.videoWidth || 640;
-  canvas.height = video.videoHeight || 480;
-  const ctx = canvas.getContext('2d');
-  ctx.drawImage(video, 0, 0);
-
-  if (document.getElementById('use-blackboard').checked && site) {
-    const w = canvas.width, h = canvas.height;
-    const bw = w * 0.35, bh = bw * 0.7;
-    const px = w - bw - 20, py = h - bh - 20;
-    ctx.fillStyle = 'rgba(0,0,0,0.85)';
-    ctx.fillRect(px, py, bw, bh);
-    ctx.strokeStyle = '#fff'; ctx.lineWidth = 3;
-    ctx.strokeRect(px, py, bw, bh);
-    ctx.fillStyle = '#fff';
-    const fs = Math.round(bw * 0.08);
-    ctx.font = `bold ${fs}px sans-serif`;
-    const note = document.getElementById('note-input').value;
-    const status = document.getElementById('work-status').value;
-    const labels = [
-      `工事: ${site.name}`, `会社: ${site.contractor}`,
-      `種別: ${status}`, `場所: ${currentFloor}`,
-      `日付: ${new Date().toLocaleDateString('ja-JP')}`,
-      note ? `備考: ${note}` : ''
-    ].filter(Boolean);
-    labels.forEach((t, i) => ctx.fillText(t, px + 15, py + 30 + i * (fs * 1.5)));
-  }
-
-  capturedCanvas = canvas;
-  const img = document.getElementById('captured-img');
-  img.src = canvas.toDataURL('image/jpeg', 0.9);
-  img.style.display = 'block';
-  document.getElementById('camera-video').style.display = 'none';
-  document.getElementById('shutter-btn').style.display = 'none';
-  document.getElementById('camera-actions').style.display = 'flex';
-}
-
-function retakePhoto() {
-  capturedCanvas = null;
-  document.getElementById('captured-img').style.display = 'none';
-  document.getElementById('camera-video').style.display = 'block';
-  document.getElementById('shutter-btn').style.display = 'flex';
-  document.getElementById('camera-actions').style.display = 'none';
-}
-
-async function savePhoto() {
-  if (!capturedCanvas || !site) return;
-  const thumb = genThumb(capturedCanvas);
-  capturedCanvas.toBlob(async blob => {
-    if (!blob) return;
-    const id = Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
-    const status = document.getElementById('work-status').value;
-    const note = document.getElementById('note-input').value;
-    const p = { id, sid: site.id, floor: currentFloor, ts: Date.now(), blob, thumb, status, note };
-    await txPut('photos', p);
-    photos = [p, ...photos];
-    showToast('保存しました');
-    stopCamera();
-    renderPhotos();
-  }, 'image/jpeg', 0.85);
-}
-
-function genThumb(src) {
-  const c = document.createElement('canvas');
-  const s = 300; c.width = s; c.height = s;
-  const ctx = c.getContext('2d');
-  const k = Math.min(s / src.width, s / src.height);
-  ctx.fillStyle = '#000'; ctx.fillRect(0, 0, s, s);
-  ctx.drawImage(src, (s - src.width * k) / 2, (s - src.height * k) / 2, src.width * k, src.height * k);
-  return c.toDataURL('image/jpeg', 0.7);
-}
-
-// ===== File Upload =====
-async function handleFileUpload(input) {
-  const files = input.files;
-  if (!files || !site) return;
-  const list = [];
-  for (const file of Array.from(files)) {
-    if (!file.type.startsWith('image')) continue;
-    const img = await new Promise(res => {
-      const i = new Image(); i.onload = () => res(i);
-      i.src = URL.createObjectURL(file);
-    });
-    const canvas = document.createElement('canvas');
-    const maxDim = 1600, scale = Math.min(1, maxDim / Math.max(img.width, img.height));
-    canvas.width = img.width * scale; canvas.height = img.height * scale;
-    canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-    URL.revokeObjectURL(img.src);
-    const blob = await new Promise(res => canvas.toBlob(b => res(b), 'image/jpeg', 0.85));
-    const thumb = genThumb(canvas);
-    const id = rndId();
-    const p = { id, sid: site.id, floor: currentFloor, ts: Date.now(), blob, thumb, status: 'インポート', note: '' };
-    await txPut('photos', p);
-    list.push(p);
-  }
-  photos = [...list, ...photos];
-  renderPhotos();
-  showToast(`${list.length}枚追加しました`);
-  input.value = '';
-}
-
-// ===== Actions =====
-async function handleAction(type) {
-  const filtered = photos.filter(p => p.floor === currentFloor);
-  const targets = selectedIds.size > 0 ? photos.filter(p => selectedIds.has(p.id)) : filtered;
-
-  if (targets.length === 0) { showToast('対象がありません'); return; }
-
-  if (type === 'del') {
-    if (selectedIds.size === 0) { showToast('削除する写真を選択してください'); return; }
-    if (!confirm(`${selectedIds.size}枚の写真を削除しますか？`)) return;
-    for (const id of selectedIds) await txDelete('photos', id);
-    photos = photos.filter(p => !selectedIds.has(p.id));
-    selectedIds.clear(); isSelectMode = false;
-    document.getElementById('select-btn').classList.remove('active');
-    document.getElementById('select-btn').textContent = '選択';
-    renderPhotos();
-    showToast('削除完了');
-  } else if (type === 'zip') {
-    if (typeof JSZip === 'undefined') { showToast('JSZipが読み込まれていません'); return; }
-    const zip = new JSZip();
-    targets.forEach((p, i) => zip.file(`${i + 1}.jpg`, p.blob));
-    const content = await zip.generateAsync({ type: 'blob' });
-    const url = URL.createObjectURL(content);
-    const a = document.createElement('a');
-    a.href = url; a.download = `現場写真_${new Date().toISOString().slice(0, 10)}.zip`; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 2000);
-    showToast('ZIPを作成しました');
-  } else if (type === 'line') {
-    let text = `${site?.name || '現場'} ${targets.length}枚の写真`;
-    if (site?.lat) text += `\n現在地: https://maps.google.com/?q=${site.lat},${site.lon}`;
-    window.open(`https://line.me/R/msg/text/?${encodeURIComponent(text)}`);
-  } else if (type === 'print') {
-    const w = window.open('', '_blank');
-    if (w) {
-      w.document.write('<html><body style="margin:0;text-align:center;">');
-      targets.forEach(p => w.document.write(`<img src="${p.thumb}" style="width:100%;max-width:800px;page-break-after:always;margin-bottom:20px;">`));
-      w.document.write('</body></html>');
-      w.document.close(); w.print();
+    if(!state.userMarker){
+      state.userMarker = L.marker([lat,lon],{icon:userIcon}).addTo(map);
+      map.setView([lat,lon],16);
+    }else{
+      state.userMarker.setLatLng([lat,lon]);
     }
-  }
-}
 
-// ===== Site Modal =====
-function openSiteModal() { document.getElementById('site-modal').classList.add('open'); renderSiteList(); }
-function closeSiteModal(e) { if (e.target === document.getElementById('site-modal')) closeSiteModalBtn(); }
-function closeSiteModalBtn() { document.getElementById('site-modal').classList.remove('open'); }
+    await loadNearby();
 
-function renderSiteList() {
-  const cont = document.getElementById('site-list');
-  cont.innerHTML = '';
-  allSites.forEach(s => {
-    const btn = document.createElement('button');
-    btn.className = 'site-item' + (site?.id === s.id ? ' active' : '');
-    btn.innerHTML = `
-      <div>
-        <div class="site-item-name">${s.name}</div>
-        <div class="site-item-sub">${s.contractor}</div>
-      </div>
-      ${site?.id === s.id ? '<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>' : ''}
-    `;
-    btn.onclick = async () => { await loadSite(s); closeSiteModalBtn(); };
-    cont.appendChild(btn);
+  }, err=>{
+    setStatus('GPS取得失敗');
+    console.error(err);
+  }, {
+    enableHighAccuracy:true,
+    maximumAge:3000,
+    timeout:10000
   });
 }
 
-async function createNewSite() {
-  const newSite = {
-    id: rndId(),
-    name: `現場_${new Date().toLocaleDateString('ja-JP')}`,
-    contractor: site?.contractor || '施工会社名',
-    floors: DEFAULT_FLOORS
+function setStatus(text){
+  document.getElementById('status').textContent = text;
+}
+
+function clearMarkers(){
+  state.markers.forEach(m=>map.removeLayer(m));
+  state.markers = [];
+}
+
+async function loadNearby(){
+  if(!state.userLat) return;
+
+  clearMarkers();
+
+  document.getElementById('results').innerHTML = `
+    <div class="loading">検索中...</div>
+  `;
+
+  const query = state.mode === 'toilet'
+    ? buildToiletQuery()
+    : buildParkingQuery();
+
+  const url = 'https://overpass-api.de/api/interpreter';
+
+  try{
+    const res = await fetch(url, {
+      method:'POST',
+      body:query
+    });
+
+    const data = await res.json();
+
+    renderResults(data.elements || []);
+
+  }catch(err){
+    console.error(err);
+
+    document.getElementById('results').innerHTML = `
+      <div class="loading">通信失敗</div>
+    `;
+  }
+}
+
+function buildToiletQuery(){
+  return `
+[out:json][timeout:25];
+(
+  node["amenity"="toilets"](around:${state.radius},${state.userLat},${state.userLon});
+  way["amenity"="toilets"](around:${state.radius},${state.userLat},${state.userLon});
+  node["public_toilet"="yes"](around:${state.radius},${state.userLat},${state.userLon});
+  node["toilets"="yes"](around:${state.radius},${state.userLat},${state.userLon});
+  node["railway"="station"](around:${state.radius},${state.userLat},${state.userLon});
+);
+out center;
+  `;
+}
+
+function buildParkingQuery(){
+  return `
+[out:json][timeout:25];
+(
+  node["amenity"="parking"](around:${state.radius},${state.userLat},${state.userLon});
+  way["amenity"="parking"](around:${state.radius},${state.userLat},${state.userLon});
+);
+out center;
+  `;
+}
+
+function renderResults(items){
+  const results = document.getElementById('results');
+
+  if(!items.length){
+
+    if(state.radius < 2000){
+      state.radius += 500;
+      setStatus(`見つからないため半径${state.radius}mへ拡張`);
+      loadNearby();
+      return;
+    }
+
+    results.innerHTML = `
+      <div class="loading">見つかりませんでした</div>
+    `;
+    return;
+  }
+
+  const normalized = items.map(item=>{
+    const lat = item.lat || item.center?.lat;
+    const lon = item.lon || item.center?.lon;
+
+    const distance = calcDistance(
+      state.userLat,
+      state.userLon,
+      lat,
+      lon
+    );
+
+    return {
+      ...item,
+      lat,
+      lon,
+      distance
+    };
+  }).filter(i=>i.lat && i.lon)
+    .sort((a,b)=>a.distance-b.distance)
+    .slice(0,15);
+
+  results.innerHTML = normalized.map(item=>cardHTML(item)).join('');
+
+  normalized.forEach(item=>{
+
+    const marker = L.marker([item.lat,item.lon]).addTo(map);
+
+    marker.bindPopup(`
+      <div style="min-width:180px">
+        <b>${escapeHTML(getName(item))}</b><br><br>
+        ${Math.round(item.distance)}m
+      </div>
+    `);
+
+    state.markers.push(marker);
+  });
+
+  attachRouteButtons(normalized);
+}
+
+function cardHTML(item){
+  const name = getName(item);
+
+  const tags = buildTags(item);
+
+  return `
+    <div class="result-card">
+      <div class="result-top">
+        <div class="result-name">${escapeHTML(name)}</div>
+        <div class="distance">${Math.round(item.distance)}m</div>
+      </div>
+
+      <div class="tags">
+        ${tags}
+      </div>
+
+      <button
+        class="route-btn"
+        data-lat="${item.lat}"
+        data-lon="${item.lon}"
+      >
+        ルート案内
+      </button>
+    </div>
+  `;
+}
+
+function buildTags(item){
+  const tags = [];
+
+  if(state.mode === 'toilet'){
+    tags.push(tag('🚻 トイレ','green'));
+
+    if(item.tags?.public_toilet === 'yes'){
+      tags.push(tag('🌙 公衆','blue'));
+    }
+
+    if(item.tags?.railway === 'station'){
+      tags.push(tag('🚉 駅','yellow'));
+    }
+
+    if(item.tags?.access === 'yes'){
+      tags.push(tag('♿ バリアフリー','blue'));
+    }
+
+  }else{
+    tags.push(tag('🅿️ 駐車場','green'));
+
+    if(item.tags?.parking === 'surface'){
+      tags.push(tag('🚚 平面','yellow'));
+    }
+
+    if(item.tags?.fee === 'no'){
+      tags.push(tag('💴 無料','blue'));
+    }
+  }
+
+  return tags.join('');
+}
+
+function tag(text,color){
+  return `<div class="tag ${color}">${text}</div>`;
+}
+
+function getName(item){
+  return item.tags?.name || '名称未登録';
+}
+
+function attachRouteButtons(items){
+  document.querySelectorAll('.route-btn').forEach(btn=>{
+    btn.onclick = ()=>{
+      const lat = btn.dataset.lat;
+      const lon = btn.dataset.lon;
+
+      const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+
+      window.open(url,'_blank');
+    };
+  });
+}
+
+function calcDistance(lat1, lon1, lat2, lon2){
+  const R = 6371e3;
+  const φ1 = lat1 * Math.PI/180;
+  const φ2 = lat2 * Math.PI/180;
+  const Δφ = (lat2-lat1) * Math.PI/180;
+  const Δλ = (lon2-lon1) * Math.PI/180;
+
+  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
+    Math.cos(φ1) * Math.cos(φ2) *
+    Math.sin(Δλ/2) * Math.sin(Δλ/2);
+
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+
+  return R * c;
+}
+
+function escapeHTML(str=''){
+  return str
+    .replaceAll('&','&amp;')
+    .replaceAll('<','&lt;')
+    .replaceAll('>','&gt;');
+}
+
+const toiletBtn = document.getElementById('toiletBtn');
+const parkingBtn = document.getElementById('parkingBtn');
+
+function switchMode(mode){
+  state.mode = mode;
+  state.radius = 500;
+
+  toiletBtn.classList.remove('active');
+  parkingBtn.classList.remove('active');
+
+  if(mode === 'toilet'){
+    toiletBtn.classList.add('active');
+    document.getElementById('sheetTitle').textContent = '近くのトイレ';
+  }else{
+    parkingBtn.classList.add('active');
+    document.getElementById('sheetTitle').textContent = '近くの駐車場';
+  }
+
+  loadNearby();
+}
+
+toiletBtn.onclick = ()=>switchMode('toilet');
+parkingBtn.onclick = ()=>switchMode('parking');
+
+// ===== 公園・観光地・道の駅 強化 =====
+
+function buildEnhancedToiletQuery(){
+  return `
+[out:json][timeout:25];
+(
+  node["amenity"="toilets"](around:${state.radius},${state.userLat},${state.userLon});
+  way["amenity"="toilets"](around:${state.radius},${state.userLat},${state.userLon});
+
+  node["railway"="station"](around:${state.radius},${state.userLat},${state.userLon});
+  way["railway"="station"](around:${state.radius},${state.userLat},${state.userLon});
+
+  node["tourism"](around:${state.radius},${state.userLat},${state.userLon});
+  way["tourism"](around:${state.radius},${state.userLat},${state.userLon});
+
+  node["highway"="rest_area"](around:${state.radius},${state.userLat},${state.userLon});
+  way["highway"="rest_area"](around:${state.radius},${state.userLat},${state.userLon});
+
+  way["leisure"="park"](around:${state.radius},${state.userLat},${state.userLon});
+);
+out center tags;
+  `;
+}
+
+// 既存トイレ検索を強化版へ切替
+buildToiletQuery = buildEnhancedToiletQuery;
+
+// ===== 公園近接トイレ判定 =====
+
+function isPark(item){
+  return item.tags?.leisure === 'park';
+}
+
+function isStation(item){
+  return item.tags?.railway === 'station';
+}
+
+function isTourism(item){
+  return !!item.tags?.tourism;
+}
+
+function isRestArea(item){
+  return item.tags?.highway === 'rest_area';
+}
+
+// ===== キャッシュ =====
+
+const CACHE_KEY = 'genba-map-cache-v1';
+
+function saveCache(data){
+  try{
+    localStorage.setItem(CACHE_KEY, JSON.stringify({
+      time:Date.now(),
+      data
+    }));
+  }catch(err){
+    console.error(err);
+  }
+}
+
+function loadCache(){
+  try{
+    const raw = localStorage.getItem(CACHE_KEY);
+    if(!raw) return null;
+
+    const parsed = JSON.parse(raw);
+
+    if(Date.now() - parsed.time > 1000 * 60 * 15){
+      return null;
+    }
+
+    return parsed.data;
+  }catch(err){
+    return null;
+  }
+}
+
+// ===== 高速再検索 =====
+
+const originalLoadNearby = loadNearby;
+
+loadNearby = async function(){
+  const cache = loadCache();
+
+  if(cache && cache.mode === state.mode){
+    renderResults(cache.items || []);
+  }
+
+  await originalLoadNearby();
+};
+
+// ===== renderResults拡張 =====
+
+const originalRenderResults = renderResults;
+
+renderResults = function(items){
+
+  saveCache({
+    mode:state.mode,
+    items
+  });
+
+  originalRenderResults(items);
+};
+
+// ===== タグ強化 =====
+
+const originalBuildTags = buildTags;
+
+buildTags = function(item){
+  const tags = [];
+
+  if(isPark(item)){
+    tags.push(tag('🌳 公園','green'));
+  }
+
+  if(isStation(item)){
+    tags.push(tag('🚉 駅','yellow'));
+  }
+
+  if(isTourism(item)){
+    tags.push(tag('🏞 観光地','blue'));
+  }
+
+  if(isRestArea(item)){
+    tags.push(tag('🛣 道の駅系','green'));
+  }
+
+  return tags.join('') + originalBuildTags(item);
+};
+
+// ===== PWA準備 =====
+
+if('serviceWorker' in navigator){
+  window.addEventListener('load',()=>{
+    navigator.serviceWorker.register('./sw.js')
+      .catch(err=>console.error(err));
+  });
+}
+
+// ===== 拡張カテゴリ対応 =====
+
+function isAirport(item){
+  return item.tags?.aeroway === 'aerodrome';
+}
+
+function isBookStore(item){
+  return item.tags?.shop === 'books';
+}
+
+function isElectronics(item){
+  return item.tags?.shop === 'electronics';
+}
+
+function isShrine(item){
+  return item.tags?.religion === 'shinto';
+}
+
+function isTemple(item){
+  return item.tags?.religion === 'buddhist';
+}
+
+function isFuel(item){
+  return item.tags?.amenity === 'fuel';
+}
+
+// ===== 現場カテゴリ統合検索 =====
+
+function buildEnhancedToiletQuery(){
+  return `
+[out:json][timeout:25];
+(
+  node["amenity"="toilets"](around:${state.radius},${state.userLat},${state.userLon});
+  way["amenity"="toilets"](around:${state.radius},${state.userLat},${state.userLon});
+
+  node["railway"="station"](around:${state.radius},${state.userLat},${state.userLon});
+  way["railway"="station"](around:${state.radius},${state.userLat},${state.userLon});
+
+  node["tourism"](around:${state.radius},${state.userLat},${state.userLon});
+  way["tourism"](around:${state.radius},${state.userLat},${state.userLon});
+
+  node["highway"="rest_area"](around:${state.radius},${state.userLat},${state.userLon});
+  way["highway"="rest_area"](around:${state.radius},${state.userLat},${state.userLon});
+
+  node["aeroway"="aerodrome"](around:${state.radius},${state.userLat},${state.userLon});
+  way["aeroway"="aerodrome"](around:${state.radius},${state.userLat},${state.userLon});
+
+  node["shop"="books"](around:${state.radius},${state.userLat},${state.userLon});
+  node["shop"="electronics"](around:${state.radius},${state.userLat},${state.userLon});
+
+  node["religion"="shinto"](around:${state.radius},${state.userLat},${state.userLon});
+  way["religion"="shinto"](around:${state.radius},${state.userLat},${state.userLon});
+
+  node["religion"="buddhist"](around:${state.radius},${state.userLat},${state.userLon});
+  way["religion"="buddhist"](around:${state.radius},${state.userLat},${state.userLon});
+
+  node["amenity"="fuel"](around:${state.radius},${state.userLat},${state.userLon});
+  way["amenity"="fuel"](around:${state.radius},${state.userLat},${state.userLon});
+
+  way["leisure"="park"](around:${state.radius},${state.userLat},${state.userLon});
+);
+out center tags;
+  `;
+}
+
+// ===== IndexedDB完全化 =====
+
+let db;
+
+function initDB(){
+  return new Promise((resolve,reject)=>{
+
+    const req = indexedDB.open('genba-map-db',1);
+
+    req.onupgradeneeded = e=>{
+      const db = e.target.result;
+
+      if(!db.objectStoreNames.contains('places')){
+        db.createObjectStore('places',{ keyPath:'id' });
+      }
+    };
+
+    req.onsuccess = e=>{
+      db = e.target.result;
+      resolve();
+    };
+
+    req.onerror = reject;
+  });
+}
+
+async function savePlaces(items){
+  if(!db) return;
+
+  const tx = db.transaction('places','readwrite');
+  const store = tx.objectStore('places');
+
+  items.forEach(item=>{
+    store.put({
+      id:item.id || Math.random(),
+      data:item,
+      time:Date.now()
+    });
+  });
+}
+
+// ===== 24h推定 =====
+
+function is24h(item){
+  const opening = item.tags?.opening_hours || '';
+
+  return opening.includes('24') ||
+    item.tags?.access === 'yes' ||
+    isStation(item) ||
+    isRestArea(item);
+}
+
+// ===== 外トイレ推定 =====
+
+function hasOutdoorToilet(item){
+  return isPark(item)
+    || isShrine(item)
+    || isTemple(item)
+    || isRestArea(item)
+    || isTourism(item);
+}
+
+// ===== GPS省電力制御 =====
+
+let lastGPSUpdate = 0;
+
+const originalInitGPS = initGPS;
+
+initGPS = function(){
+
+  if(!navigator.geolocation){
+    setStatus('GPS未対応');
+    return;
+  }
+
+  navigator.geolocation.watchPosition(async pos=>{
+
+    const now = Date.now();
+
+    if(now - lastGPSUpdate < 5000){
+      return;
+    }
+
+    lastGPSUpdate = now;
+
+    const lat = pos.coords.latitude;
+    const lon = pos.coords.longitude;
+
+    state.userLat = lat;
+    state.userLon = lon;
+
+    setStatus(`現場モード動作中 / 半径${state.radius}m`);
+
+    if(!state.userMarker){
+      state.userMarker = L.marker([lat,lon],{icon:userIcon}).addTo(map);
+      map.setView([lat,lon],16);
+    }else{
+      state.userMarker.setLatLng([lat,lon]);
+    }
+
+    await loadNearby();
+
+  }, err=>{
+    console.error(err);
+    setStatus('GPS取得失敗');
+  }, {
+    enableHighAccuracy:true,
+    maximumAge:10000,
+    timeout:15000
+  });
+};
+
+// ===== タグ強化 =====
+
+const oldBuildTags2 = buildTags;
+
+buildTags = function(item){
+
+  const extra = [];
+
+  if(isAirport(item)){
+    extra.push(tag('✈️ 空港','blue'));
+  }
+
+  if(isBookStore(item)){
+    extra.push(tag('📚 本屋','yellow'));
+  }
+
+  if(isElectronics(item)){
+    extra.push(tag('📺 家電','yellow'));
+  }
+
+  if(isShrine(item)){
+    extra.push(tag('⛩ 神社','green'));
+  }
+
+  if(isTemple(item)){
+    extra.push(tag('🛕 寺','green'));
+  }
+
+  if(isFuel(item)){
+    extra.push(tag('⛽ GS','blue'));
+  }
+
+  if(is24h(item)){
+    extra.push(tag('🌙 24h候補','green'));
+  }
+
+  if(hasOutdoorToilet(item)){
+    extra.push(tag('🚻 外トイレ候補','yellow'));
+  }
+
+  return extra.join('') + oldBuildTags2(item);
+};
+
+// ===== Supercluster 高速化 =====
+
+let clusterGroup = null;
+
+function initClusterLayer(){
+  if(clusterGroup){
+    map.removeLayer(clusterGroup);
+  }
+
+  clusterGroup = L.layerGroup().addTo(map);
+}
+
+function addClusterMarker(lat,lon,popup){
+  if(!clusterGroup){
+    initClusterLayer();
+  }
+
+  const marker = L.marker([lat,lon]);
+
+  marker.bindPopup(popup);
+
+  clusterGroup.addLayer(marker);
+}
+
+// ===== タイルキャッシュ =====
+
+const tileCache = new Map();
+
+async function cacheTile(url){
+  try{
+    if(tileCache.has(url)) return;
+
+    const res = await fetch(url);
+    const blob = await res.blob();
+
+    tileCache.set(url, blob);
+  }catch(err){
+    console.error(err);
+  }
+}
+
+// ===== 完全オフライン検索 =====
+
+async function offlineNearbySearch(){
+  if(!db) return [];
+
+  return new Promise(resolve=>{
+
+    const tx = db.transaction('places','readonly');
+    const store = tx.objectStore('places');
+    const req = store.getAll();
+
+    req.onsuccess = ()=>{
+
+      const items = req.result
+        .map(v=>v.data)
+        .filter(item=>{
+
+          const lat = item.lat || item.center?.lat;
+          const lon = item.lon || item.center?.lon;
+
+          if(!lat || !lon) return false;
+
+          const d = calcDistance(
+            state.userLat,
+            state.userLon,
+            lat,
+            lon
+          );
+
+          return d <= 2000;
+        });
+
+      resolve(items);
+    };
+  });
+}
+
+// ===== 駐車しやすさ推定 =====
+
+function estimateParkingScore(item){
+
+  let score = 0;
+
+  if(item.tags?.parking === 'surface'){
+    score += 3;
+  }
+
+  if(item.tags?.fee === 'no'){
+    score += 2;
+  }
+
+  if(item.tags?.access !== 'private'){
+    score += 2;
+  }
+
+  if(item.tags?.capacity){
+    const cap = parseInt(item.tags.capacity || 0);
+
+    if(cap >= 20){
+      score += 3;
+    }
+  }
+
+  return score;
+}
+
+// ===== 公園内トイレ近接解析 =====
+
+function analyzeParkToiletRelation(items){
+
+  const parks = items.filter(isPark);
+  const toilets = items.filter(i=>
+    i.tags?.amenity === 'toilets'
+  );
+
+  parks.forEach(park=>{
+
+    const plat = park.center?.lat || park.lat;
+    const plon = park.center?.lon || park.lon;
+
+    toilets.forEach(toilet=>{
+
+      const tlat = toilet.center?.lat || toilet.lat;
+      const tlon = toilet.center?.lon || toilet.lon;
+
+      const d = calcDistance(plat, plon, tlat, tlon);
+
+      if(d <= 120){
+        park.hasNearbyToilet = true;
+      }
+    });
+  });
+
+  return items;
+}
+
+// ===== Apple Maps / Yahooナビ =====
+
+function openRoute(lat,lon,mode='google'){
+
+  let url = '';
+
+  if(mode === 'apple'){
+    url = `https://maps.apple.com/?daddr=${lat},${lon}`;
+  }
+  else if(mode === 'yahoo'){
+    url = `yj-navi://navigation?lat=${lat}&lon=${lon}`;
+  }
+  else {
+    url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
+  }
+
+  window.open(url,'_blank');
+}
+
+// ===== Service Worker完全化 =====
+
+const swCode = `
+self.addEventListener('install',event=>{
+  event.waitUntil(
+    caches.open('genba-cache-v1').then(cache=>{
+      return cache.addAll([
+        './',
+        './index.html'
+      ]);
+    })
+  );
+});
+
+self.addEventListener('fetch',event=>{
+  event.respondWith(
+    caches.match(event.request).then(res=>{
+      return res || fetch(event.request);
+    })
+  );
+});
+`;
+
+// ===== iPhone Safari対策 =====
+
+function applyIOSOptimizations(){
+
+  document.body.style.webkitTouchCallout = 'none';
+  document.body.style.webkitUserSelect = 'none';
+
+  map.invalidateSize();
+
+  let ticking = false;
+
+  window.addEventListener('touchmove',()=>{
+    if(ticking) return;
+
+    requestAnimationFrame(()=>{
+      ticking = false;
+    });
+
+    ticking = true;
+  },{ passive:true });
+}
+
+// ===== Android Chrome発熱対策 =====
+
+function applyAndroidOptimizations(){
+
+  const isAndroid = /Android/i.test(navigator.userAgent);
+
+  if(!isAndroid) return;
+
+  state.radius = Math.min(state.radius,1500);
+
+  document.body.style.willChange = 'auto';
+}
+
+// ===== メモリリーク監視 =====
+
+const runtimeStats = {
+  markerCount:0,
+  lastCleanup:0,
+  gpsHistory:[]
+};
+
+function cleanupMarkers(){
+
+  if(state.markers.length < 150) return;
+
+  state.markers.forEach(m=>{
+    map.removeLayer(m);
+  });
+
+  state.markers = [];
+
+  runtimeStats.lastCleanup = Date.now();
+
+  console.log('[cleanup] marker gc');
+}
+
+// ===== iPhone低RAM対策 =====
+
+function lowRamProtection(){
+
+  const isiPhone = /iPhone/i.test(navigator.userAgent);
+
+  if(!isiPhone) return;
+
+  if(state.radius > 1000){
+    state.radius = 1000;
+  }
+
+  document.querySelectorAll('.leaflet-marker-icon').forEach((el,index)=>{
+    if(index > 60){
+      el.style.display = 'none';
+    }
+  });
+}
+
+// ===== ピン大量描画最適化 =====
+
+function optimizedRenderMarkers(items){
+
+  cleanupMarkers();
+
+  const fragment = [];
+
+  items.slice(0,80).forEach(item=>{
+
+    const lat = item.lat || item.center?.lat;
+    const lon = item.lon || item.center?.lon;
+
+    if(!lat || !lon) return;
+
+    const marker = L.circleMarker([lat,lon],{
+      radius:7,
+      weight:1,
+      fillOpacity:0.9
+    }).addTo(map);
+
+    marker.bindPopup(`
+      <b>${escapeHTML(getName(item))}</b>
+    `);
+
+    state.markers.push(marker);
+    fragment.push(marker);
+  });
+
+  runtimeStats.markerCount = fragment.length;
+}
+
+// ===== キャッシュ自動整理 =====
+
+function cleanupCache(){
+
+  const now = Date.now();
+
+  for(const [key,val] of tileCache.entries()){
+
+    if(now - (val.time || now) > 1000 * 60 * 60 * 24){
+      tileCache.delete(key);
+    }
+  }
+
+  try{
+    const raw = localStorage.getItem(CACHE_KEY);
+
+    if(raw){
+      const parsed = JSON.parse(raw);
+
+      if(now - parsed.time > 1000 * 60 * 60 * 12){
+        localStorage.removeItem(CACHE_KEY);
+      }
+    }
+  }catch(err){
+    console.error(err);
+  }
+}
+
+setInterval(cleanupCache, 1000 * 60 * 10);
+
+// ===== バッテリー監視 =====
+
+async function monitorBattery(){
+
+  if(!navigator.getBattery) return;
+
+  try{
+
+    const battery = await navigator.getBattery();
+
+    function apply(){
+
+      if(battery.level < 0.2){
+
+        state.radius = 500;
+
+        setStatus('省電力モード');
+      }
+    }
+
+    battery.addEventListener('levelchange',apply);
+
+    apply();
+
+  }catch(err){
+    console.error(err);
+  }
+}
+
+// ===== GPSドリフト補正 =====
+
+function correctGPSDrift(lat,lon){
+
+  runtimeStats.gpsHistory.push({
+    lat,
+    lon,
+    time:Date.now()
+  });
+
+  if(runtimeStats.gpsHistory.length > 5){
+    runtimeStats.gpsHistory.shift();
+  }
+
+  const avgLat = runtimeStats.gpsHistory
+    .reduce((a,b)=>a+b.lat,0)
+    / runtimeStats.gpsHistory.length;
+
+  const avgLon = runtimeStats.gpsHistory
+    .reduce((a,b)=>a+b.lon,0)
+    / runtimeStats.gpsHistory.length;
+
+  return {
+    lat:avgLat,
+    lon:avgLon
   };
-  await txPut('sites', newSite);
-  allSites.push(newSite);
-  await loadSite(newSite);
-  closeSiteModalBtn();
-  showToast('新しい現場を作成しました');
 }
 
-// ===== Edit Modal =====
-function openEditModal() { document.getElementById('edit-modal').classList.add('open'); }
-function closeEditModal(e) { if (e.target === document.getElementById('edit-modal')) closeEditModalBtn(); }
-function closeEditModalBtn() { document.getElementById('edit-modal').classList.remove('open'); }
+// ===== Overpass APIフォールバック =====
 
-async function updateSiteDetails() {
-  if (!site) return;
-  site.name = document.getElementById('edit-site-name').value;
-  site.contractor = document.getElementById('edit-contractor').value;
-  await txPut('sites', site);
-  allSites = allSites.map(s => s.id === site.id ? site : s);
-  document.getElementById('header-site-name').textContent = site.name;
-  closeEditModalBtn();
-  showToast('現場情報を更新しました');
+const OVERPASS_ENDPOINTS = [
+  'https://overpass-api.de/api/interpreter',
+  'https://lz4.overpass-api.de/api/interpreter',
+  'https://overpass.kumi.systems/api/interpreter'
+];
+
+async function fetchOverpass(query){
+
+  for(const endpoint of OVERPASS_ENDPOINTS){
+
+    try{
+
+      const res = await fetch(endpoint,{
+        method:'POST',
+        body:query
+      });
+
+      if(res.ok){
+        return await res.json();
+      }
+
+    }catch(err){
+      console.warn('fallback',endpoint);
+    }
+  }
+
+  throw new Error('all overpass failed');
 }
 
-// ===== Toast =====
-let toastTimer = null;
-function showToast(msg) {
-  const el = document.getElementById('toast');
-  el.textContent = msg;
-  el.classList.add('show');
-  if (toastTimer) clearTimeout(toastTimer);
-  toastTimer = setTimeout(() => el.classList.remove('show'), 2000);
+// ===== UIアニメ軽量化 =====
+
+function reduceAnimations(){
+
+  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+  if(reduce){
+    document.documentElement.style.scrollBehavior = 'auto';
+  }
+
+  document.querySelectorAll('*').forEach(el=>{
+    el.style.animationDuration = '0.12s';
+    el.style.transitionDuration = '0.12s';
+  });
 }
 
-// ===== Start =====
-init();
+// ===== PWA Manifest =====
+
+const manifestData = {
+  name:'現場トイレ駐車場',
+  short_name:'現場MAP',
+  display:'standalone',
+  background_color:'#0f1115',
+  theme_color:'#0f1115',
+  start_url:'./',
+  icons:[
+    {
+      src:'icon-192.png',
+      sizes:'192x192',
+      type:'image/png'
+    },
+    {
+      src:'icon-512.png',
+      sizes:'512x512',
+      type:'image/png'
+    }
+  ]
+};
+
+// ===== install導線 =====
+
+let deferredPrompt;
+
+window.addEventListener('beforeinstallprompt',(e)=>{
+
+  e.preventDefault();
+
+  deferredPrompt = e;
+
+  const btn = document.createElement('button');
+
+  btn.textContent = '📲 インストール';
+  btn.className = 'action-btn';
+
+  btn.style.position = 'fixed';
+  btn.style.bottom = '20px';
+  btn.style.left = '12px';
+  btn.style.right = '12px';
+  btn.style.zIndex = '9999';
+
+  btn.onclick = async ()=>{
+
+    deferredPrompt.prompt();
+
+    const result = await deferredPrompt.userChoice;
+
+    console.log(result.outcome);
+  };
+
+  document.body.appendChild(btn);
+});
+
+// ===== splash screen =====
+
+function createSplash(){
+
+  const splash = document.createElement('div');
+
+  splash.id = 'splash';
+
+  splash.innerHTML = `
+    <div style="
+      position:fixed;
+      inset:0;
+      background:#0f1115;
+      z-index:99999;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      font-size:28px;
+      font-weight:900;
+    ">
+      🚻 現場MAP
+    </div>
+  `;
+
+  document.body.appendChild(splash);
+
+  setTimeout(()=>{
+    splash.remove();
+  },1200);
+}
+
+// ===== 実運用ログ保存 =====
+
+function saveRuntimeLog(type,data={}){
+
+  try{
+
+    const logs = JSON.parse(
+      localStorage.getItem('genba-runtime-log') || '[]'
+    );
+
+    logs.push({
+      type,
+      data,
+      time:Date.now()
+    });
+
+    while(logs.length > 300){
+      logs.shift();
+    }
+
+    localStorage.setItem(
+      'genba-runtime-log',
+      JSON.stringify(logs)
+    );
+
+  }catch(err){
+    console.error(err);
+  }
+}
+
+window.addEventListener('error',e=>{
+  saveRuntimeLog('error',{
+    message:e.message
+  });
+});
+
+// ===== 起動最適化 =====
+
+async function bootOptimizations(){
+
+  createSplash();
+
+  applyIOSOptimizations();
+  applyAndroidOptimizations();
+
+  reduceAnimations();
+
+  lowRamProtection();
+
+  await monitorBattery();
+
+  await initDB();
+
+  saveRuntimeLog('boot');
+}
+
+bootOptimizations();
+
+// ===== オフライン通知 =====
+
+window.addEventListener('offline',()=>{
+  setStatus('オフラインモード');
+});
+
+window.addEventListener('online',()=>{
+  setStatus('オンライン復帰');
+});
+
+// ===== 起動 =====
+
+initGPS();
 </script>
+
 </body>
 </html>
