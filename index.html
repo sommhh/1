@@ -280,14 +280,33 @@ function clearMarkers(){
   state.markers = [];
 }
 
+let isSearching = false;
+let lastSearchTime = 0;
+
 async function loadNearby(){
+
+  // 検索連打防止
+  if(isSearching) return;
+
+  const now = Date.now();
+
+  // 短時間再検索防止
+  if(now - lastSearchTime < 4000){
+    return;
+  }
+
+  lastSearchTime = now;
+  isSearching = true;
   if(!state.userLat) return;
 
   clearMarkers();
 
-  document.getElementById('results').innerHTML = `
-    <div class="loading">検索中...</div>
-  `;
+  // 初回のみ検索表示
+  if(!document.getElementById('results').dataset.loaded){
+    document.getElementById('results').innerHTML = `
+      <div class="loading">検索中...</div>
+    `;
+  }
 
   const query = state.mode === 'toilet'
     ? buildToiletQuery()
@@ -303,7 +322,15 @@ async function loadNearby(){
 
     const data = await res.json();
 
-    renderResults(data.elements || []);
+    const filtered = removeDuplicatePlaces(
+      removeHotels(data.elements || [])
+    );
+
+    renderResults(filtered);
+
+    document.getElementById('results').dataset.loaded = '1';
+
+    isSearching = false;
 
   }catch(err){
     console.error(err);
@@ -311,6 +338,8 @@ async function loadNearby(){
     document.getElementById('results').innerHTML = `
       <div class="loading">通信失敗</div>
     `;
+
+    isSearching = false;
   }
 }
 
@@ -337,6 +366,65 @@ function buildParkingQuery(){
 );
 out center;
   `;
+}
+
+// ===== 重複地点除去 =====
+
+function removeDuplicatePlaces(items){
+
+  const map = new Map();
+
+  items.forEach(item=>{
+
+    const lat = item.lat || item.center?.lat;
+    const lon = item.lon || item.center?.lon;
+
+    if(!lat || !lon) return;
+
+    // 位置丸め
+    const key = `${lat.toFixed(4)}-${lon.toFixed(4)}`;
+
+    // 名前優先度
+    const name = item.tags?.name || '';
+
+    if(!map.has(key)){
+      map.set(key,item);
+    }
+    else {
+      const old = map.get(key);
+
+      const oldName = old.tags?.name || '';
+
+      // 名前長い方優先
+      if(name.length > oldName.length){
+        map.set(key,item);
+      }
+    }
+  });
+
+  return [...map.values()];
+}
+
+// ===== ホテル除外 =====
+
+function removeHotels(items){
+
+  return items.filter(item=>{
+
+    const tourism = item.tags?.tourism || '';
+    const building = item.tags?.building || '';
+    const name = (item.tags?.name || '').toLowerCase();
+
+    if(tourism === 'hotel') return false;
+
+    if(building === 'hotel') return false;
+
+    if(name.includes('hotel')) return false;
+
+    if(name.includes('ホテル')) return false;
+
+    return true;
+  });
 }
 
 function renderResults(items){
