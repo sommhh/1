@@ -338,7 +338,26 @@ async function loadNearby(){
 
   let query = '';
 
-  if(state.mode === 'toilet'){
+  if(state.mode === 'drink'){
+    tags.push(tag('🥤 DRINK','blue'));
+
+    if(isDrinkMachine(item)){
+      tags.push(tag('🥤 自販機','green'));
+    }
+
+    if(isCokeON(item)){
+      tags.push(tag('🥤 Coke ON','blue'));
+    }
+
+    if(isDyDo(item)){
+      tags.push(tag('🥤 DyDo','yellow'));
+    }
+
+    if(isConvenience(item)){
+      tags.push(tag('🏪 コンビニ','yellow'));
+    }
+  }
+  else if(state.mode === 'toilet'){
     query = buildToiletQuery();
   }
   else if(state.mode === 'drink'){
@@ -648,26 +667,7 @@ function findDrinkNearToilet(items){
 function buildTags(item){
   const tags = [];
 
-  if(state.mode === 'drink'){
-    tags.push(tag('🥤 DRINK','blue'));
-
-    if(isDrinkMachine(item)){
-      tags.push(tag('🥤 自販機','green'));
-    }
-
-    if(isCokeON(item)){
-      tags.push(tag('🥤 Coke ON','blue'));
-    }
-
-    if(isDyDo(item)){
-      tags.push(tag('🥤 DyDo','yellow'));
-    }
-
-    if(isConvenience(item)){
-      tags.push(tag('🏪 コンビニ','yellow'));
-    }
-  }
-  else if(state.mode === 'toilet'){
+  if(state.mode === 'toilet'){
     tags.push(tag('🚻 トイレ','green'));
 
     if(item.tags?.public_toilet === 'yes'){
@@ -1870,165 +1870,3 @@ initGPS();
 
 </body>
 </html>
-
----
-
-# 実機点検・バグ潰し統合フェーズ
-
-## 点検対象
-
-### GPS
-
-- watchPosition暴走
-- 位置飛び
-- 無限再検索
-- 半径固定化
-- バックグラウンド暴走
-
----
-
-### UI
-
-- ピン点滅
-- 再描画ちらつき
-- ボタン重複
-- スクロールカクつき
-- Safariズーム暴走
-
----
-
-### 検索
-
-- 同地点重複
-- ホテル混入
-- 空データ無限検索
-- APIタイムアウト
-- radius暴走拡張
-
----
-
-### メモリ
-
-- markerリーク
-- tileリーク
-- IndexedDB肥大化
-- localStorage肥大化
-
----
-
-### オフライン
-
-- ServiceWorker競合
-- cache破損
-- offline復帰失敗
-- PWA install不具合
-
----
-
-# フルコード統合方針
-
-## 削らない機能
-
-- トイレ
-- 駐車場
-- DRINK
-- Coke ON
-- DyDo
-- 公園解析
-- 駅解析
-- 神社寺
-- 空港
-- ヒートマップ
-- Offline
-- PWA
-- IndexedDB
-- キャッシュ
-- GPS最適化
-
-全部維持。
-
----
-
-# フル最適化
-
-## 描画
-
-- circleMarker統一
-- 再描画差分更新
-- cluster再利用
-- lazy popup
-
----
-
-## 検索
-
-- debounce
-- query queue
-- fallback API
-- cache first
-
----
-
-## iPhone最適化
-
-- 低RAM保護
-- GPU抑制
-- passive event
-- animation最小化
-
----
-
-## Android最適化
-
-- battery saver
-- heat protection
-- radius自動抑制
-- background pause
-
----
-
-# 実戦ログ解析
-
-## 保存
-
-```txt
-検索失敗
-API失敗
-GPS異常
-描画遅延
-battery low
-```
-
----
-
-# 最終構造
-
-## Core
-
-- gps-engine.js
-- map-engine.js
-- search-engine.js
-- offline-engine.js
-- drink-engine.js
-- parking-engine.js
-- ui-engine.js
-
----
-
-# 実機検証
-
-## iPhone
-
-- Safari
-- PWA standalone
-- 低電力モード
-- 圏外復帰
-
----
-
-## Android
-
-- Chrome
-- WebView
-- バッテリー
-- 発熱
