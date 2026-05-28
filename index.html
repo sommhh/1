@@ -186,6 +186,21 @@ body{
 <div id="map"></div>
 
 <div class="topbar">
+  <select id="radiusSelect" style="
+    background:rgba(26,29,36,.95);
+    color:white;
+    border:1px solid #2a2f3a;
+    border-radius:14px;
+    padding:0 10px;
+    font-size:15px;
+    font-weight:700;
+  ">
+    <option value="300">300m</option>
+    <option value="500" selected>500m</option>
+    <option value="1000">1km</option>
+    <option value="2000">2km</option>
+    <option value="3000">3km</option>
+  </select>
   <button id="toiletBtn" class="action-btn active">🚻 トイレ</button>
   <button id="parkingBtn" class="action-btn">🅿️ 駐車場</button>
 </div>
@@ -203,13 +218,15 @@ body{
 
 <script>
 const state = {
+  searchLocked:false,
   mode:'toilet',
   map:null,
   userMarker:null,
   markers:[],
   userLat:null,
   userLon:null,
-  radius:500
+  radius:500,
+  customRadius:500
 };
 
 const map = L.map('map', {
@@ -275,13 +292,21 @@ function setStatus(text){
   document.getElementById('status').textContent = text;
 }
 
+let markerLayerGroup = L.layerGroup().addTo(map);
+
 function clearMarkers(){
-  state.markers.forEach(m=>map.removeLayer(m));
+
+  // 点滅防止
+  if(state.searchLocked) return;
+  markerLayerGroup.clearLayers();
   state.markers = [];
+}
 }
 
 let isSearching = false;
 let lastSearchTime = 0;
+
+let lastRenderHash = '';
 
 async function loadNearby(){
 
@@ -299,7 +324,8 @@ async function loadNearby(){
   isSearching = true;
   if(!state.userLat) return;
 
-  clearMarkers();
+  // 毎回全削除しない
+  state.searchLocked = true;
 
   // 初回のみ検索表示
   if(!document.getElementById('results').dataset.loaded){
@@ -326,7 +352,21 @@ async function loadNearby(){
       removeHotels(data.elements || [])
     );
 
-    renderResults(filtered);
+    const newHash = JSON.stringify(
+      filtered.map(v=>[
+        (v.lat||v.center?.lat||0).toFixed(4),
+        (v.lon||v.center?.lon||0).toFixed(4)
+      ])
+    );
+
+    // 同じ結果なら再描画しない
+    if(newHash !== lastRenderHash){
+      clearMarkers();
+      renderResults(filtered);
+      lastRenderHash = newHash;
+    }
+
+    state.searchLocked = false;
 
     document.getElementById('results').dataset.loaded = '1';
 
@@ -432,7 +472,7 @@ function renderResults(items){
 
   if(!items.length){
 
-    if(state.radius < 2000){
+    if(state.radius < state.customRadius + 1500){
       state.radius += 500;
       setStatus(`見つからないため半径${state.radius}mへ拡張`);
       loadNearby();
@@ -470,7 +510,12 @@ function renderResults(items){
 
   normalized.forEach(item=>{
 
-    const marker = L.marker([item.lat,item.lon]).addTo(map);
+    const marker = L.circleMarker([item.lat,item.lon],{
+      radius:8,
+      weight:1,
+      opacity:0.9,
+      fillOpacity:0.8
+    }).addTo(markerLayerGroup);
 
     marker.bindPopup(`
       <div style="min-width:180px">
@@ -612,6 +657,20 @@ function switchMode(mode){
 
 toiletBtn.onclick = ()=>switchMode('toilet');
 parkingBtn.onclick = ()=>switchMode('parking');
+
+// ===== 半径変更 =====
+
+document.getElementById('radiusSelect').onchange = e=>{
+
+  const value = parseInt(e.target.value);
+
+  state.radius = value;
+  state.customRadius = value;
+
+  setStatus(`検索範囲 ${value}m`);
+
+  loadNearby();
+};
 
 // ===== 公園・観光地・道の駅 強化 =====
 
