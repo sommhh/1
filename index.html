@@ -1,326 +1,239 @@
-<!DOCTYPE html>
-<html lang="ja">
-<head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>現場ワンタップMAP</title>
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
-
-<style>
-body{
-  margin:0;
-  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
-  background:#0f1115;
-  color:#fff;
-}
-
-#map{
-  position:fixed;
-  inset:0;
-  z-index:1;
-}
-
-.topbar{
-  position:fixed;
-  top:10px;
-  left:10px;
-  right:10px;
-  display:flex;
-  gap:8px;
-  z-index:9999;
-}
-
-button{
-  flex:1;
-  padding:14px;
-  border-radius:12px;
-  border:1px solid #333;
-  background:#1a1d24;
-  color:#fff;
-  font-weight:700;
-}
-
-button.active{
-  border:1px solid #38bdf8;
-}
-
-#status{
-  position:fixed;
-  top:70px;
-  left:10px;
-  right:10px;
-  z-index:9999;
-  background:#1a1d24;
-  padding:8px;
-  border-radius:10px;
-  font-size:13px;
-}
-
-#list{
-  position:fixed;
-  bottom:0;
-  left:0;
-  right:0;
-  max-height:40vh;
-  overflow:auto;
-  background:#111;
-  z-index:9999;
-  padding:10px;
-}
-
-.card{
-  background:#1a1d24;
-  padding:10px;
-  margin-bottom:8px;
-  border-radius:10px;
-}
-
-.small{
-  font-size:12px;
-  opacity:.8;
-}
-</style>
-</head>
-
-<body>
-
-<div id="map"></div>
-
-<div class="topbar">
-  <button id="btnToilet" class="active">🚻 トイレ</button>
-  <button id="btnDrink">🥤 DRINK</button>
-  <button id="btnParking">🅿️ 駐車場</button>
-</div>
-
-<div id="status">GPS待機中</div>
-<div id="list"></div>
-
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-
-<script>
-const state = {
-  lat:null,
-  lon:null,
-  mode:"toilet",
-  searching:false
-};
-
-// ---------------- MAP ----------------
-const map = L.map("map").setView([38.25,140.85],14);
-
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
-  attribution:"OSM"
-}).addTo(map);
-
-let userMarker;
-
-// ---------------- GPS ----------------
-let lastGPS=0;
-
-navigator.geolocation.watchPosition(pos=>{
-
-  const now = Date.now();
-  if(now-lastGPS<4000) return;
-  lastGPS=now;
-
-  state.lat = pos.coords.latitude;
-  state.lon = pos.coords.longitude;
-
-  setStatus("GPS OK");
-
-  if(!userMarker){
-    userMarker = L.marker([state.lat,state.lon]).addTo(map);
-    map.setView([state.lat,state.lon],16);
-  }else{
-    userMarker.setLatLng([state.lat,state.lon]);
-  }
-
-},err=>{
-  setStatus("GPSエラー");
-},{enableHighAccuracy:true});
-
-// ---------------- STATUS ----------------
-function setStatus(t){
-  document.getElementById("status").innerText=t;
-}
-
-// ---------------- WITH DRINK判定 ----------------
-function isWithDrink(i){
-  const t=i.tags||{};
-  const n=(t.name||"").toLowerCase();
-  const b=(t.brand||"").toLowerCase();
-  const o=(t.operator||"").toLowerCase();
-
-  return n.includes("with drink") ||
-         b.includes("with drink") ||
-         o.includes("with drink");
-}
-
-// ---------------- DRINK判定 ----------------
-function isDrink(i){
-  const t=i.tags||{};
-  const n=(t.name||"").toLowerCase();
-
-  return t.amenity==="vending_machine" ||
-         t.vending==="drinks" ||
-         n.includes("coke") ||
-         n.includes("dydo") ||
-         isWithDrink(i);
-}
-
-// ---------------- SCORE ----------------
-function score(i){
-  let s=0;
-  if(isWithDrink(i)) s+=10;
-  if((i.tags?.name||"").toLowerCase().includes("coke")) s+=3;
-  if((i.tags?.name||"").toLowerCase().includes("dydo")) s+=3;
-  if(i.tags?.vending==="drinks") s+=2;
-  return s;
-}
-
-// ---------------- QUERY ----------------
-function buildQuery(){
-
-  const r=500;
-
-  if(state.mode==="drink"){
-    return `
-[out:json];
-(
-node["amenity"="vending_machine"](around:${r},${state.lat},${state.lon});
-node["vending"="drinks"](around:${r},${state.lat},${state.lon});
-node["brand"~"WITH DRINK|DyDo|Coca"](around:${r},${state.lat},${state.lon});
-);
-out center tags;`;
-  }
-
-  if(state.mode==="parking"){
-    return `
-[out:json];
-node["amenity"="parking"](around:${r},${state.lat},${state.lon});
-out;`;
-  }
-
-  return `
-[out:json];
-(
-node["amenity"="toilets"](around:${r},${state.lat},${state.lon});
-node["leisure"="park"](around:${r},${state.lat},${state.lon});
-node["railway"="station"](around:${r},${state.lat},${state.lon});
-);
-out center tags;`;
-}
-
-// ---------------- SEARCH ----------------
-async function search(){
-
-  if(state.searching) return;
-  if(!state.lat) return;
-
-  state.searching=true;
-  setStatus("検索中...");
-
-  try{
-
-    const res=await fetch("https://overpass-api.de/api/interpreter",{
-      method:"POST",
-      body:buildQuery()
-    });
-
-    const data=await res.json();
-
-    let items=data.elements||[];
-
-    // hotel除外
-    items=items.filter(i=>{
-      const n=(i.tags?.name||"").toLowerCase();
-      return !n.includes("hotel");
-    });
-
-    if(state.mode==="drink"){
-      items.sort((a,b)=>score(b)-score(a));
-    }
-
-    render(items);
-
-    setStatus("完了");
-
-  }catch(e){
-    setStatus("通信エラー");
-  }
-
-  state.searching=false;
-}
-
-// ---------------- RENDER ----------------
-let markers=[];
-
-function render(items){
-
-  markers.forEach(m=>map.removeLayer(m));
-  markers=[];
-
-  const list=document.getElementById("list");
-  list.innerHTML="";
-
-  items.slice(0,15).forEach(i=>{
-
-    const lat=i.lat||i.center?.lat;
-    const lon=i.lon||i.center?.lon;
-    if(!lat||!lon) return;
-
-    const m=L.circleMarker([lat,lon]).addTo(map);
-    markers.push(m);
-
-    list.innerHTML+=`
-      <div class="card">
-        <b>${i.tags?.name||"未登録"}</b><br>
-        <div class="small">
-          ${isWithDrink(i) ? "🥤 WITH DRINK" : ""}
-          ${isDrink(i) ? "🥤 自販機" : ""}
-        </div>
-        <button onclick="nav(${lat},${lon})">ルート</button>
-      </div>
-    `;
-  });
-}
-
-// ---------------- ROUTE ----------------
-function nav(lat,lon){
-  window.open(
-    `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`,
-    "_blank"
-  );
-}
-
-// ---------------- BUTTONS ----------------
-document.getElementById("btnToilet").onclick=()=>{
-  state.mode="toilet";
-  setActive(0);
-  search();
-};
-
-document.getElementById("btnDrink").onclick=()=>{
-  state.mode="drink";
-  setActive(1);
-  search();
-};
-
-document.getElementById("btnParking").onclick=()=>{
-  state.mode="parking";
-  setActive(2);
-  search();
-};
-
-function setActive(i){
-  document.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
-  document.querySelectorAll("button")[i].classList.add("active");
-}
-
-// ---------------- START ----------------
-setTimeout(()=>search(),2000);
-
-</script>
-</body>
-</html>
+OK、これはもう「他のAIにそのまま投げられる設計書」にしておいた方がいいやつだね。
+コードじゃなくて“完成仕様＋実装指示書”として渡せる形にまとめる。
+
+---
+
+# ⚡ 現場MAP 完全版 開発指示書（OSS前提・LINE対応）
+
+## 🎯 目的
+
+現場作業員が「ボタン1回押すだけ」で以下を即取得できるアプリ
+
+* 最短トイレ
+* WITH DRINK（自販機付き or 近接）
+* 駐車場
+* ルート即表示
+* LINE共有即送信
+* オフラインでも最低限動作
+
+---
+
+# 🧭 コア思想（重要）
+
+* UIは“検索アプリ”ではなく **即行動UI**
+* 「検査中」「ローディング」は極力出さない
+* 1操作 = 1結果表示
+* 思考させない（現場用）
+
+---
+
+# 📍 機能仕様
+
+## ① 500m固定検索モード
+
+* 半径：**500m固定（変更UI不要）**
+* 位置取得後すぐ検索可能
+* 再検索はキャッシュ優先
+
+---
+
+## ② モード3種
+
+### 🚻 トイレモード
+
+* OSM:
+
+  * amenity=toilets
+* 除外:
+
+  * hotel / 旅館 / private / customers
+* WITH DRINK判定連携あり
+
+---
+
+### 🥤 DRINKモード（自販機）
+
+* OSM:
+
+  * vending_machine + drinks / beverages
+* スコアリング実装
+
+#### スコア仕様
+
+* WITH DRINK → 10点
+* Coke / Coca → 3点
+* DyDo → 3点
+* drinks系 → 2点
+* vending_machine → 1点
+
+👉 上位のみ表示（15件）
+
+---
+
+### 🅿️ 駐車場モード
+
+* amenity=parking
+* way/node両対応
+
+---
+
+# 🧠 WITH DRINK ロジック（重要）
+
+## 条件
+
+* DRINKモードで検出した自販機をキャッシュ
+* トイレから60m以内に自販機があれば紐付け
+
+## 表示
+
+* 「🥤 DRINK近接」バッジ
+* トイレカードに統合表示
+
+---
+
+# 📱 UI仕様
+
+## ① ボタン即実行
+
+* 押した瞬間検索開始
+* confirmなし
+* loadingはトーストのみ
+
+---
+
+## ② 結果表示
+
+* 下スライドパネル
+* 最大55vh
+* swipe downで閉じる
+
+---
+
+## ③ カード
+
+* 距離表示（m / km）
+* LINEボタン
+* ルートボタン
+* タップ → 地図ズーム
+
+---
+
+# 🗺 地図仕様（Leaflet + OSM）
+
+* Carto Dark tile
+* zoom control bottom-right
+* 現在地円表示（500m）
+
+---
+
+# 📡 GPS仕様
+
+* watchPosition使用
+* 4秒間隔制御（省電力）
+* 初回取得でローディング解除
+
+---
+
+# ⚡ パフォーマンス最適化
+
+## 必須
+
+* キャッシュ（localStorage）
+
+  * key = mode + round(lat/lon)
+  * TTL = 5分
+
+* Overpass API抑制
+
+  * 同位置連打禁止
+
+* state._drinkNodes キャッシュ保持
+
+---
+
+# 🌐 オフライン対応（OSS前提）
+
+## Service Worker
+
+* Leafletキャッシュ
+* HTMLキャッシュ
+* APIは除外
+
+---
+
+# 📤 LINE共有
+
+## 機能
+
+* 位置URL生成
+* メッセージ付き
+
+## URL
+
+* [https://social-plugins.line.me/lineit/share](https://social-plugins.line.me/lineit/share)
+
+---
+
+# 🧩 OSS構成（軽量推奨）
+
+必須ライブラリ：
+
+* Leaflet（地図）
+* Overpass API（OSM）
+
+追加（任意）：
+
+* idb（IndexedDB高速化）
+* workbox（SW強化）
+* turf.js（距離/空間処理）
+
+---
+
+# 🔥 UXルール（超重要）
+
+## NG
+
+* 「検索中…」長時間表示
+* 多段階UI
+* フィルタ画面
+* 入力操作
+
+## OK
+
+* ボタン押すだけ
+* 即結果
+* 即地図移動
+
+---
+
+# 🧪 改善ポイント（次世代）
+
+* 自販機ヒートマップ（密度表示）
+* トイレ×自販機ペアスコア化
+* ナビ自動起動
+* AR表示（将来）
+
+---
+
+# ⚠ バグ注意点（現コード由来）
+
+* DRINK検索後じゃないと _drinkNodes が空
+* 初回トイレでundefined対策必要
+* Overpass timeout時の再試行なし
+
+---
+
+# 📦 最終ゴール
+
+「現場でポケットから出してボタン押すだけで最短行動が決まるツール」
+
+---
+
+必要なら次はこれできる👇
+
+* 🔥 “完全軽量版（3KB設計）”
+* 🔥 “PWAインストール最適化版”
+* 🔥 “AR現場版（カメラ連動）”
+* 🔥 “LINEミニアプリ化”
+
+どこまで詰めるか言ってくれれば一気に仕上げる。
