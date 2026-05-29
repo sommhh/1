@@ -3,159 +3,211 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>現場MAP 完全版</title>
+<title>現場ワンタップMAP</title>
 
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-body{margin:0;background:#0f1115;color:#fff;font-family:-apple-system;}
-#map{position:fixed;inset:0;}
+body{
+  margin:0;
+  font-family:-apple-system,BlinkMacSystemFont,sans-serif;
+  background:#0f1115;
+  color:#fff;
+}
+
+#map{
+  position:fixed;
+  inset:0;
+  z-index:1;
+}
 
 .topbar{
-  position:fixed;top:10px;left:10px;right:10px;z-index:1000;
-  display:flex;gap:8px;
+  position:fixed;
+  top:10px;
+  left:10px;
+  right:10px;
+  display:flex;
+  gap:8px;
+  z-index:9999;
 }
 
 button{
   flex:1;
-  padding:12px;
-  border:none;
+  padding:14px;
   border-radius:12px;
+  border:1px solid #333;
   background:#1a1d24;
-  color:white;
+  color:#fff;
   font-weight:700;
 }
 
-button.active{outline:2px solid #38bdf8;}
+button.active{
+  border:1px solid #38bdf8;
+}
 
 #status{
-  position:fixed;top:70px;left:10px;right:10px;
-  background:#1a1d24;padding:8px;border-radius:10px;
-  font-size:12px;color:#aaa;z-index:1000;
+  position:fixed;
+  top:70px;
+  left:10px;
+  right:10px;
+  z-index:9999;
+  background:#1a1d24;
+  padding:8px;
+  border-radius:10px;
+  font-size:13px;
 }
 
-.sheet{
-  position:fixed;bottom:0;left:0;right:0;
-  max-height:40vh;overflow:auto;
-  background:#111;padding:10px;z-index:1000;
+#list{
+  position:fixed;
+  bottom:0;
+  left:0;
+  right:0;
+  max-height:40vh;
+  overflow:auto;
+  background:#111;
+  z-index:9999;
+  padding:10px;
 }
+
 .card{
-  background:#1a1d24;margin:8px 0;padding:10px;border-radius:10px;
+  background:#1a1d24;
+  padding:10px;
+  margin-bottom:8px;
+  border-radius:10px;
 }
-.tag{font-size:11px;margin-right:4px;padding:2px 6px;border-radius:999px;display:inline-block}
-.g{background:#22c55e33;color:#22c55e}
-.y{background:#facc1533;color:#facc15}
-.b{background:#38bdf833;color:#38bdf8}
+
+.small{
+  font-size:12px;
+  opacity:.8;
+}
 </style>
 </head>
+
 <body>
 
 <div id="map"></div>
 
 <div class="topbar">
-  <button id="t1" class="active">🚻トイレ</button>
-  <button id="t2">🅿駐車場</button>
-  <button id="t3">🥤DRINK</button>
+  <button id="btnToilet" class="active">🚻 トイレ</button>
+  <button id="btnDrink">🥤 DRINK</button>
+  <button id="btnParking">🅿️ 駐車場</button>
 </div>
 
-<div id="status">起動中...</div>
-
-<div class="sheet">
-  <div id="list"></div>
-</div>
+<div id="status">GPS待機中</div>
+<div id="list"></div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-let state={
-  map:null,
-  user:null,
-  markers:[],
+const state = {
   lat:null,
   lon:null,
   mode:"toilet",
-  searching:false,
-  radius:500
+  searching:false
 };
 
-const map=L.map("map").setView([38.23,140.89],15);
-state.map=map;
+// ---------------- MAP ----------------
+const map = L.map("map").setView([38.25,140.85],14);
 
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",{
+  attribution:"OSM"
+}).addTo(map);
+
+let userMarker;
 
 // ---------------- GPS ----------------
-navigator.geolocation.watchPosition(p=>{
-  state.lat=p.coords.latitude;
-  state.lon=p.coords.longitude;
+let lastGPS=0;
+
+navigator.geolocation.watchPosition(pos=>{
+
+  const now = Date.now();
+  if(now-lastGPS<4000) return;
+  lastGPS=now;
+
+  state.lat = pos.coords.latitude;
+  state.lon = pos.coords.longitude;
 
   setStatus("GPS OK");
 
-  if(!state.user){
-    state.user=L.marker([state.lat,state.lon]).addTo(map);
+  if(!userMarker){
+    userMarker = L.marker([state.lat,state.lon]).addTo(map);
     map.setView([state.lat,state.lon],16);
   }else{
-    state.user.setLatLng([state.lat,state.lon]);
+    userMarker.setLatLng([state.lat,state.lon]);
   }
 
-  search();
-
-},e=>{
-  setStatus("GPS ERROR");
-},{
-  enableHighAccuracy:true,
-  maximumAge:0
-});
+},err=>{
+  setStatus("GPSエラー");
+},{enableHighAccuracy:true});
 
 // ---------------- STATUS ----------------
 function setStatus(t){
   document.getElementById("status").innerText=t;
-  console.log("[STATUS]",t);
 }
 
-// ---------------- MODE ----------------
-document.getElementById("t1").onclick=()=>setMode("toilet");
-document.getElementById("t2").onclick=()=>setMode("parking");
-document.getElementById("t3").onclick=()=>setMode("drink");
+// ---------------- WITH DRINK判定 ----------------
+function isWithDrink(i){
+  const t=i.tags||{};
+  const n=(t.name||"").toLowerCase();
+  const b=(t.brand||"").toLowerCase();
+  const o=(t.operator||"").toLowerCase();
 
-function setMode(m){
-  state.mode=m;
-  document.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
-  if(m==="toilet")document.getElementById("t1").classList.add("active");
-  if(m==="parking")document.getElementById("t2").classList.add("active");
-  if(m==="drink")document.getElementById("t3").classList.add("active");
-  search();
+  return n.includes("with drink") ||
+         b.includes("with drink") ||
+         o.includes("with drink");
+}
+
+// ---------------- DRINK判定 ----------------
+function isDrink(i){
+  const t=i.tags||{};
+  const n=(t.name||"").toLowerCase();
+
+  return t.amenity==="vending_machine" ||
+         t.vending==="drinks" ||
+         n.includes("coke") ||
+         n.includes("dydo") ||
+         isWithDrink(i);
+}
+
+// ---------------- SCORE ----------------
+function score(i){
+  let s=0;
+  if(isWithDrink(i)) s+=10;
+  if((i.tags?.name||"").toLowerCase().includes("coke")) s+=3;
+  if((i.tags?.name||"").toLowerCase().includes("dydo")) s+=3;
+  if(i.tags?.vending==="drinks") s+=2;
+  return s;
 }
 
 // ---------------- QUERY ----------------
-function query(){
+function buildQuery(){
 
-if(state.mode==="parking"){
-return `
+  const r=500;
+
+  if(state.mode==="drink"){
+    return `
 [out:json];
 (
-node["amenity"="parking"](around:${state.radius},${state.lat},${state.lon});
-);
-out center;`;
-}
-
-if(state.mode==="drink"){
-return `
-[out:json];
-(
-node["amenity"="vending_machine"](around:${state.radius},${state.lat},${state.lon});
-node["vending"="drinks"](around:${state.radius},${state.lat},${state.lon});
-node["shop"="convenience"](around:${state.radius},${state.lat},${state.lon});
+node["amenity"="vending_machine"](around:${r},${state.lat},${state.lon});
+node["vending"="drinks"](around:${r},${state.lat},${state.lon});
+node["brand"~"WITH DRINK|DyDo|Coca"](around:${r},${state.lat},${state.lon});
 );
 out center tags;`;
-}
+  }
 
-return `
+  if(state.mode==="parking"){
+    return `
+[out:json];
+node["amenity"="parking"](around:${r},${state.lat},${state.lon});
+out;`;
+  }
+
+  return `
 [out:json];
 (
-node["amenity"="toilets"](around:${state.radius},${state.lat},${state.lon});
-node["leisure"="park"](around:${state.radius},${state.lat},${state.lon});
-node["railway"="station"](around:${state.radius},${state.lat},${state.lon});
-node["religion"](around:${state.radius},${state.lat},${state.lon});
+node["amenity"="toilets"](around:${r},${state.lat},${state.lon});
+node["leisure"="park"](around:${r},${state.lat},${state.lon});
+node["railway"="station"](around:${r},${state.lat},${state.lon});
 );
 out center tags;`;
 }
@@ -163,84 +215,112 @@ out center tags;`;
 // ---------------- SEARCH ----------------
 async function search(){
 
-if(state.searching)return;
-if(!state.lat)return;
+  if(state.searching) return;
+  if(!state.lat) return;
 
-state.searching=true;
+  state.searching=true;
+  setStatus("検索中...");
 
-setStatus("検索中...");
+  try{
 
-try{
+    const res=await fetch("https://overpass-api.de/api/interpreter",{
+      method:"POST",
+      body:buildQuery()
+    });
 
-const res=await fetch("https://overpass-api.de/api/interpreter",{
-method:"POST",
-body:query()
-});
+    const data=await res.json();
 
-const data=await res.json();
+    let items=data.elements||[];
 
-let items=data.elements||[];
+    // hotel除外
+    items=items.filter(i=>{
+      const n=(i.tags?.name||"").toLowerCase();
+      return !n.includes("hotel");
+    });
 
-// hotel除外
-items=items.filter(i=>{
-const n=(i.tags?.name||"").toLowerCase();
-return !n.includes("hotel") && i.tags?.tourism!=="hotel";
-});
+    if(state.mode==="drink"){
+      items.sort((a,b)=>score(b)-score(a));
+    }
 
-// render
-render(items);
+    render(items);
 
-}catch(e){
-console.log(e);
-setStatus("通信エラー");
-}
+    setStatus("完了");
 
-state.searching=false;
+  }catch(e){
+    setStatus("通信エラー");
+  }
+
+  state.searching=false;
 }
 
 // ---------------- RENDER ----------------
+let markers=[];
+
 function render(items){
 
-state.markers.forEach(m=>map.removeLayer(m));
-state.markers=[];
+  markers.forEach(m=>map.removeLayer(m));
+  markers=[];
 
-document.getElementById("list").innerHTML="";
+  const list=document.getElementById("list");
+  list.innerHTML="";
 
-items.slice(0,50).forEach(i=>{
+  items.slice(0,15).forEach(i=>{
 
-const lat=i.lat||i.center?.lat;
-const lon=i.lon||i.center?.lon;
-if(!lat||!lon)return;
+    const lat=i.lat||i.center?.lat;
+    const lon=i.lon||i.center?.lon;
+    if(!lat||!lon) return;
 
-const m=L.circleMarker([lat,lon]).addTo(map);
-state.markers.push(m);
+    const m=L.circleMarker([lat,lon]).addTo(map);
+    markers.push(m);
 
-const el=document.createElement("div");
-el.className="card";
-
-let tag="";
-
-if(i.tags?.amenity==="toilets")tag+="<span class='tag g'>🚻</span>";
-if(i.tags?.leisure==="park")tag+="<span class='tag g'>🌳</span>";
-if(i.tags?.railway==="station")tag+="<span class='tag y'>🚉</span>";
-if(i.tags?.religion==="shinto")tag+="<span class='tag b'>⛩</span>";
-if(i.tags?.religion==="buddhist")tag+="<span class='tag b'>🛕</span>";
-if(i.tags?.amenity==="vending_machine")tag+="<span class='tag b'>🥤</span>";
-if(i.tags?.shop==="convenience")tag+="<span class='tag y'>🏪</span>";
-
-el.innerHTML=`
-<b>${i.tags?.name||"名称なし"}</b><br>
-${tag}
-`;
-
-document.getElementById("list").appendChild(el);
-
-});
-
-setStatus("表示完了 "+items.length);
+    list.innerHTML+=`
+      <div class="card">
+        <b>${i.tags?.name||"未登録"}</b><br>
+        <div class="small">
+          ${isWithDrink(i) ? "🥤 WITH DRINK" : ""}
+          ${isDrink(i) ? "🥤 自販機" : ""}
+        </div>
+        <button onclick="nav(${lat},${lon})">ルート</button>
+      </div>
+    `;
+  });
 }
 
-</script>
+// ---------------- ROUTE ----------------
+function nav(lat,lon){
+  window.open(
+    `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`,
+    "_blank"
+  );
+}
 
+// ---------------- BUTTONS ----------------
+document.getElementById("btnToilet").onclick=()=>{
+  state.mode="toilet";
+  setActive(0);
+  search();
+};
+
+document.getElementById("btnDrink").onclick=()=>{
+  state.mode="drink";
+  setActive(1);
+  search();
+};
+
+document.getElementById("btnParking").onclick=()=>{
+  state.mode="parking";
+  setActive(2);
+  search();
+};
+
+function setActive(i){
+  document.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
+  document.querySelectorAll("button")[i].classList.add("active");
+}
+
+// ---------------- START ----------------
+setTimeout(()=>search(),2000);
+
+</script>
 </body>
 </html>
