@@ -1,184 +1,51 @@
 <!DOCTYPE html>
 <html lang="ja">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>現場トイレ・駐車場</title>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>現場MAP 完全版</title>
 
-<link
-  rel="stylesheet"
-  href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
-/>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 
 <style>
-*{
-  margin:0;
-  padding:0;
-  box-sizing:border-box;
-}
-
-:root{
-  --bg:#0f1115;
-  --card:#1a1d24;
-  --accent:#38bdf8;
-  --green:#22c55e;
-  --yellow:#facc15;
-  --red:#ef4444;
-  --text:#f5f7fa;
-  --muted:#9aa4b2;
-  --border:#2a2f3a;
-}
-
-body{
-  background:var(--bg);
-  color:var(--text);
-  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
-  overflow:hidden;
-}
-
-#map{
-  position:fixed;
-  inset:0;
-  z-index:1;
-}
+body{margin:0;background:#0f1115;color:#fff;font-family:-apple-system;}
+#map{position:fixed;inset:0;}
 
 .topbar{
-  position:fixed;
-  top:12px;
-  left:12px;
-  right:12px;
-  z-index:1000;
-  display:flex;
-  gap:10px;
+  position:fixed;top:10px;left:10px;right:10px;z-index:1000;
+  display:flex;gap:8px;
 }
 
-.action-btn{
+button{
   flex:1;
-  border:none;
-  background:rgba(26,29,36,.95);
-  backdrop-filter:blur(10px);
-  color:white;
-  padding:18px 14px;
-  border-radius:18px;
-  font-size:18px;
-  font-weight:700;
-  border:1px solid var(--border);
-  box-shadow:0 8px 30px rgba(0,0,0,.35);
-}
-
-.action-btn.active{
-  border:1px solid var(--accent);
-  box-shadow:0 0 0 2px rgba(56,189,248,.2);
-}
-
-.bottom-sheet{
-  position:fixed;
-  left:0;
-  right:0;
-  bottom:0;
-  z-index:1000;
-  background:rgba(15,17,21,.97);
-  backdrop-filter:blur(12px);
-  border-top-left-radius:24px;
-  border-top-right-radius:24px;
-  border-top:1px solid var(--border);
-  max-height:42vh;
-  overflow:auto;
-  padding:16px;
-}
-
-.sheet-title{
-  font-size:18px;
-  font-weight:800;
-  margin-bottom:14px;
-}
-
-.result-card{
-  background:var(--card);
-  border:1px solid var(--border);
-  border-radius:18px;
-  padding:14px;
-  margin-bottom:12px;
-}
-
-.result-top{
-  display:flex;
-  justify-content:space-between;
-  align-items:center;
-  margin-bottom:10px;
-}
-
-.result-name{
-  font-weight:700;
-  font-size:15px;
-  line-height:1.4;
-}
-
-.distance{
-  color:var(--accent);
-  font-size:13px;
-  font-weight:700;
-}
-
-.tags{
-  display:flex;
-  flex-wrap:wrap;
-  gap:8px;
-  margin-bottom:12px;
-}
-
-.tag{
-  padding:6px 10px;
-  border-radius:999px;
-  font-size:12px;
-  font-weight:700;
-}
-
-.green{background:rgba(34,197,94,.18);color:#7df3a3;}
-.yellow{background:rgba(250,204,21,.18);color:#ffe26a;}
-.red{background:rgba(239,68,68,.18);color:#ff8e8e;}
-.blue{background:rgba(56,189,248,.18);color:#7fdcff;}
-
-.route-btn{
-  width:100%;
-  border:none;
-  background:var(--accent);
-  color:#08131b;
-  font-weight:800;
   padding:12px;
+  border:none;
   border-radius:12px;
-  font-size:15px;
-}
-
-.loading{
-  text-align:center;
-  padding:30px 10px;
-  color:var(--muted);
-}
-
-.status{
-  position:fixed;
-  top:84px;
-  left:12px;
-  right:12px;
-  z-index:1000;
-  background:rgba(15,17,21,.9);
-  border:1px solid var(--border);
-  border-radius:14px;
-  padding:10px 14px;
-  font-size:13px;
-  color:var(--muted);
-}
-
-.leaflet-popup-content-wrapper{
-  background:#1b1f27;
+  background:#1a1d24;
   color:white;
-  border-radius:16px;
+  font-weight:700;
 }
 
-.leaflet-popup-tip{
-  background:#1b1f27;
+button.active{outline:2px solid #38bdf8;}
+
+#status{
+  position:fixed;top:70px;left:10px;right:10px;
+  background:#1a1d24;padding:8px;border-radius:10px;
+  font-size:12px;color:#aaa;z-index:1000;
 }
+
+.sheet{
+  position:fixed;bottom:0;left:0;right:0;
+  max-height:40vh;overflow:auto;
+  background:#111;padding:10px;z-index:1000;
+}
+.card{
+  background:#1a1d24;margin:8px 0;padding:10px;border-radius:10px;
+}
+.tag{font-size:11px;margin-right:4px;padding:2px 6px;border-radius:999px;display:inline-block}
+.g{background:#22c55e33;color:#22c55e}
+.y{background:#facc1533;color:#facc15}
+.b{background:#38bdf833;color:#38bdf8}
 </style>
 </head>
 <body>
@@ -186,1686 +53,193 @@ body{
 <div id="map"></div>
 
 <div class="topbar">
-  <select id="radiusSelect" style="
-    background:rgba(26,29,36,.95);
-    color:white;
-    border:1px solid #2a2f3a;
-    border-radius:14px;
-    padding:0 10px;
-    font-size:15px;
-    font-weight:700;
-  ">
-    <option value="300">300m</option>
-    <option value="500" selected>500m</option>
-    <option value="1000">1km</option>
-    <option value="2000">2km</option>
-    <option value="3000">3km</option>
-  </select>
-  <button id="toiletBtn" class="action-btn active">🚻 トイレ</button>
-  <button id="parkingBtn" class="action-btn">🅿️ 駐車場</button>
-  <button id="drinkBtn" class="action-btn">🥤 DRINK</button>
+  <button id="t1" class="active">🚻トイレ</button>
+  <button id="t2">🅿駐車場</button>
+  <button id="t3">🥤DRINK</button>
 </div>
 
-<div class="status" id="status">
-  GPS取得中...
-</div>
+<div id="status">起動中...</div>
 
-<div class="bottom-sheet">
-  <div class="sheet-title" id="sheetTitle">近くのトイレ</div>
-  <div id="results"></div>
+<div class="sheet">
+  <div id="list"></div>
 </div>
 
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-const state = {
-  searchLocked:false,
-  mode:'toilet',
-  drinkPriority:true,
+let state={
   map:null,
-  userMarker:null,
+  user:null,
   markers:[],
-  userLat:null,
-  userLon:null,
-  radius:500,
-  customRadius:500
+  lat:null,
+  lon:null,
+  mode:"toilet",
+  searching:false,
+  radius:500
 };
 
-const map = L.map('map', {
-  zoomControl:false
-}).setView([38.2324,140.8995], 15);
+const map=L.map("map").setView([38.23,140.89],15);
+state.map=map;
 
-state.map = map;
+L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png").addTo(map);
 
-L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-  attribution:'© OpenStreetMap contributors'
-}).addTo(map);
+// ---------------- GPS ----------------
+navigator.geolocation.watchPosition(p=>{
+  state.lat=p.coords.latitude;
+  state.lon=p.coords.longitude;
 
-const userIcon = L.divIcon({
-  className:'',
-  html:`
-    <div style="
-      width:20px;
-      height:20px;
-      border-radius:50%;
-      background:#38bdf8;
-      border:4px solid white;
-      box-shadow:0 0 20px rgba(56,189,248,.8);
-    "></div>
-  `,
-  iconSize:[20,20]
-});
+  setStatus("GPS OK");
 
-async function initGPS(){
-  if(!navigator.geolocation){
-    setStatus('GPS未対応');
-    return;
-  }
-
-  navigator.geolocation.watchPosition(async pos=>{
-    const lat = pos.coords.latitude;
-    const lon = pos.coords.longitude;
-
-    state.userLat = lat;
-    state.userLon = lon;
-
-    setStatus(`現在地取得 OK / 半径${state.radius}m検索`);
-
-    if(!state.userMarker){
-      state.userMarker = L.marker([lat,lon],{icon:userIcon}).addTo(map);
-      map.setView([lat,lon],16);
-    }else{
-      state.userMarker.setLatLng([lat,lon]);
-    }
-
-    await loadNearby();
-
-  }, err=>{
-    setStatus('GPS取得失敗');
-    console.error(err);
-  }, {
-    enableHighAccuracy:true,
-    maximumAge:3000,
-    timeout:10000
-  });
-}
-
-function setStatus(text){
-  document.getElementById('status').textContent = text;
-}
-
-let markerLayerGroup = L.layerGroup().addTo(map);
-
-function clearMarkers(){
-
-  // 点滅防止
-  if(state.searchLocked) return;
-  markerLayerGroup.clearLayers();
-  state.markers = [];
-}
-}
-
-let isSearching = false;
-let lastSearchTime = 0;
-
-let lastRenderHash = '';
-
-async function loadNearby(){
-
-  // 検索連打防止
-  if(isSearching) return;
-
-  const now = Date.now();
-
-  // 短時間再検索防止
-  if(now - lastSearchTime < 4000){
-    return;
-  }
-
-  lastSearchTime = now;
-  isSearching = true;
-  if(!state.userLat) return;
-
-  // 毎回全削除しない
-  state.searchLocked = true;
-
-  // 初回のみ検索表示
-  if(!document.getElementById('results').dataset.loaded){
-    document.getElementById('results').innerHTML = `
-      <div class="loading">検索中...</div>
-    `;
-  }
-
-  let query = '';
-
-  if(state.mode === 'drink'){
-    tags.push(tag('🥤 DRINK','blue'));
-
-    if(isDrinkMachine(item)){
-      tags.push(tag('🥤 自販機','green'));
-    }
-
-    if(isCokeON(item)){
-      tags.push(tag('🥤 Coke ON','blue'));
-    }
-
-    if(isDyDo(item)){
-      tags.push(tag('🥤 DyDo','yellow'));
-    }
-
-    if(isConvenience(item)){
-      tags.push(tag('🏪 コンビニ','yellow'));
-    }
-  }
-  else if(state.mode === 'toilet'){
-    query = buildToiletQuery();
-  }
-  else if(state.mode === 'drink'){
-    query = buildDrinkQuery();
-  }
-  else {
-    query = buildParkingQuery();
-  }
-
-  const url = 'https://overpass-api.de/api/interpreter';
-
-  try{
-    const res = await fetch(url, {
-      method:'POST',
-      body:query
-    });
-
-    const data = await res.json();
-
-    const filtered = removeDuplicatePlaces(
-      removeHotels(data.elements || [])
-    );
-
-    const newHash = JSON.stringify(
-      filtered.map(v=>[
-        (v.lat||v.center?.lat||0).toFixed(4),
-        (v.lon||v.center?.lon||0).toFixed(4)
-      ])
-    );
-
-    // 同じ結果なら再描画しない
-    if(newHash !== lastRenderHash){
-      clearMarkers();
-      const analyzed = findDrinkNearToilet(filtered);
-      renderResults(analyzed);
-      lastRenderHash = newHash;
-    }
-
-    state.searchLocked = false;
-
-    document.getElementById('results').dataset.loaded = '1';
-
-    isSearching = false;
-
-  }catch(err){
-    console.error(err);
-
-    document.getElementById('results').innerHTML = `
-      <div class="loading">通信失敗</div>
-    `;
-
-    isSearching = false;
-  }
-}
-
-function buildToiletQuery(){
-  return `
-[out:json][timeout:25];
-(
-  node["amenity"="toilets"](around:${state.radius},${state.userLat},${state.userLon});
-  way["amenity"="toilets"](around:${state.radius},${state.userLat},${state.userLon});
-  node["public_toilet"="yes"](around:${state.radius},${state.userLat},${state.userLon});
-  node["toilets"="yes"](around:${state.radius},${state.userLat},${state.userLon});
-  node["railway"="station"](around:${state.radius},${state.userLat},${state.userLon});
-);
-out center;
-  `;
-}
-
-function buildDrinkQuery(){
-  return `
-[out:json][timeout:25];
-(
-  node["amenity"="vending_machine"](around:${state.radius},${state.userLat},${state.userLon});
-  way["amenity"="vending_machine"](around:${state.radius},${state.userLat},${state.userLon});
-
-  node["vending"="drinks"](around:${state.radius},${state.userLat},${state.userLon});
-  way["vending"="drinks"](around:${state.radius},${state.userLat},${state.userLon});
-
-  node["shop"="convenience"](around:${state.radius},${state.userLat},${state.userLon});
-  way["shop"="convenience"](around:${state.radius},${state.userLat},${state.userLon});
-);
-out center tags;
-  `;
-}
-
-function buildParkingQuery(){
-  return `
-[out:json][timeout:25];
-(
-  node["amenity"="parking"](around:${state.radius},${state.userLat},${state.userLon});
-  way["amenity"="parking"](around:${state.radius},${state.userLat},${state.userLon});
-);
-out center;
-  `;
-}
-
-// ===== 重複地点除去 =====
-
-function removeDuplicatePlaces(items){
-
-  const map = new Map();
-
-  items.forEach(item=>{
-
-    const lat = item.lat || item.center?.lat;
-    const lon = item.lon || item.center?.lon;
-
-    if(!lat || !lon) return;
-
-    // 位置丸め
-    const key = `${lat.toFixed(4)}-${lon.toFixed(4)}`;
-
-    // 名前優先度
-    const name = item.tags?.name || '';
-
-    if(!map.has(key)){
-      map.set(key,item);
-    }
-    else {
-      const old = map.get(key);
-
-      const oldName = old.tags?.name || '';
-
-      // 名前長い方優先
-      if(name.length > oldName.length){
-        map.set(key,item);
-      }
-    }
-  });
-
-  return [...map.values()];
-}
-
-// ===== ホテル除外 =====
-
-function removeHotels(items){
-
-  return items.filter(item=>{
-
-    const tourism = item.tags?.tourism || '';
-    const building = item.tags?.building || '';
-    const name = (item.tags?.name || '').toLowerCase();
-
-    if(tourism === 'hotel') return false;
-
-    if(building === 'hotel') return false;
-
-    if(name.includes('hotel')) return false;
-
-    if(name.includes('ホテル')) return false;
-
-    return true;
-  });
-}
-
-function renderResults(items){
-  const results = document.getElementById('results');
-
-  if(!items.length){
-
-    if(state.radius < state.customRadius + 1500){
-      state.radius += 500;
-      setStatus(`見つからないため半径${state.radius}mへ拡張`);
-      loadNearby();
-      return;
-    }
-
-    results.innerHTML = `
-      <div class="loading">見つかりませんでした</div>
-    `;
-    return;
-  }
-
-  const normalized = items.map(item=>{
-    const lat = item.lat || item.center?.lat;
-    const lon = item.lon || item.center?.lon;
-
-    const distance = calcDistance(
-      state.userLat,
-      state.userLon,
-      lat,
-      lon
-    );
-
-    return {
-      ...item,
-      lat,
-      lon,
-      distance
-    };
-  }).filter(i=>i.lat && i.lon)
-    .sort((a,b)=>a.distance-b.distance)
-    .slice(0,15);
-
-  results.innerHTML = normalized.map(item=>cardHTML(item)).join('');
-
-  normalized.forEach(item=>{
-
-    const marker = L.circleMarker([item.lat,item.lon],{
-      radius:8,
-      weight:1,
-      opacity:0.9,
-      fillOpacity:0.8
-    }).addTo(markerLayerGroup);
-
-    marker.bindPopup(`
-      <div style="min-width:180px">
-        <b>${escapeHTML(getName(item))}</b><br><br>
-        ${Math.round(item.distance)}m
-      </div>
-    `);
-
-    state.markers.push(marker);
-  });
-
-  attachRouteButtons(normalized);
-}
-
-function cardHTML(item){
-  const name = getName(item);
-
-  const tags = buildTags(item);
-
-  return `
-    <div class="result-card">
-      <div class="result-top">
-        <div class="result-name">${escapeHTML(name)}</div>
-        <div class="distance">${Math.round(item.distance)}m</div>
-      </div>
-
-      <div class="tags">
-        ${tags}
-      </div>
-
-      <button
-        class="route-btn"
-        data-lat="${item.lat}"
-        data-lon="${item.lon}"
-      >
-        ルート案内
-      </button>
-    </div>
-  `;
-}
-
-function isCokeON(item){
-  const brand = (item.tags?.brand || '').toLowerCase();
-  const operator = (item.tags?.operator || '').toLowerCase();
-  const name = (item.tags?.name || '').toLowerCase();
-
-  return brand.includes('coca')
-    || operator.includes('coca')
-    || name.includes('coke on');
-}
-
-function isDyDo(item){
-  const brand = (item.tags?.brand || '').toLowerCase();
-  const operator = (item.tags?.operator || '').toLowerCase();
-  const name = (item.tags?.name || '').toLowerCase();
-
-  return brand.includes('dydo')
-    || operator.includes('dydo')
-    || name.includes('dydo');
-}
-
-function isDrinkMachine(item){
-  return item.tags?.amenity === 'vending_machine'
-    || item.tags?.vending === 'drinks';
-}
-
-function isConvenience(item){
-  return item.tags?.shop === 'convenience';
-}
-
-function findDrinkNearToilet(items){
-
-  const toilets = items.filter(i=>
-    i.tags?.amenity === 'toilets'
-  );
-
-  const drinks = items.filter(i=>
-    isDrinkMachine(i)
-  );
-
-  toilets.forEach(toilet=>{
-
-    const tlat = toilet.lat || toilet.center?.lat;
-    const tlon = toilet.lon || toilet.center?.lon;
-
-    drinks.forEach(drink=>{
-
-      const dlat = drink.lat || drink.center?.lat;
-      const dlon = drink.lon || drink.center?.lon;
-
-      const dist = calcDistance(tlat, tlon, dlat, dlon);
-
-      if(dist <= 50){
-        toilet.hasDrink = true;
-      }
-    });
-  });
-
-  return items;
-}
-
-function buildTags(item){
-  const tags = [];
-
-  if(state.mode === 'toilet'){
-    tags.push(tag('🚻 トイレ','green'));
-
-    if(item.tags?.public_toilet === 'yes'){
-      tags.push(tag('🌙 公衆','blue'));
-    }
-
-    if(item.tags?.railway === 'station'){
-      tags.push(tag('🚉 駅','yellow'));
-    }
-
-    if(item.tags?.access === 'yes'){
-      tags.push(tag('♿ バリアフリー','blue'));
-    }
-
+  if(!state.user){
+    state.user=L.marker([state.lat,state.lon]).addTo(map);
+    map.setView([state.lat,state.lon],16);
   }else{
-    tags.push(tag('🅿️ 駐車場','green'));
-
-    if(item.tags?.parking === 'surface'){
-      tags.push(tag('🚚 平面','yellow'));
-    }
-
-    if(item.tags?.fee === 'no'){
-      tags.push(tag('💴 無料','blue'));
-    }
+    state.user.setLatLng([state.lat,state.lon]);
   }
 
-  if(item.hasDrink){
-    tags.push(tag('🚻+🥤','green'));
-  }
-
-  return tags.join('');
-}
-
-function tag(text,color){
-  return `<div class="tag ${color}">${text}</div>`;
-}
-
-function getName(item){
-  return item.tags?.name || '名称未登録';
-}
-
-function attachRouteButtons(items){
-  document.querySelectorAll('.route-btn').forEach(btn=>{
-    btn.onclick = ()=>{
-      const lat = btn.dataset.lat;
-      const lon = btn.dataset.lon;
-
-      const url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
-
-      window.open(url,'_blank');
-    };
-  });
-}
-
-function calcDistance(lat1, lon1, lat2, lon2){
-  const R = 6371e3;
-  const φ1 = lat1 * Math.PI/180;
-  const φ2 = lat2 * Math.PI/180;
-  const Δφ = (lat2-lat1) * Math.PI/180;
-  const Δλ = (lon2-lon1) * Math.PI/180;
-
-  const a = Math.sin(Δφ/2) * Math.sin(Δφ/2) +
-    Math.cos(φ1) * Math.cos(φ2) *
-    Math.sin(Δλ/2) * Math.sin(Δλ/2);
-
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
-
-  return R * c;
-}
-
-function escapeHTML(str=''){
-  return str
-    .replaceAll('&','&amp;')
-    .replaceAll('<','&lt;')
-    .replaceAll('>','&gt;');
-}
-
-const toiletBtn = document.getElementById('toiletBtn');
-const parkingBtn = document.getElementById('parkingBtn');
-
-const drinkBtn = document.getElementById('drinkBtn');
-
-function switchMode(mode){
-  state.mode = mode;
-  state.radius = 500;
-
-  toiletBtn.classList.remove('active');
-  parkingBtn.classList.remove('active');
-  drinkBtn.classList.remove('active');
-
-  if(mode === 'toilet'){
-    toiletBtn.classList.add('active');
-    document.getElementById('sheetTitle').textContent = '近くのトイレ';
-  }else if(mode === 'drink'){
-    drinkBtn.classList.add('active');
-    document.getElementById('sheetTitle').textContent = '近くのDRINK';
-  }else{
-    parkingBtn.classList.add('active');
-    document.getElementById('sheetTitle').textContent = '近くの駐車場';
-  }
-
-  loadNearby();
-}
-
-toiletBtn.onclick = ()=>switchMode('toilet');
-parkingBtn.onclick = ()=>switchMode('parking');
-drinkBtn.onclick = ()=>switchMode('drink');
-
-// ===== 半径変更 =====
-
-document.getElementById('radiusSelect').onchange = e=>{
-
-  const value = parseInt(e.target.value);
-
-  state.radius = value;
-  state.customRadius = value;
-
-  setStatus(`検索範囲 ${value}m`);
-
-  loadNearby();
-};
-
-// ===== 公園・観光地・道の駅 強化 =====
-
-function buildEnhancedToiletQuery(){
-  return `
-[out:json][timeout:25];
-(
-  node["amenity"="toilets"](around:${state.radius},${state.userLat},${state.userLon});
-  way["amenity"="toilets"](around:${state.radius},${state.userLat},${state.userLon});
-
-  node["railway"="station"](around:${state.radius},${state.userLat},${state.userLon});
-  way["railway"="station"](around:${state.radius},${state.userLat},${state.userLon});
-
-  node["tourism"](around:${state.radius},${state.userLat},${state.userLon});
-  way["tourism"](around:${state.radius},${state.userLat},${state.userLon});
-
-  node["highway"="rest_area"](around:${state.radius},${state.userLat},${state.userLon});
-  way["highway"="rest_area"](around:${state.radius},${state.userLat},${state.userLon});
-
-  way["leisure"="park"](around:${state.radius},${state.userLat},${state.userLon});
-);
-out center tags;
-  `;
-}
-
-// 既存トイレ検索を強化版へ切替
-buildToiletQuery = buildEnhancedToiletQuery;
-
-// ===== 公園近接トイレ判定 =====
-
-function isPark(item){
-  return item.tags?.leisure === 'park';
-}
-
-function isStation(item){
-  return item.tags?.railway === 'station';
-}
-
-function isTourism(item){
-  return !!item.tags?.tourism;
-}
-
-function isRestArea(item){
-  return item.tags?.highway === 'rest_area';
-}
-
-// ===== キャッシュ =====
-
-const CACHE_KEY = 'genba-map-cache-v1';
-
-function saveCache(data){
-  try{
-    localStorage.setItem(CACHE_KEY, JSON.stringify({
-      time:Date.now(),
-      data
-    }));
-  }catch(err){
-    console.error(err);
-  }
-}
-
-function loadCache(){
-  try{
-    const raw = localStorage.getItem(CACHE_KEY);
-    if(!raw) return null;
-
-    const parsed = JSON.parse(raw);
-
-    if(Date.now() - parsed.time > 1000 * 60 * 15){
-      return null;
-    }
-
-    return parsed.data;
-  }catch(err){
-    return null;
-  }
-}
-
-// ===== 高速再検索 =====
-
-const originalLoadNearby = loadNearby;
-
-loadNearby = async function(){
-  const cache = loadCache();
-
-  if(cache && cache.mode === state.mode){
-    renderResults(cache.items || []);
-  }
-
-  await originalLoadNearby();
-};
-
-// ===== renderResults拡張 =====
-
-const originalRenderResults = renderResults;
-
-renderResults = function(items){
-
-  saveCache({
-    mode:state.mode,
-    items
-  });
-
-  originalRenderResults(items);
-};
-
-// ===== タグ強化 =====
-
-const originalBuildTags = buildTags;
-
-buildTags = function(item){
-  const tags = [];
-
-  if(isPark(item)){
-    tags.push(tag('🌳 公園','green'));
-  }
-
-  if(isStation(item)){
-    tags.push(tag('🚉 駅','yellow'));
-  }
-
-  if(isTourism(item)){
-    tags.push(tag('🏞 観光地','blue'));
-  }
-
-  if(isRestArea(item)){
-    tags.push(tag('🛣 道の駅系','green'));
-  }
-
-  return tags.join('') + originalBuildTags(item);
-};
-
-// ===== PWA準備 =====
-
-if('serviceWorker' in navigator){
-  window.addEventListener('load',()=>{
-    navigator.serviceWorker.register('./sw.js')
-      .catch(err=>console.error(err));
-  });
-}
-
-// ===== 拡張カテゴリ対応 =====
-
-function isAirport(item){
-  return item.tags?.aeroway === 'aerodrome';
-}
-
-function isBookStore(item){
-  return item.tags?.shop === 'books';
-}
-
-function isElectronics(item){
-  return item.tags?.shop === 'electronics';
-}
-
-function isShrine(item){
-  return item.tags?.religion === 'shinto';
-}
-
-function isTemple(item){
-  return item.tags?.religion === 'buddhist';
-}
-
-function isFuel(item){
-  return item.tags?.amenity === 'fuel';
-}
-
-// ===== 現場カテゴリ統合検索 =====
-
-function buildEnhancedToiletQuery(){
-  return `
-[out:json][timeout:25];
-(
-  node["amenity"="toilets"](around:${state.radius},${state.userLat},${state.userLon});
-  way["amenity"="toilets"](around:${state.radius},${state.userLat},${state.userLon});
-
-  node["railway"="station"](around:${state.radius},${state.userLat},${state.userLon});
-  way["railway"="station"](around:${state.radius},${state.userLat},${state.userLon});
-
-  node["tourism"](around:${state.radius},${state.userLat},${state.userLon});
-  way["tourism"](around:${state.radius},${state.userLat},${state.userLon});
-
-  node["highway"="rest_area"](around:${state.radius},${state.userLat},${state.userLon});
-  way["highway"="rest_area"](around:${state.radius},${state.userLat},${state.userLon});
-
-  node["aeroway"="aerodrome"](around:${state.radius},${state.userLat},${state.userLon});
-  way["aeroway"="aerodrome"](around:${state.radius},${state.userLat},${state.userLon});
-
-  node["shop"="books"](around:${state.radius},${state.userLat},${state.userLon});
-  node["shop"="electronics"](around:${state.radius},${state.userLat},${state.userLon});
-
-  node["religion"="shinto"](around:${state.radius},${state.userLat},${state.userLon});
-  way["religion"="shinto"](around:${state.radius},${state.userLat},${state.userLon});
-
-  node["religion"="buddhist"](around:${state.radius},${state.userLat},${state.userLon});
-  way["religion"="buddhist"](around:${state.radius},${state.userLat},${state.userLon});
-
-  node["amenity"="fuel"](around:${state.radius},${state.userLat},${state.userLon});
-  way["amenity"="fuel"](around:${state.radius},${state.userLat},${state.userLon});
-
-  way["leisure"="park"](around:${state.radius},${state.userLat},${state.userLon});
-);
-out center tags;
-  `;
-}
-
-// ===== IndexedDB完全化 =====
-
-let db;
-
-function initDB(){
-  return new Promise((resolve,reject)=>{
-
-    const req = indexedDB.open('genba-map-db',1);
-
-    req.onupgradeneeded = e=>{
-      const db = e.target.result;
-
-      if(!db.objectStoreNames.contains('places')){
-        db.createObjectStore('places',{ keyPath:'id' });
-      }
-    };
-
-    req.onsuccess = e=>{
-      db = e.target.result;
-      resolve();
-    };
-
-    req.onerror = reject;
-  });
-}
-
-async function savePlaces(items){
-  if(!db) return;
-
-  const tx = db.transaction('places','readwrite');
-  const store = tx.objectStore('places');
-
-  items.forEach(item=>{
-    store.put({
-      id:item.id || Math.random(),
-      data:item,
-      time:Date.now()
-    });
-  });
-}
-
-// ===== 24h推定 =====
-
-function is24h(item){
-  const opening = item.tags?.opening_hours || '';
-
-  return opening.includes('24') ||
-    item.tags?.access === 'yes' ||
-    isStation(item) ||
-    isRestArea(item);
-}
-
-// ===== 外トイレ推定 =====
-
-function hasOutdoorToilet(item){
-  return isPark(item)
-    || isShrine(item)
-    || isTemple(item)
-    || isRestArea(item)
-    || isTourism(item);
-}
-
-// ===== GPS省電力制御 =====
-
-let lastGPSUpdate = 0;
-
-const originalInitGPS = initGPS;
-
-initGPS = function(){
-
-  if(!navigator.geolocation){
-    setStatus('GPS未対応');
-    return;
-  }
-
-  navigator.geolocation.watchPosition(async pos=>{
-
-    const now = Date.now();
-
-    if(now - lastGPSUpdate < 5000){
-      return;
-    }
-
-    lastGPSUpdate = now;
-
-    const lat = pos.coords.latitude;
-    const lon = pos.coords.longitude;
-
-    state.userLat = lat;
-    state.userLon = lon;
-
-    setStatus(`現場モード動作中 / 半径${state.radius}m`);
-
-    if(!state.userMarker){
-      state.userMarker = L.marker([lat,lon],{icon:userIcon}).addTo(map);
-      map.setView([lat,lon],16);
-    }else{
-      state.userMarker.setLatLng([lat,lon]);
-    }
-
-    await loadNearby();
-
-  }, err=>{
-    console.error(err);
-    setStatus('GPS取得失敗');
-  }, {
-    enableHighAccuracy:true,
-    maximumAge:10000,
-    timeout:15000
-  });
-};
-
-// ===== タグ強化 =====
-
-const oldBuildTags2 = buildTags;
-
-buildTags = function(item){
-
-  const extra = [];
-
-  if(isAirport(item)){
-    extra.push(tag('✈️ 空港','blue'));
-  }
-
-  if(isBookStore(item)){
-    extra.push(tag('📚 本屋','yellow'));
-  }
-
-  if(isElectronics(item)){
-    extra.push(tag('📺 家電','yellow'));
-  }
-
-  if(isShrine(item)){
-    extra.push(tag('⛩ 神社','green'));
-  }
-
-  if(isTemple(item)){
-    extra.push(tag('🛕 寺','green'));
-  }
-
-  if(isFuel(item)){
-    extra.push(tag('⛽ GS','blue'));
-  }
-
-  if(is24h(item)){
-    extra.push(tag('🌙 24h候補','green'));
-  }
-
-  if(hasOutdoorToilet(item)){
-    extra.push(tag('🚻 外トイレ候補','yellow'));
-  }
-
-  return extra.join('') + oldBuildTags2(item);
-};
-
-// ===== Supercluster 高速化 =====
-
-let clusterGroup = null;
-
-function initClusterLayer(){
-  if(clusterGroup){
-    map.removeLayer(clusterGroup);
-  }
-
-  clusterGroup = L.layerGroup().addTo(map);
-}
-
-function addClusterMarker(lat,lon,popup){
-  if(!clusterGroup){
-    initClusterLayer();
-  }
-
-  const marker = L.marker([lat,lon]);
-
-  marker.bindPopup(popup);
-
-  clusterGroup.addLayer(marker);
-}
-
-// ===== タイルキャッシュ =====
-
-const tileCache = new Map();
-
-async function cacheTile(url){
-  try{
-    if(tileCache.has(url)) return;
-
-    const res = await fetch(url);
-    const blob = await res.blob();
-
-    tileCache.set(url, blob);
-  }catch(err){
-    console.error(err);
-  }
-}
-
-// ===== 完全オフライン検索 =====
-
-async function offlineNearbySearch(){
-  if(!db) return [];
-
-  return new Promise(resolve=>{
-
-    const tx = db.transaction('places','readonly');
-    const store = tx.objectStore('places');
-    const req = store.getAll();
-
-    req.onsuccess = ()=>{
-
-      const items = req.result
-        .map(v=>v.data)
-        .filter(item=>{
-
-          const lat = item.lat || item.center?.lat;
-          const lon = item.lon || item.center?.lon;
-
-          if(!lat || !lon) return false;
-
-          const d = calcDistance(
-            state.userLat,
-            state.userLon,
-            lat,
-            lon
-          );
-
-          return d <= 2000;
-        });
-
-      resolve(items);
-    };
-  });
-}
-
-// ===== 駐車しやすさ推定 =====
-
-function estimateParkingScore(item){
-
-  let score = 0;
-
-  if(item.tags?.parking === 'surface'){
-    score += 3;
-  }
-
-  if(item.tags?.fee === 'no'){
-    score += 2;
-  }
-
-  if(item.tags?.access !== 'private'){
-    score += 2;
-  }
-
-  if(item.tags?.capacity){
-    const cap = parseInt(item.tags.capacity || 0);
-
-    if(cap >= 20){
-      score += 3;
-    }
-  }
-
-  return score;
-}
-
-// ===== 公園内トイレ近接解析 =====
-
-function analyzeParkToiletRelation(items){
-
-  const parks = items.filter(isPark);
-  const toilets = items.filter(i=>
-    i.tags?.amenity === 'toilets'
-  );
-
-  parks.forEach(park=>{
-
-    const plat = park.center?.lat || park.lat;
-    const plon = park.center?.lon || park.lon;
-
-    toilets.forEach(toilet=>{
-
-      const tlat = toilet.center?.lat || toilet.lat;
-      const tlon = toilet.center?.lon || toilet.lon;
-
-      const d = calcDistance(plat, plon, tlat, tlon);
-
-      if(d <= 120){
-        park.hasNearbyToilet = true;
-      }
-    });
-  });
-
-  return items;
-}
-
-// ===== Apple Maps / Yahooナビ =====
-
-function openRoute(lat,lon,mode='google'){
-
-  let url = '';
-
-  if(mode === 'apple'){
-    url = `https://maps.apple.com/?daddr=${lat},${lon}`;
-  }
-  else if(mode === 'yahoo'){
-    url = `yj-navi://navigation?lat=${lat}&lon=${lon}`;
-  }
-  else {
-    url = `https://www.google.com/maps/dir/?api=1&destination=${lat},${lon}`;
-  }
-
-  window.open(url,'_blank');
-}
-
-// ===== Service Worker完全化 =====
-
-const swCode = `
-self.addEventListener('install',event=>{
-  event.waitUntil(
-    caches.open('genba-cache-v1').then(cache=>{
-      return cache.addAll([
-        './',
-        './index.html'
-      ]);
-    })
-  );
+  search();
+
+},e=>{
+  setStatus("GPS ERROR");
+},{
+  enableHighAccuracy:true,
+  maximumAge:0
 });
 
-self.addEventListener('fetch',event=>{
-  event.respondWith(
-    caches.match(event.request).then(res=>{
-      return res || fetch(event.request);
-    })
-  );
+// ---------------- STATUS ----------------
+function setStatus(t){
+  document.getElementById("status").innerText=t;
+  console.log("[STATUS]",t);
+}
+
+// ---------------- MODE ----------------
+document.getElementById("t1").onclick=()=>setMode("toilet");
+document.getElementById("t2").onclick=()=>setMode("parking");
+document.getElementById("t3").onclick=()=>setMode("drink");
+
+function setMode(m){
+  state.mode=m;
+  document.querySelectorAll("button").forEach(b=>b.classList.remove("active"));
+  if(m==="toilet")document.getElementById("t1").classList.add("active");
+  if(m==="parking")document.getElementById("t2").classList.add("active");
+  if(m==="drink")document.getElementById("t3").classList.add("active");
+  search();
+}
+
+// ---------------- QUERY ----------------
+function query(){
+
+if(state.mode==="parking"){
+return `
+[out:json];
+(
+node["amenity"="parking"](around:${state.radius},${state.lat},${state.lon});
+);
+out center;`;
+}
+
+if(state.mode==="drink"){
+return `
+[out:json];
+(
+node["amenity"="vending_machine"](around:${state.radius},${state.lat},${state.lon});
+node["vending"="drinks"](around:${state.radius},${state.lat},${state.lon});
+node["shop"="convenience"](around:${state.radius},${state.lat},${state.lon});
+);
+out center tags;`;
+}
+
+return `
+[out:json];
+(
+node["amenity"="toilets"](around:${state.radius},${state.lat},${state.lon});
+node["leisure"="park"](around:${state.radius},${state.lat},${state.lon});
+node["railway"="station"](around:${state.radius},${state.lat},${state.lon});
+node["religion"](around:${state.radius},${state.lat},${state.lon});
+);
+out center tags;`;
+}
+
+// ---------------- SEARCH ----------------
+async function search(){
+
+if(state.searching)return;
+if(!state.lat)return;
+
+state.searching=true;
+
+setStatus("検索中...");
+
+try{
+
+const res=await fetch("https://overpass-api.de/api/interpreter",{
+method:"POST",
+body:query()
 });
+
+const data=await res.json();
+
+let items=data.elements||[];
+
+// hotel除外
+items=items.filter(i=>{
+const n=(i.tags?.name||"").toLowerCase();
+return !n.includes("hotel") && i.tags?.tourism!=="hotel";
+});
+
+// render
+render(items);
+
+}catch(e){
+console.log(e);
+setStatus("通信エラー");
+}
+
+state.searching=false;
+}
+
+// ---------------- RENDER ----------------
+function render(items){
+
+state.markers.forEach(m=>map.removeLayer(m));
+state.markers=[];
+
+document.getElementById("list").innerHTML="";
+
+items.slice(0,50).forEach(i=>{
+
+const lat=i.lat||i.center?.lat;
+const lon=i.lon||i.center?.lon;
+if(!lat||!lon)return;
+
+const m=L.circleMarker([lat,lon]).addTo(map);
+state.markers.push(m);
+
+const el=document.createElement("div");
+el.className="card";
+
+let tag="";
+
+if(i.tags?.amenity==="toilets")tag+="<span class='tag g'>🚻</span>";
+if(i.tags?.leisure==="park")tag+="<span class='tag g'>🌳</span>";
+if(i.tags?.railway==="station")tag+="<span class='tag y'>🚉</span>";
+if(i.tags?.religion==="shinto")tag+="<span class='tag b'>⛩</span>";
+if(i.tags?.religion==="buddhist")tag+="<span class='tag b'>🛕</span>";
+if(i.tags?.amenity==="vending_machine")tag+="<span class='tag b'>🥤</span>";
+if(i.tags?.shop==="convenience")tag+="<span class='tag y'>🏪</span>";
+
+el.innerHTML=`
+<b>${i.tags?.name||"名称なし"}</b><br>
+${tag}
 `;
 
-// ===== iPhone Safari対策 =====
+document.getElementById("list").appendChild(el);
 
-function applyIOSOptimizations(){
-
-  document.body.style.webkitTouchCallout = 'none';
-  document.body.style.webkitUserSelect = 'none';
-
-  map.invalidateSize();
-
-  let ticking = false;
-
-  window.addEventListener('touchmove',()=>{
-    if(ticking) return;
-
-    requestAnimationFrame(()=>{
-      ticking = false;
-    });
-
-    ticking = true;
-  },{ passive:true });
-}
-
-// ===== Android Chrome発熱対策 =====
-
-function applyAndroidOptimizations(){
-
-  const isAndroid = /Android/i.test(navigator.userAgent);
-
-  if(!isAndroid) return;
-
-  state.radius = Math.min(state.radius,1500);
-
-  document.body.style.willChange = 'auto';
-}
-
-// ===== メモリリーク監視 =====
-
-const runtimeStats = {
-  markerCount:0,
-  lastCleanup:0,
-  gpsHistory:[]
-};
-
-function cleanupMarkers(){
-
-  if(state.markers.length < 150) return;
-
-  state.markers.forEach(m=>{
-    map.removeLayer(m);
-  });
-
-  state.markers = [];
-
-  runtimeStats.lastCleanup = Date.now();
-
-  console.log('[cleanup] marker gc');
-}
-
-// ===== iPhone低RAM対策 =====
-
-function lowRamProtection(){
-
-  const isiPhone = /iPhone/i.test(navigator.userAgent);
-
-  if(!isiPhone) return;
-
-  if(state.radius > 1000){
-    state.radius = 1000;
-  }
-
-  document.querySelectorAll('.leaflet-marker-icon').forEach((el,index)=>{
-    if(index > 60){
-      el.style.display = 'none';
-    }
-  });
-}
-
-// ===== ピン大量描画最適化 =====
-
-function optimizedRenderMarkers(items){
-
-  cleanupMarkers();
-
-  const fragment = [];
-
-  items.slice(0,80).forEach(item=>{
-
-    const lat = item.lat || item.center?.lat;
-    const lon = item.lon || item.center?.lon;
-
-    if(!lat || !lon) return;
-
-    const marker = L.circleMarker([lat,lon],{
-      radius:7,
-      weight:1,
-      fillOpacity:0.9
-    }).addTo(map);
-
-    marker.bindPopup(`
-      <b>${escapeHTML(getName(item))}</b>
-    `);
-
-    state.markers.push(marker);
-    fragment.push(marker);
-  });
-
-  runtimeStats.markerCount = fragment.length;
-}
-
-// ===== キャッシュ自動整理 =====
-
-function cleanupCache(){
-
-  const now = Date.now();
-
-  for(const [key,val] of tileCache.entries()){
-
-    if(now - (val.time || now) > 1000 * 60 * 60 * 24){
-      tileCache.delete(key);
-    }
-  }
-
-  try{
-    const raw = localStorage.getItem(CACHE_KEY);
-
-    if(raw){
-      const parsed = JSON.parse(raw);
-
-      if(now - parsed.time > 1000 * 60 * 60 * 12){
-        localStorage.removeItem(CACHE_KEY);
-      }
-    }
-  }catch(err){
-    console.error(err);
-  }
-}
-
-setInterval(cleanupCache, 1000 * 60 * 10);
-
-// ===== バッテリー監視 =====
-
-async function monitorBattery(){
-
-  if(!navigator.getBattery) return;
-
-  try{
-
-    const battery = await navigator.getBattery();
-
-    function apply(){
-
-      if(battery.level < 0.2){
-
-        state.radius = 500;
-
-        setStatus('省電力モード');
-      }
-    }
-
-    battery.addEventListener('levelchange',apply);
-
-    apply();
-
-  }catch(err){
-    console.error(err);
-  }
-}
-
-// ===== GPSドリフト補正 =====
-
-function correctGPSDrift(lat,lon){
-
-  runtimeStats.gpsHistory.push({
-    lat,
-    lon,
-    time:Date.now()
-  });
-
-  if(runtimeStats.gpsHistory.length > 5){
-    runtimeStats.gpsHistory.shift();
-  }
-
-  const avgLat = runtimeStats.gpsHistory
-    .reduce((a,b)=>a+b.lat,0)
-    / runtimeStats.gpsHistory.length;
-
-  const avgLon = runtimeStats.gpsHistory
-    .reduce((a,b)=>a+b.lon,0)
-    / runtimeStats.gpsHistory.length;
-
-  return {
-    lat:avgLat,
-    lon:avgLon
-  };
-}
-
-// ===== Overpass APIフォールバック =====
-
-const OVERPASS_ENDPOINTS = [
-  'https://overpass-api.de/api/interpreter',
-  'https://lz4.overpass-api.de/api/interpreter',
-  'https://overpass.kumi.systems/api/interpreter'
-];
-
-async function fetchOverpass(query){
-
-  for(const endpoint of OVERPASS_ENDPOINTS){
-
-    try{
-
-      const res = await fetch(endpoint,{
-        method:'POST',
-        body:query
-      });
-
-      if(res.ok){
-        return await res.json();
-      }
-
-    }catch(err){
-      console.warn('fallback',endpoint);
-    }
-  }
-
-  throw new Error('all overpass failed');
-}
-
-// ===== UIアニメ軽量化 =====
-
-function reduceAnimations(){
-
-  const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-  if(reduce){
-    document.documentElement.style.scrollBehavior = 'auto';
-  }
-
-  document.querySelectorAll('*').forEach(el=>{
-    el.style.animationDuration = '0.12s';
-    el.style.transitionDuration = '0.12s';
-  });
-}
-
-// ===== PWA Manifest =====
-
-const manifestData = {
-  name:'現場トイレ駐車場',
-  short_name:'現場MAP',
-  display:'standalone',
-  background_color:'#0f1115',
-  theme_color:'#0f1115',
-  start_url:'./',
-  icons:[
-    {
-      src:'icon-192.png',
-      sizes:'192x192',
-      type:'image/png'
-    },
-    {
-      src:'icon-512.png',
-      sizes:'512x512',
-      type:'image/png'
-    }
-  ]
-};
-
-// ===== install導線 =====
-
-let deferredPrompt;
-
-window.addEventListener('beforeinstallprompt',(e)=>{
-
-  e.preventDefault();
-
-  deferredPrompt = e;
-
-  const btn = document.createElement('button');
-
-  btn.textContent = '📲 インストール';
-  btn.className = 'action-btn';
-
-  btn.style.position = 'fixed';
-  btn.style.bottom = '20px';
-  btn.style.left = '12px';
-  btn.style.right = '12px';
-  btn.style.zIndex = '9999';
-
-  btn.onclick = async ()=>{
-
-    deferredPrompt.prompt();
-
-    const result = await deferredPrompt.userChoice;
-
-    console.log(result.outcome);
-  };
-
-  document.body.appendChild(btn);
 });
 
-// ===== splash screen =====
-
-function createSplash(){
-
-  const splash = document.createElement('div');
-
-  splash.id = 'splash';
-
-  splash.innerHTML = `
-    <div style="
-      position:fixed;
-      inset:0;
-      background:#0f1115;
-      z-index:99999;
-      display:flex;
-      align-items:center;
-      justify-content:center;
-      font-size:28px;
-      font-weight:900;
-    ">
-      🚻 現場MAP
-    </div>
-  `;
-
-  document.body.appendChild(splash);
-
-  setTimeout(()=>{
-    splash.remove();
-  },1200);
+setStatus("表示完了 "+items.length);
 }
 
-// ===== DRINK DB 月次更新 =====
-
-const DRINK_DB_KEY = 'drink-db-v1';
-const DRINK_DB_UPDATED_KEY = 'drink-db-updated';
-
-async function shouldUpdateDrinkDB(){
-
-  const last = localStorage.getItem(DRINK_DB_UPDATED_KEY);
-
-  if(!last) return true;
-
-  const diff = Date.now() - parseInt(last,10);
-
-  const month = 1000 * 60 * 60 * 24 * 30;
-
-  return diff > month;
-}
-
-async function saveDrinkDB(items){
-
-  try{
-
-    const drinks = items.filter(item=>
-      isDrinkMachine(item)
-    );
-
-    localStorage.setItem(
-      DRINK_DB_KEY,
-      JSON.stringify({
-        updated:Date.now(),
-        items:drinks
-      })
-    );
-
-    localStorage.setItem(
-      DRINK_DB_UPDATED_KEY,
-      Date.now().toString()
-    );
-
-    saveRuntimeLog('drink-db-save',{
-      count:drinks.length
-    });
-
-  }catch(err){
-    console.error(err);
-  }
-}
-
-async function loadDrinkDB(){
-
-  try{
-
-    const raw = localStorage.getItem(DRINK_DB_KEY);
-
-    if(!raw) return [];
-
-    const parsed = JSON.parse(raw);
-
-    return parsed.items || [];
-
-  }catch(err){
-    console.error(err);
-    return [];
-  }
-}
-
-async function updateDrinkDatabase(){
-
-  const need = await shouldUpdateDrinkDB();
-
-  if(!need){
-    console.log('[drink-db] monthly cache active');
-    return;
-  }
-
-  try{
-
-    setStatus('🥤 DRINK DB更新中');
-
-    const query = buildDrinkQuery();
-
-    const data = await fetchOverpass(query);
-
-    await saveDrinkDB(data.elements || []);
-
-    setStatus('🥤 DRINK DB更新完了');
-
-  }catch(err){
-    console.error(err);
-
-    setStatus('🥤 DRINK DB更新失敗');
-  }
-}
-
-function createDrinkDBInfo(){
-
-  const box = document.createElement('div');
-
-  box.id = 'drink-db-info';
-
-  box.style.cssText = `
-    position:fixed;
-    top:70px;
-    right:12px;
-    z-index:9999;
-    background:rgba(15,17,21,.92);
-    border:1px solid #2a2f3a;
-    border-radius:14px;
-    padding:10px 12px;
-    font-size:12px;
-    font-weight:700;
-    backdrop-filter:blur(10px);
-  `;
-
-  const last = localStorage.getItem(DRINK_DB_UPDATED_KEY);
-
-  let text = '未更新';
-
-  if(last){
-    const d = new Date(parseInt(last,10));
-
-    text = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
-  }
-
-  box.innerHTML = `
-    🥤 DRINK DB<br>
-    最終更新: ${text}
-  `;
-
-  document.body.appendChild(box);
-}
-
-// ===== 実運用ログ保存 =====
-
-function saveRuntimeLog(type,data={}){
-
-  try{
-
-    const logs = JSON.parse(
-      localStorage.getItem('genba-runtime-log') || '[]'
-    );
-
-    logs.push({
-      type,
-      data,
-      time:Date.now()
-    });
-
-    while(logs.length > 300){
-      logs.shift();
-    }
-
-    localStorage.setItem(
-      'genba-runtime-log',
-      JSON.stringify(logs)
-    );
-
-  }catch(err){
-    console.error(err);
-  }
-}
-
-window.addEventListener('error',e=>{
-  saveRuntimeLog('error',{
-    message:e.message
-  });
-});
-
-// ===== 起動最適化 =====
-
-async function bootOptimizations(){
-
-  createSplash();
-
-  applyIOSOptimizations();
-  applyAndroidOptimizations();
-
-  reduceAnimations();
-
-  lowRamProtection();
-
-  await monitorBattery();
-
-  await initDB();
-
-  await updateDrinkDatabase();
-
-  createDrinkDBInfo();
-
-  saveRuntimeLog('boot');
-}
-
-bootOptimizations();
-
-// ===== オフライン通知 =====
-
-window.addEventListener('offline',()=>{
-  setStatus('オフラインモード');
-});
-
-window.addEventListener('online',()=>{
-  setStatus('オンライン復帰');
-});
-
-// ===== 起動 =====
-
-initGPS();
 </script>
 
 </body>
